@@ -210,15 +210,8 @@ async function twilioSend(channelId: string, to: string, body: string): Promise<
         return
     }
     try {
-        const { sendTwilioSms } = await import('@plexo/agent/channels/twilio-send')
-        const result = await sendTwilioSms({
-            accountSid: cfg.accountSid,
-            authToken: cfg.authToken,
-            from: cfg.fromNumber,
-            to,
-            body,
-        })
-        if (!result.ok) logger.warn({ channelId, to, error: result.error, status: result.status }, 'Twilio send failed')
+        // twilio-send module removed in DD-6c (multi-channel surface stripped).
+        throw new Error('twilio-send module removed')
     } catch (err) {
         logger.warn({ err, channelId, to }, 'Twilio send threw')
     }
@@ -311,9 +304,8 @@ async function gmailSendProgress(context: TaskContext, text: string): Promise<vo
     const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
     const attachments = readAttachments(context)
     try {
-        const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
-        const result = await gmailSend({ channelId, to, subject, body: text, threadId, inReplyTo, attachments })
-        if (!result.ok) logger.warn({ channelId, status: result.status, error: result.error }, 'Gmail progress send failed')
+        // gmail-send module removed in DD-6c (multi-channel surface stripped).
+        throw new Error('gmail-send module removed')
     } catch (err) {
         logger.warn({ err, channelId }, 'Gmail progress send threw')
     }
@@ -345,13 +337,9 @@ export async function deliverToGmail(
     const threadId = typeof context.threadId === 'string' ? context.threadId : undefined
     const inReplyTo = typeof context.messageId === 'string' ? context.messageId : undefined
     const attachments = readAttachments(context)
-    const { gmailSend } = await import('@plexo/agent/channels/gmail-send')
-    const result = await gmailSend({ channelId, to, subject, body, threadId, inReplyTo, attachments })
-    if (!result.ok) {
-        // Surface the failure so deliverToOriginChannel's outer catch can log
-        // it loudly — silent swallow would leave a thread without the reply.
-        throw new Error(`Gmail delivery failed: ${result.error ?? `HTTP ${result.status ?? '?'}`}`)
-    }
+    // gmail-send module removed in DD-6c (multi-channel surface stripped).
+    void attachments
+    throw new Error('gmail-send module removed — Gmail delivery unavailable')
 }
 
 // ── Slack final delivery ─────────────────────────────────────────────────────

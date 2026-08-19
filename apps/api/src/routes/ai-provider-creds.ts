@@ -23,7 +23,6 @@ import * as workspacesRepo from '../repositories/workspaces.repository.js'
 import * as keySharesRepo from '../repositories/key-shares.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
 import { logger } from '../logger.js'
-import { invalidateIntrospectCache } from './introspect.js'
 import { clearStaleKey } from '@plexo/agent/providers/registry'
 import { UUID_RE } from '../validation.js'
 import { audit } from '../audit.js'
@@ -277,8 +276,6 @@ aiProviderCredsRouter.put('/', async (req, res) => {
         })
         // Clear stale-key cache so updated keys re-enter the fallback chain immediately
         for (const pk of Object.keys(toWriteVault)) clearStaleKey(id, pk)
-        // Invalidate the introspection cache so the Intelligence page shows fresh data
-        void invalidateIntrospectCache(id)
 
         // Analytics: settings changed (no setting values — only key name)
         try {

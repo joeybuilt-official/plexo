@@ -3,7 +3,7 @@
 
 /**
  * SSE streaming helper — wraps EventSource for Node.js.
- * Used by `--wait`, `task logs`, `sprint logs`, `plexo logs`.
+ * Used by `--wait`, `task logs`, `plexo logs`.
  */
 import { EventSource } from 'eventsource'
 import type { PlexoProfile } from './config.js'
@@ -77,40 +77,6 @@ export function waitForTask(
                 clearTimeout(timeout)
                 close()
                 resolve({ status: data.status ?? event.type.replace('task.', ''), qualityScore: data.qualityScore ?? null })
-            }
-        }, (err) => {
-            clearTimeout(timeout)
-            reject(err)
-        })
-    })
-}
-
-/**
- * Wait for a sprint to complete. Streams worker output.
- */
-export function waitForSprint(
-    profile: PlexoProfile,
-    sprintId: string,
-    timeoutMs: number,
-    onMessage: (msg: string) => void,
-): Promise<{ status: string }> {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            close()
-            reject(new Error('TIMEOUT'))
-        }, timeoutMs)
-
-        const close = openSse(profile, (event) => {
-            const data = event.data as { sprintId?: string; id?: string; status?: string; message?: string }
-            const isThisSprint = data?.sprintId === sprintId || data?.id === sprintId
-            if (!isThisSprint) return
-
-            if (data.message) onMessage(data.message)
-
-            if (event.type === 'sprint.completed' || event.type === 'sprint.failed' || event.type === 'sprint.cancelled') {
-                clearTimeout(timeout)
-                close()
-                resolve({ status: data.status ?? event.type.replace('sprint.', '') })
             }
         }, (err) => {
             clearTimeout(timeout)

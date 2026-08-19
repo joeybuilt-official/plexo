@@ -24,18 +24,17 @@ export function registerLogs(program: Command): void {
     program.command('logs')
         .description('Tail live agent logs via SSE stream')
         .option('--task <id>', 'Scope to a specific task')
-        .option('--sprint <id>', 'Scope to a specific sprint')
         .option('--level <level>', 'Minimum level: debug|info|warn|error', 'info')
         .option('--since <time>', 'Show logs since (e.g. 1h, 2d, 2026-03-01)')
         .option('--output <format>', 'raw|json', 'raw')
         .option('--profile <name>')
-        .action((opts: { task?: string; sprint?: string; level: string; since?: string; output: string; profile?: string }) => {
+        .action((opts: { task?: string; level: string; since?: string; output: string; profile?: string }) => {
             const profile = requireProfile(opts.profile)
             const minLevel = LEVEL_ORDER.indexOf(opts.level)
             const since = opts.since ? parseSince(opts.since) : null
 
             console.log(c.dim(
-                `Tailing logs${opts.task ? ` for task ${opts.task}` : ''}${opts.sprint ? ` for sprint ${opts.sprint}` : ''} (Ctrl+C to stop)\n`
+                `Tailing logs${opts.task ? ` for task ${opts.task}` : ''} (Ctrl+C to stop)\n`
             ))
 
             openSse(profile, (event: SseEvent) => {
@@ -43,7 +42,6 @@ export function registerLogs(program: Command): void {
                     level?: string
                     message?: string
                     taskId?: string
-                    sprintId?: string
                     ts?: string
                     time?: string
                     [key: string]: unknown
@@ -61,7 +59,6 @@ export function registerLogs(program: Command): void {
 
                 // Scope filter
                 if (opts.task && data.taskId !== opts.task) return
-                if (opts.sprint && data.sprintId !== opts.sprint) return
 
                 if (opts.output === 'json') {
                     console.log(JSON.stringify(event.data))

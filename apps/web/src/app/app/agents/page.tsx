@@ -831,9 +831,7 @@ function AdditionalAgentsSection({ workspaceId }: { workspaceId: string }) {
                 <EmptyState
                     icon={Bot}
                     headline="No agent extensions installed"
-                    description="Your primary agent handles most work. Install agent extensions from the Hub to add specialized personas."
-                    actionLabel="Browse Hub"
-                    actionHref="/app/hub"
+                    description="Your primary agent handles most work. Install agent extensions to add specialized personas."
                 />
             ) : filtered.length === 0 ? (
                 <div className="rounded-sm border border-border bg-surface-1/40 py-10 text-center">

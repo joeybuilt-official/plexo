@@ -815,7 +815,7 @@ export { CONNECTION_REGISTRY } from './registry.js'
 
 // ── Google OAuth token refresh ────────────────────────────────────────────────
 
-const GOOGLE_REGISTRY_IDS = new Set(['google-drive', 'google-workspace'])
+const GOOGLE_REGISTRY_IDS = new Set(['google-workspace'])
 
 async function maybeRefreshGoogleToken(
     creds: ConnectionCredentials,
@@ -986,13 +986,11 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
                 continue
             }
 
-            // Decrypt credentials. gmessages stores a base64-encoded libgm
-            // AuthData blob (not JSON) and its factory ignores creds entirely
-            // (state lives in the sidecar); skip the JSON.parse for it.
+            // Decrypt credentials.
             let creds: ConnectionCredentials = {}
             try {
                 const raw = row.credentials as { encrypted?: string } | null
-                if (raw?.encrypted && row.registryId !== 'gmessages') {
+                if (raw?.encrypted) {
                     const decrypted = decrypt(raw.encrypted, workspaceId)
                     creds = JSON.parse(decrypted) as ConnectionCredentials
                 }
@@ -1006,12 +1004,15 @@ export async function loadConnectionTools(workspaceId: string, allowedIds?: stri
                 creds = await maybeRefreshGoogleToken(creds, row.id, workspaceId)
             }
 
-            const tools = factory(creds, { connectionId: row.id, workspaceId })
+            const tools = await factory(creds, { connectionId: row.id, workspaceId })
 
             // Apply enabled_tools filter (null = all enabled)
             const enabled = row.enabledTools as string[] | null
             for (const [name, def] of Object.entries(tools)) {
-                const shortName = name.split('__')[1] ?? name  // e.g. "create_branch"
+                // mcp__<server>__<tool> → raw tool name is the LAST segment;
+                // {prefix}__<tool> → raw tool name is the SECOND segment.
+                const segs = name.split('__')
+                const shortName = (segs.length > 2 ? segs[segs.length - 1] : segs[1]) ?? name
                 if (enabled !== null && !enabled.includes(shortName) && !enabled.includes(name)) {
                     continue
                 }

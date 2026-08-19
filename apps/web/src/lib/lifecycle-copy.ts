@@ -9,10 +9,8 @@
  * `plexo_ops_task_events`. This module turns those into labels a user with
  * no codebase knowledge can scan in two seconds.
  *
- * Sibling helpers:
+ * Sibling helper:
  *   - `apps/web/src/lib/plan-step-copy.ts` (Phase F1) — plan step namespace
- *   - `humanizeOperation` in `apps/web/src/app/app/approvals/page.tsx`
- *     (Phase D) — operation namespace
  * Keep them separate; they describe different things.
  */
 

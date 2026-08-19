@@ -55,8 +55,8 @@ describe('findPlexoPath', () => {
         expect(findPlexoPath('This is just some text.')).toBeNull()
     })
     it('prefers deep Settings path over generic Settings', () => {
-        const found = findPlexoPath('Open Settings > Channels now.')
-        expect(found?.entry.href).toBe('/app/settings/channels')
+        const found = findPlexoPath('Open Settings > Connections now.')
+        expect(found?.entry.href).toBe('/app/settings/connections')
     })
 })
 

@@ -23,4 +23,4 @@ export type ToolSet = Record<string, any>
 export type ToolFactory = (
     creds: ConnectionCredentials,
     opts: { connectionId: string; workspaceId: string },
-) => ToolSet
+) => ToolSet | Promise<ToolSet>

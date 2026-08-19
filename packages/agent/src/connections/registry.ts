@@ -33,23 +33,13 @@ import { z } from 'zod'
 
 import { SSH_TOOLS } from './factories/ssh.js'
 import { LEVIO_TOOLS } from './factories/levio.js'
-import { NOTION_TOOLS } from './factories/notion.js'
-import { LINEAR_TOOLS } from './factories/linear.js'
-import { JIRA_TOOLS } from './factories/jira.js'
-import { GOOGLE_DRIVE_TOOLS } from './factories/google-drive.js'
 import { GOOGLE_WORKSPACE_TOOLS } from './factories/google-workspace.js'
-import { GMAIL_TOOLS } from './factories/gmail.js'
-import { GOOGLE_CALENDAR_TOOLS } from './factories/google-calendar.js'
-import { AIRTABLE_TOOLS } from './factories/airtable.js'
-import { DISCORD_TOOLS } from './factories/discord.js'
-import { TELEGRAM_TOOLS } from './factories/telegram.js'
-import { GMESSAGES_TOOLS } from './factories/gmessages.js'
+import { MCP_TOOLS } from './factories/mcp.js'
 import {
     GITLAB_TOOLS,
     NETLIFY_TOOLS,
     SENDGRID_TOOLS,
     MAILCHIMP_TOOLS,
-    TWILIO_TOOLS,
     PAGERDUTY_TOOLS,
     DATADOG_TOOLS,
     REPLICATE_TOOLS,
@@ -72,6 +62,7 @@ export type ConnectionCategory =
     | 'media'
     | 'ai'
     | 'infra'
+    | 'mcp'
 
 export interface CapabilitySpec {
     /** Short capability name matching the suffix after `{prefix}__`.
@@ -192,42 +183,17 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
         ],
         factory: bridgeRef('slack'),
     },
-    discord: {
-        id: 'discord',
-        displayName: 'Discord',
-        category: 'comms',
-        toolPrefix: 'discord',
-        capabilities: [
-            { name: 'send_message', description: 'Send a Discord message' },
-            { name: 'list_channels', description: 'List Discord channels' },
-        ],
-        factory: DISCORD_TOOLS,
-    },
-    telegram: {
-        id: 'telegram',
-        displayName: 'Telegram',
-        category: 'comms',
-        toolPrefix: 'telegram',
-        capabilities: [
-            { name: 'send_message', description: 'Send a Telegram message' },
-        ],
-        factory: TELEGRAM_TOOLS,
-    },
-    // Google Messages — backed by apps/gmessages Go sidecar (libgm). Pairing
-    // lives at /app/connections/gmessages/pair; the factory talks to the
-    // sidecar over PLEXO_SERVICE_KEY HMAC. Capability names MUST match the
-    // connections_registry seed in 0117_gmessages_phase2_schema.sql, which
-    // advertises ["gmessages__send_message", "gmessages__list_threads"].
-    gmessages: {
-        id: 'gmessages',
-        displayName: 'Google Messages',
-        category: 'comms',
-        toolPrefix: 'gmessages',
-        capabilities: [
-            { name: 'send_message', description: 'Send an SMS/RCS via the paired phone' },
-            { name: 'list_threads', description: 'List recent Google Messages threads' },
-        ],
-        factory: GMESSAGES_TOOLS,
+    // ── MCP (user-configured external tool servers) ──────────────────────────
+    // Capabilities are discovered dynamically at runtime from each configured
+    // MCP server, so the static capability list is empty — the factory returns
+    // one agent tool per discovered MCP tool, namespaced mcp__<server>__<tool>.
+    mcp_custom: {
+        id: 'mcp_custom',
+        displayName: 'MCP Server',
+        category: 'mcp',
+        toolPrefix: 'mcp',
+        capabilities: [],
+        factory: MCP_TOOLS,
     },
 
     // ── Infra / Ops ──────────────────────────────────────────────────────────
@@ -352,77 +318,7 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
         factory: bridgeRef('deepgram'),
     },
 
-    // ── Project Management ───────────────────────────────────────────────────
-    notion: {
-        id: 'notion',
-        displayName: 'Notion',
-        category: 'pm',
-        toolPrefix: 'notion',
-        capabilities: [
-            { name: 'search', description: 'Search Notion workspace' },
-            { name: 'create_page', description: 'Create a Notion page' },
-            { name: 'update_page', description: 'Update a Notion page' },
-            { name: 'get_page', description: 'Read a Notion page' },
-            { name: 'list_databases', description: 'List Notion databases' },
-            { name: 'query_database', description: 'Query a Notion database' },
-        ],
-        factory: NOTION_TOOLS,
-    },
-    linear: {
-        id: 'linear',
-        displayName: 'Linear',
-        category: 'pm',
-        toolPrefix: 'linear',
-        capabilities: [
-            { name: 'create_issue', description: 'Create a Linear issue' },
-            { name: 'list_issues', description: 'List Linear issues' },
-            { name: 'update_issue', description: 'Update a Linear issue' },
-            { name: 'search', description: 'Search Linear' },
-        ],
-        factory: LINEAR_TOOLS,
-    },
-    jira: {
-        id: 'jira',
-        displayName: 'Jira',
-        category: 'pm',
-        toolPrefix: 'jira',
-        capabilities: [
-            { name: 'create_issue', description: 'Create a Jira issue' },
-            { name: 'list_issues', description: 'List Jira issues' },
-            { name: 'update_issue', description: 'Update a Jira issue' },
-            { name: 'search', description: 'Search Jira (JQL)' },
-        ],
-        factory: JIRA_TOOLS,
-    },
-
     // ── Docs / Knowledge ─────────────────────────────────────────────────────
-    'google-drive': {
-        id: 'google-drive',
-        displayName: 'Google Drive',
-        category: 'docs',
-        toolPrefix: 'gdrive',
-        capabilities: [
-            { name: 'search', description: 'Search Google Drive' },
-            { name: 'get_file', description: 'Download a Google Drive file' },
-            { name: 'create_file', description: 'Create a Google Drive file' },
-            { name: 'list_folders', description: 'List Google Drive folders' },
-        ],
-        factory: GOOGLE_DRIVE_TOOLS,
-    },
-    airtable: {
-        id: 'airtable',
-        displayName: 'Airtable',
-        category: 'docs',
-        toolPrefix: 'airtable',
-        capabilities: [
-            { name: 'list_records', description: 'List Airtable records' },
-            { name: 'create_record', description: 'Create an Airtable record' },
-            { name: 'update_record', description: 'Update an Airtable record' },
-            { name: 'search', description: 'Search Airtable records' },
-        ],
-        factory: AIRTABLE_TOOLS,
-    },
-
     'google-workspace': {
         id: 'google-workspace',
         displayName: 'Google (Gmail + Calendar + Drive)',
@@ -442,34 +338,6 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
             { name: 'create_file', description: 'Create a Google Drive file' },
         ],
         factory: GOOGLE_WORKSPACE_TOOLS,
-    },
-
-    gmail: {
-        id: 'gmail',
-        displayName: 'Gmail',
-        category: 'comms',
-        toolPrefix: 'gmail',
-        capabilities: [
-            { name: 'list_emails', description: 'List Gmail messages' },
-            { name: 'read_email', description: 'Read a Gmail message' },
-            { name: 'send_email', description: 'Send an email via Gmail' },
-        ],
-        factory: GMAIL_TOOLS,
-    },
-
-    'google-calendar': {
-        id: 'google-calendar',
-        displayName: 'Google Calendar',
-        category: 'pm',
-        toolPrefix: 'gcal',
-        capabilities: [
-            { name: 'list_calendars', description: 'List available Google Calendars with IDs' },
-            { name: 'list_events', description: 'List Google Calendar events' },
-            { name: 'create_event', description: 'Create a calendar event' },
-            { name: 'update_event', description: 'Update a calendar event' },
-            { name: 'delete_event', description: 'Delete a calendar event' },
-        ],
-        factory: GOOGLE_CALENDAR_TOOLS,
     },
 
     // ── Stubs (honest "not yet implemented") ─────────────────────────────────
@@ -518,17 +386,6 @@ export const CONNECTION_REGISTRY: Record<string, ConnectionDescriptor> = {
             { name: 'list_subscribers', description: 'List Mailchimp subscribers' },
         ],
         factory: MAILCHIMP_TOOLS,
-        stub: true,
-    },
-    twilio: {
-        id: 'twilio',
-        displayName: 'Twilio',
-        category: 'comms',
-        toolPrefix: 'twilio',
-        capabilities: [
-            { name: 'send_sms', description: 'Send an SMS via Twilio' },
-        ],
-        factory: TWILIO_TOOLS,
         stub: true,
     },
     pagerduty: {

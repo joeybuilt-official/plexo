@@ -77,6 +77,13 @@ export function classifyError(err: unknown): Classification {
     if (!(err instanceof Error)) {
         return { class: 'unknown', shouldFallback: false, suggestedAction: 'fail-hard' }
     }
+    // Caller-signaled non-fallback sentinel: the chat stream handler throws this
+    // AFTER partial output has already been delivered to the client, so the router
+    // must NOT cascade (a re-call would re-stream from the start and duplicate what
+    // the client already received). Treated as a hard, non-advancing failure.
+    if (err.name === 'StreamPartialAbortError') {
+        return { class: 'unknown', shouldFallback: false, suggestedAction: 'fail-hard' }
+    }
     const msg = stripUrls(err.message).toLowerCase()
     const retryAfterMs = parseRetryAfterMs(err.message)
 

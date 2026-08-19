@@ -427,6 +427,20 @@ export const conversations = pgTable('conversations', {
      * Stored as jsonb (number[]) — portable, no pgvector dependency.
      */
     sessionEmbedding: jsonb('session_embedding').$type<number[] | null>().default(null),
+    /**
+     * Per-conversation model override (DD-5). When non-null, the web chat path
+     * uses this as the `modelIdOverride` for `routeAndCall` instead of the
+     * agent's resolved model. Format: `<providerType>/<modelId>` or bare
+     * `<modelId>` — same contract as `routeAndCall.modelIdOverride`.
+     */
+    modelOverride: text('model_override'),
+    /**
+     * Per-conversation system-prompt override (DD-5). When non-empty, the web
+     * chat path PREPENDS this to the compiled behavior prompt so the operator
+     * can tune posture inline without losing identity/capabilities. Empty/null
+     * = use the compiled default (current behavior).
+     */
+    systemPromptOverride: text('system_prompt_override'),
     createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table: any) => [
     index('conversations_workspace_idx').on(table.workspaceId),

@@ -457,7 +457,7 @@ export default function ToolsPage() {
                     <ZapOff className="h-10 w-10 text-text-muted mx-auto mb-3" aria-hidden="true" />
                     <p className="text-sm font-medium text-text-secondary">No extensions installed</p>
                     <p className="text-xs text-text-muted mt-1">
-                        Visit the <a href="/app/hub" className="text-azure hover:underline">Hub</a> to browse available extensions.
+                        Browse available extensions to install new tools.
                     </p>
                 </div>
             ) : filteredTools.length === 0 ? (

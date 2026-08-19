@@ -3,9 +3,16 @@
 
 'use client'
 
-import { forwardRef } from 'react'
-import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText } from 'lucide-react'
+import { forwardRef, useState } from 'react'
+import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText, ChevronDown, ChevronUp, Cpu, MessageSquareText } from 'lucide-react'
 import type { PastedImage, PastedDocument } from '@web/lib/attachments'
+
+export interface ProviderModelOption {
+    /** Stable value sent to the API: `<providerType>/<modelId>` or bare `<modelId>`. */
+    value: string
+    /** Display label, e.g. `OpenAI / gpt-4o`. */
+    label: string
+}
 
 interface ComposerProps {
     input: string
@@ -27,6 +34,16 @@ interface ComposerProps {
     onVoiceToggle: () => void
     isLiveMode: boolean
     onLiveModeToggle: () => void
+    /** DD-5: workspace-configured provider/model rows for the picker. Empty = none configured. */
+    modelOptions?: ProviderModelOption[]
+    /** DD-5: current per-conversation model override; null = use agent default. */
+    modelOverride?: string | null
+    onModelOverrideChange?: (v: string | null) => void
+    /** DD-5: current per-conversation system-prompt override; empty = use compiled default. */
+    systemPromptOverride?: string
+    onSystemPromptOverrideChange?: (v: string) => void
+    /** DD-5: fired on textarea blur so the page can PATCH the persisted override. */
+    onSystemPromptOverrideBlur?: () => void
 }
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer({
@@ -36,11 +53,73 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     onFileInputClick, fileInputRef, onFileInputChange,
     voiceSupported, isListening, onVoiceToggle,
     isLiveMode, onLiveModeToggle,
+    modelOptions = [],
+    modelOverride = null,
+    onModelOverrideChange,
+    systemPromptOverride = '',
+    onSystemPromptOverrideChange,
+    onSystemPromptOverrideBlur,
 }, inputRef) {
     const placeholder = isListening ? 'Listening…' : 'Message your agent…'
+    const [showSystemPrompt, setShowSystemPrompt] = useState(false)
+    const hasModelPicker = modelOptions.length > 0 && onModelOverrideChange
+    const hasSystemPromptControl = !!onSystemPromptOverrideChange
 
     return (
         <>
+            {(hasModelPicker || hasSystemPromptControl) && (
+                <div className="flex flex-wrap items-center gap-2 px-1">
+                    {hasModelPicker && (
+                        <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                            <Cpu className="h-3.5 w-3.5 shrink-0" />
+                            <select
+                                value={modelOverride ?? ''}
+                                onChange={(e) => onModelOverrideChange!(e.target.value || null)}
+                                disabled={sending}
+                                className="rounded-sm border border-border bg-surface-1 px-2 py-1 text-xs text-text-primary font-mono focus:outline-none focus:border-accent-dim disabled:opacity-50 max-w-[220px] truncate"
+                                aria-label="Model override"
+                            >
+                                <option value="">Default (agent)</option>
+                                {modelOptions.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
+                    {hasSystemPromptControl && (
+                        <button
+                            type="button"
+                            onClick={() => setShowSystemPrompt((v) => !v)}
+                            aria-label={showSystemPrompt ? 'Hide system prompt' : 'Edit system prompt'}
+                            aria-expanded={showSystemPrompt}
+                            className={`flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs font-medium transition-all border ${
+                                systemPromptOverride.trim()
+                                    ? 'bg-azure/10 text-azure border-azure/20'
+                                    : 'text-text-muted border-border bg-surface-1 hover:text-text-secondary'
+                            }`}
+                        >
+                            <MessageSquareText className="h-3.5 w-3.5" />
+                            <span>System prompt</span>
+                            {showSystemPrompt ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {showSystemPrompt && hasSystemPromptControl && (
+                <div className="px-1">
+                    <textarea
+                        value={systemPromptOverride}
+                        onChange={(e) => onSystemPromptOverrideChange!(e.target.value)}
+                        onBlur={onSystemPromptOverrideBlur}
+                        placeholder="System prompt override — leave empty to use the compiled behavior prompt. Your text is PREPENDED to the default so identity/capabilities stay intact."
+                        rows={4}
+                        disabled={sending}
+                        className="w-full resize-y rounded border border-border bg-surface-1 px-3 py-2 text-xs font-mono text-text-primary placeholder:text-text-muted placeholder:font-mono focus:outline-none focus:border-accent-dim focus:ring-1 focus:ring-accent/20 disabled:opacity-50 max-h-48 leading-relaxed"
+                    />
+                </div>
+            )}
+
             {(pastedImages.length > 0 || pastedDocs.length > 0) && (
                 <div className="flex flex-wrap gap-2 px-1">
                     {pastedImages.map((img) => (

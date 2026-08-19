@@ -27,7 +27,6 @@ import { logger } from './logger.js'
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './parallel-executor.js'
-import { logSprintHandoff } from '@plexo/agent/sprint/sprint-ledger'
 import { requestApproval, waitForDecision, getDecision, elevateOutboundOneWayDoors, type PendingDecision } from '@plexo/agent/one-way-door'
 import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
 import { incrementCounter } from './lib/metrics.js'
@@ -1456,39 +1455,6 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             } catch (reflectErr) {
                 logger.warn({ err: reflectErr, taskId: task.id }, 'reflectAndPromote failed — non-fatal')
             }
-        }
-
-        // ── Sprint task sync (CRITICAL) ────────────────────────────────────────
-        // The sprint runner polls sprint_tasks.status to detect wave completion.
-        // agent-loop only updates `tasks` — we must also mirror status into sprint_tasks.
-        try {
-            const taskCtxForSprint = task.context as Record<string, unknown> | null | undefined
-            const sprintTaskId = taskCtxForSprint?.sprintTaskId as string | undefined
-            if (sprintTaskId) {
-                await db.update(sprintTasks)
-                    .set({
-                        status: 'complete',
-                        completedAt: new Date(),
-                        handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: result.outcomeSummary.slice(0, 2000) })}::jsonb`,
-                    })
-                    .where(eq(sprintTasks.id, sprintTaskId))
-                logger.info({ taskId: task.id, sprintTaskId }, 'Sprint task marked complete')
-                
-                // Track handoff quality for intelligence
-                await logSprintHandoff({
-                    sprintId: String(taskCtxForSprint?.sprintId ?? sprintTaskId),
-                    taskId: sprintTaskId,
-                    summary: result.outcomeSummary,
-                    filesChanged: [], // Cannot natively trace all files here easily without diffing
-                    concerns: [],
-                    suggestions: [],
-                    tokensUsed: (result.totalTokensIn ?? 0) + (result.totalTokensOut ?? 0),
-                    toolCalls: result.steps?.length ?? 1,
-                    durationMs: Date.now() - taskStartMs,
-                })
-            }
-        } catch (stErr) {
-            logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status — non-fatal')
         }
 
         // Phase M: judge metadata (context._judge) is now patched onto the task

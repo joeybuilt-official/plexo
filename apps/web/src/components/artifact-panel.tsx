@@ -219,9 +219,7 @@ export function ArtifactPanel({
                 body: JSON.stringify({ workspaceId, ref: action.id, kind: action.kind }),
             })
             if (res.status === 404) {
-                toast.error(`Extension "${action.id}" was not found. Browse the Hub to install it.`, {
-                    action: { label: 'Browse Hub', onClick: () => { window.location.href = '/app/hub' } },
-                })
+                toast.error(`Extension "${action.id}" was not found.`)
                 return
             }
             if (!res.ok) throw new Error(`HTTP ${res.status}`)

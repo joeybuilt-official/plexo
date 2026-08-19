@@ -32,9 +32,6 @@ import { markProviderBalanceExhausted } from '../settings-from-instances.js'
 import { recordAuthFailure, recordAuthSuccess } from './auth-events.js'
 import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
-import { loadModelCandidates, isModelRouterEnabled, type ShadowInput } from './shadow.js'
-import { requirementsForTask } from './enumerate.js'
-import type { ModelCandidate } from './candidate.js'
 import { emitProviderFailure } from './ops-events.js'
 import { withLane, type Lane } from './lane-limiter.js'
 
@@ -198,28 +195,6 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             false,
         )
     }
-    // Round-6 Phase 1: the first-selection provider pool, used to compute the
-    // model-level router's shadow would-pick (flag-gated; never alters serving).
-    // Phase 3: per-task hard capability requirements feed the gate.
-    const shadowInput: ShadowInput = {
-        workspaceId,
-        taskType,
-        available: [...available],
-        settings,
-        requirements: requirementsForTask(taskType),
-    }
-
-    // Round-6 Phase 2: when the serving flip is ON, pre-load the gated model
-    // candidates once and pass them to selectModel so it returns the best MODEL.
-    // Flag OFF → modelCandidates stays undefined → byte-identical legacy path.
-    let modelCandidates: ModelCandidate[] | undefined
-    if (isModelRouterEnabled()) {
-        try {
-            modelCandidates = await loadModelCandidates(shadowInput)
-        } catch {
-            modelCandidates = undefined
-        }
-    }
 
     let lastError: unknown
     let fallbackEngaged = false
@@ -229,17 +204,10 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     let firstSelectorDurationMs = 0
     let firstChosenProvider: string | undefined
     const skippedProviders: string[] = []
-    // Round-6 Phase 3: model-granular cascade. Tracks failed (provider/model) so
-    // fallback advances across the ranked model shortlist; a provider is only
-    // dropped from the pool once ALL its candidate models are exhausted.
-    const excludedModels = new Set<string>()
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         const selStart = Date.now()
-        const candidatesForIter = modelCandidates?.filter(
-            c => available.some(a => a.provider === c.provider) && !excludedModels.has(`${c.provider}/${c.modelId}`),
-        )
-        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride, modelCandidates: candidatesForIter })
+        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride })
         const selDur = Date.now() - selStart
         if (cascadePos === 0) {
             firstSelection = sel
@@ -299,7 +267,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             // D2 / Round-6: when the selector force-picked (D2) or model-routed
             // (Phase 2), pass the chosen model id so buildModel calls exactly that
             // model rather than the provider's default-resolved model.
-            const model = buildModel(chosen.provider, cfg, taskType, settings, (sel.forcedModel || sel.modelRouted) ? chosen.model : undefined)
+            const model = buildModel(chosen.provider, cfg, taskType, settings, sel.forcedModel ? chosen.model : undefined)
             const result = await doCall(model)
             recordCall(
                 { workspaceId, provider: chosen.provider, model: chosen.model, taskType },
@@ -318,7 +286,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             emitRoutedEvent(buildRoutedEvent({
                 workspaceId, taskId, taskType, selection: sel,
                 selectorDurationMs: selDur, fallbackEngaged,
-            }), shadowInput)
+            }))
             if (fallbackEngaged && firstChosenProvider) {
                 const fbInfo = {
                     workspaceId,
@@ -388,24 +356,9 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
                 Date.now() + cooldownMsForClass(cls),
             )
 
-            // Exclude the failed candidate from the next iteration. Model-routed
-            // (Phase 3): drop just the failed (provider/model) and keep the
-            // provider while it still has un-failed candidate models — fallback
-            // advances across the ranked model shortlist. Drop the provider only
-            // when its models are exhausted. Legacy: drop the whole provider.
-            if (sel.modelRouted && modelCandidates) {
-                excludedModels.add(`${chosen.provider}/${chosen.model}`)
-                const moreOnProvider = modelCandidates.some(
-                    c => c.provider === chosen.provider && !excludedModels.has(`${c.provider}/${c.modelId}`),
-                )
-                if (!moreOnProvider) {
-                    skippedProviders.push(chosen.provider)
-                    available = available.filter(a => a.provider !== chosen.provider)
-                }
-            } else {
-                skippedProviders.push(chosen.provider)
-                available = available.filter(a => a.provider !== chosen.provider)
-            }
+            // Exclude the failed candidate from the next iteration.
+            skippedProviders.push(chosen.provider)
+            available = available.filter(a => a.provider !== chosen.provider)
             fallbackEngaged = true
             cascadePos++
         }
@@ -416,7 +369,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
         emitRoutedEvent(buildRoutedEvent({
             workspaceId, taskId, taskType, selection: firstSelection,
             selectorDurationMs: firstSelectorDurationMs, fallbackEngaged: true,
-        }), shadowInput)
+        }))
     }
     // Provider-failure ops event: every candidate failed for this call.
     emitProviderFailure({
@@ -467,21 +420,13 @@ export async function routeAndBuild(input: {
             false,
         )
     }
-    let modelCandidates: ModelCandidate[] | undefined
-    if (isModelRouterEnabled()) {
-        try {
-            modelCandidates = await loadModelCandidates({ workspaceId, taskType, available: [...available], settings, requirements: requirementsForTask(taskType) })
-        } catch {
-            modelCandidates = undefined
-        }
-    }
-    const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelCandidates })
+    const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings })
     if (!sel.chosen) {
         throw new RouterV2NoCandidateError(sel.rationale, sel.requireOperatorAction)
     }
     const chosen = sel.chosen
     const cfg = settings.providers[chosen.provider] as AIProviderConfig
-    const model = buildModel(chosen.provider, cfg, taskType, settings, sel.modelRouted ? chosen.model : undefined)
+    const model = buildModel(chosen.provider, cfg, taskType, settings)
     return {
         model,
         meta: {

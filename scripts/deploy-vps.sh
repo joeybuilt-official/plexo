@@ -53,13 +53,12 @@ ssh_run() {
 # documents the same map for human readers; this script uses it for the
 # auto-detect path.
 #
-# Order matters for verification: api/saas/hub. If you add a new service,
+# Order matters for verification: api/saas. If you add a new service,
 # add it here AND update AGENTS.md "Deploy sequence" in the same commit.
 
 SERVICE_MAP=(
   "plexo-api:plexo-api:apps/api/,packages/agent/,packages/db/,packages/queue/,packages/scl-core/,packages/sdk/,packages/storage/,packages/mcp-server/"
   "plexo-saas:plexo-saas:apps/web/,packages/agent/,packages/db/,packages/sdk/,packages/storage/"
-  "plexo-hub:plexo-hub:apps/hub/,packages/db/,packages/sdk/"
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -141,10 +140,6 @@ verify_service() {
     plexo-saas)
       ssh_run "docker exec $container ls /app/apps/web/.next/server/app/app" >/dev/null \
         && ok "$container .next/server/app/app built" || die "$container missing /app routes — wrong service rebuilt?"
-      ;;
-    plexo-hub)
-      ssh_run "docker exec $container ls /app/apps/hub" >/dev/null \
-        && ok "$container present" || die "$container missing"
       ;;
   esac
 }

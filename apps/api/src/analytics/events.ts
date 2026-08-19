@@ -374,8 +374,6 @@ export async function emitHeartbeat(opts: {
         discord: boolean
         github: boolean
         memory: boolean
-        sprints: boolean
-        rsi: boolean
     }
 }): Promise<void> {
     await emit('instance_heartbeat', {
@@ -387,8 +385,6 @@ export async function emitHeartbeat(opts: {
         has_discord: opts.activeIntegrations.discord,
         has_github: opts.activeIntegrations.github,
         has_memory: opts.activeIntegrations.memory,
-        has_sprints: opts.activeIntegrations.sprints,
-        has_rsi: opts.activeIntegrations.rsi,
     })
 }
 /**

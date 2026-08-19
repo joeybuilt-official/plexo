@@ -64,11 +64,11 @@ const DUMMY_CREDS = {}
 const DUMMY_OPTS = { connectionId: 'test-conn', workspaceId: 'test-ws' }
 
 describe('connection registry — single source of truth', () => {
-    it('has at least the baseline 28 providers', () => {
+    it('has at least the baseline 24 providers', () => {
         const count = connectionRegistryCount()
-        expect(count.total).toBeGreaterThanOrEqual(28)
-        expect(count.real).toBeGreaterThanOrEqual(16)
-        expect(count.stub).toBeGreaterThanOrEqual(12)
+        expect(count.total).toBeGreaterThanOrEqual(24)
+        expect(count.real).toBeGreaterThanOrEqual(13)
+        expect(count.stub).toBeGreaterThanOrEqual(11)
     })
 
     it('every descriptor has a callable factory', () => {
@@ -77,9 +77,9 @@ describe('connection registry — single source of truth', () => {
         }
     })
 
-    it('factory tool names match declared capabilities (no drift)', () => {
+    it('factory tool names match declared capabilities (no drift)', async () => {
         for (const [id, desc] of Object.entries(CONNECTION_REGISTRY)) {
-            const tools = desc.factory(DUMMY_CREDS, DUMMY_OPTS)
+            const tools = await desc.factory(DUMMY_CREDS, DUMMY_OPTS)
             const actualNames = Object.keys(tools).sort()
             const expectedNames = desc.capabilities
                 .map((c) => `${desc.toolPrefix}__${c.name}`)
@@ -88,9 +88,9 @@ describe('connection registry — single source of truth', () => {
         }
     })
 
-    it('every tool name is prefixed with its provider toolPrefix', () => {
+    it('every tool name is prefixed with its provider toolPrefix', async () => {
         for (const [id, desc] of Object.entries(CONNECTION_REGISTRY)) {
-            const tools = desc.factory(DUMMY_CREDS, DUMMY_OPTS)
+            const tools = await desc.factory(DUMMY_CREDS, DUMMY_OPTS)
             for (const name of Object.keys(tools)) {
                 expect(name.startsWith(`${desc.toolPrefix}__`), `${id} tool ${name}`).toBe(true)
             }

@@ -318,7 +318,6 @@ const CORE_EXECUTION_TOOLS = [
     'shell',
     'task_complete',
     'write_asset',
-    'self_reflect',
 ] as const
 
 const CORE_WORKSPACE_TOOLS = [

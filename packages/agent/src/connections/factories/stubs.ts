@@ -57,10 +57,6 @@ export const MAILCHIMP_TOOLS = buildStub('mailchimp', [
     { name: 'list_subscribers', description: 'List Mailchimp subscribers', inputSchema: z.object({ listId: z.string() }) },
 ])
 
-export const TWILIO_TOOLS = buildStub('twilio', [
-    { name: 'send_sms', description: 'Send an SMS via Twilio', inputSchema: z.object({ to: z.string(), body: z.string() }) },
-])
-
 export const PAGERDUTY_TOOLS = buildStub('pagerduty', [
     { name: 'trigger_incident', description: 'Trigger a PagerDuty incident', inputSchema: z.object({ serviceId: z.string(), summary: z.string() }) },
     { name: 'resolve_incident', description: 'Resolve a PagerDuty incident', inputSchema: z.object({ incidentId: z.string() }) },

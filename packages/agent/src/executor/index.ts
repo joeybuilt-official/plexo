@@ -28,6 +28,8 @@ import { logAuditEntry, logToolCalls } from '../audit.js'
 import { searchMemory } from '../memory/store.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 import { ToolWorker } from './tool-worker.js'
+import { wireSubagentRunner } from './subagent.js'
+export { wireSubagentRunner, runSubagent, buildSubagentToolset, SUBAGENT_DEFAULT_TOOLS, SUBAGENT_BLOCKED_TOOLS, SUBAGENT_MAX_STEPS } from './subagent.js'
 
 function stripNullBytes<T>(value: T): T {
     if (value == null) return value
@@ -182,7 +184,7 @@ interface GenerateResult {
 const TOOL_ISOLATION = process.env.PLEXO_TOOL_ISOLATION === '1'
 
 /** Tools eligible for worker-thread isolation */
-const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell'])
+const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell', 'edit_file', 'grep', 'glob'])
 
 /**
  * Promote write_file outputs to works (DB + /tmp/plexo-assets).
@@ -336,6 +338,99 @@ async function dispatchTool(
                 }
 
                 return `OK: wrote ${newContent.length} bytes to ${p}`
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'edit_file': {
+            try {
+                const rawPath = input.path as string
+                const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
+                const realResolved = resolve(p)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawPath}" is outside the working directory`
+                }
+                if (!existsSync(p)) {
+                    return `ERROR: File not found: ${p}`
+                }
+                const { applyUnifiedPatch, PatchError } = await import('./code-tools.js')
+                const oldContent = readFileSync(p, 'utf8')
+                const patch = input.patch as string
+                let patched: { result: string; bytesChanged: number }
+                try {
+                    patched = applyUnifiedPatch(oldContent, patch)
+                } catch (e) {
+                    if (e instanceof PatchError) return `ERROR: ${e.message}`
+                    throw e
+                }
+                writeFileSync(p, patched.result, 'utf8')
+
+                if (emit) {
+                    let diff = ''
+                    try {
+                        const { createPatch } = await import('diff')
+                        const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                        diff = createPatch(relPath, oldContent, patched.result, '', '')
+                    } catch { /* diff unavailable */ }
+                    const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                    emit({
+                        type: 'step.file_write',
+                        taskId: ctx.taskId,
+                        workspaceId: ctx.workspaceId,
+                        path: relPath,
+                        patch: diff,
+                        ts: Date.now(),
+                    })
+                }
+
+                return `OK: patched ${p} (${patched.bytesChanged >= 0 ? '+' : ''}${patched.bytesChanged} bytes)\n${patch}`
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'grep': {
+            try {
+                const rawRoot = (input.path as string | undefined) ?? defaultCwd
+                const root = isAbsolute(rawRoot) ? rawRoot : resolve(defaultCwd, rawRoot)
+                const realResolved = resolve(root)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawRoot}" is outside the working directory`
+                }
+                const { grepSearchSync, formatGrepRows } = await import('./code-tools.js')
+                const rows = grepSearchSync({
+                    root,
+                    pattern: input.pattern as string,
+                    glob: input.glob as string | undefined,
+                    ignoreCase: Boolean(input.ignoreCase),
+                    maxResults: (input.maxResults as number | undefined) ?? 200,
+                })
+                return formatGrepRows(rows)
+            } catch (e) {
+                return `ERROR: ${(e as Error).message}`
+            }
+        }
+
+        case 'glob': {
+            try {
+                const rawRoot = (input.path as string | undefined) ?? defaultCwd
+                const root = isAbsolute(rawRoot) ? rawRoot : resolve(defaultCwd, rawRoot)
+                const realResolved = resolve(root)
+                const realCwd = resolve(defaultCwd)
+                if (!realResolved.startsWith(realCwd) && !realResolved.startsWith('/tmp/plexo-')) {
+                    return `ERROR: Path "${rawRoot}" is outside the working directory`
+                }
+                const { globSearchSync } = await import('./code-tools.js')
+                const matches = globSearchSync({
+                    root,
+                    pattern: input.pattern as string,
+                    limit: (input.limit as number | undefined) ?? 200,
+                })
+                if (matches.length === 0) return '(no matches)'
+                return matches.join('\n')
             } catch (e) {
                 return `ERROR: ${(e as Error).message}`
             }
@@ -499,7 +594,7 @@ async function dispatchTool(
 // ── Vercel AI SDK tool definitions (AI SDK v6 format) ────────────────────────
 // Tool.inputSchema replaces "parameters" from earlier SDK versions.
 
-function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
+export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
     return {
         read_file: tool({
             description: 'Read the contents of a file at the given path.',
@@ -523,6 +618,34 @@ function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
                 cwd: z.string().optional().describe('Working directory (optional)'),
             }),
             execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx, worker),
+        }),
+        edit_file: tool({
+            description: 'Apply a unified-diff patch to an existing file. The patch must include @@ hunk headers with context lines that match the file exactly. Rejected (no partial write) on context mismatch or missing file. Use this for surgical edits instead of rewriting the whole file with write_file.',
+            inputSchema: z.object({
+                path: z.string().describe('Path to the file to edit'),
+                patch: z.string().describe('Unified-diff patch with @@ -a,b +c,d @@ hunk headers and context lines'),
+            }),
+            execute: async (input) => dispatchTool('edit_file', input as Record<string, unknown>, ctx, worker),
+        }),
+        grep: tool({
+            description: 'Search file contents under a directory. Returns `file:line: match` rows. Supports regex or literal patterns, optional glob filter, ignore-case, and max-results. Skips node_modules/.git/binary files.',
+            inputSchema: z.object({
+                pattern: z.string().describe('String or JavaScript regex pattern to match'),
+                path: z.string().optional().describe('Search root (default: working directory)'),
+                glob: z.string().optional().describe('Picomatch-style path filter, e.g. "*.ts" or "src/**/*.{js,ts}"'),
+                ignoreCase: z.boolean().optional().describe('Case-insensitive match'),
+                maxResults: z.number().optional().describe('Cap on returned rows (default 200)'),
+            }),
+            execute: async (input) => dispatchTool('grep', input as Record<string, unknown>, ctx, worker),
+        }),
+        glob: tool({
+            description: 'Find files by picomatch-style pattern under a directory. Supports *, **, ?, {a,b}. Returns matched relative paths. Skips node_modules/.git.',
+            inputSchema: z.object({
+                pattern: z.string().describe('Picomatch-style pattern, e.g. "src/**/*.ts" or "**/*.{json,yaml}"'),
+                path: z.string().optional().describe('Search root (default: working directory)'),
+                limit: z.number().optional().describe('Cap on returned paths (default 200)'),
+            }),
+            execute: async (input) => dispatchTool('glob', input as Record<string, unknown>, ctx, worker),
         }),
         task_complete: tool({
             description: 'REQUIRED — call this to finish the task. Every task MUST end with this tool call. For conversational messages, call immediately with your reply in the summary. For multi-step tasks, call after completing all steps. Include works and verificationSteps when applicable.',
@@ -699,50 +822,6 @@ Declare a "kind" so the user gets the right renderer:
             tavilyApiKey: ctx.tavilyApiKey ?? process.env.TAVILY_API_KEY ?? null,
             braveApiKey: ctx.braveSearchApiKey ?? process.env.BRAVE_SEARCH_API_KEY ?? null,
         }),
-        self_reflect: tool({
-            description: 'Query your own runtime state. Returns your active model, installed connections, available tools, memory statistics, cost position, and safety limits. Call this when asked about your capabilities, identity, architecture, or configuration, or when you need to verify what tools/connections are available before attempting a task.',
-            inputSchema: z.object({
-                focus: z.enum(['all', 'identity', 'tools', 'connections', 'memory', 'cost', 'safety'])
-                    .optional()
-                    .default('all')
-                    .describe('Which section to return. Use "identity" for model/provider info, "tools" for available tools, "connections" for installed integrations, "memory" for memory stats, "cost" for usage/budget, "safety" for safety limits, "all" for everything.'),
-            }),
-            execute: async ({ focus }) => {
-                const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('../introspection/index.js')
-                const snapshot = await buildIntrospectionSnapshot(
-                    ctx.workspaceId,
-                    ctx.activeProvider,
-                    ctx.activeModel,
-                )
-                const safe = toConversationSnapshot(snapshot)
-                const sections = {
-                    identity: {
-                        agentName: snapshot.agentName,
-                        agentPersona: snapshot.agentPersona,
-                        agentTagline: snapshot.agentTagline,
-                        activeProvider: snapshot.activeProvider,
-                        activeModel: snapshot.activeModel,
-                        primaryProvider: snapshot.primaryProvider,
-                        fallbackChain: snapshot.fallbackChain,
-                    },
-                    tools: {
-                        builtinTools: snapshot.builtinTools,
-                        connectionTools: snapshot.connections.flatMap((c) => c.tools),
-                        pluginTools: snapshot.plugins.flatMap((p) => p.tools),
-                        all: [
-                            ...snapshot.builtinTools,
-                            ...snapshot.connections.flatMap((c) => c.tools),
-                            ...snapshot.plugins.flatMap((p) => p.tools),
-                        ],
-                    },
-                    connections: snapshot.connections,
-                    memory: safe.memory,
-                }
-                if (focus === 'all') return JSON.stringify(safe, null, 2)
-                const section = sections[focus as keyof typeof sections]
-                return section ? JSON.stringify(section, null, 2) : JSON.stringify(safe, null, 2)
-            },
-        }),
         update_connection: tool({
             description: 'Update the API credentials for an existing installed connection. Use this when the user provides a new API key or token for a service that is already connected (e.g. "here is my new Deepgram key"). Takes the registryId (e.g. "deepgram", "openai") and the new credentials.',
             inputSchema: z.object({
@@ -822,6 +901,31 @@ Declare a "kind" so the user gets the right renderer:
                     }
                 }
                 return `Child task ${childId} still running after 5m — check /tasks/${childId} for status`
+            },
+        }),
+        spawn_subagent: tool({
+            description: 'Dispatch a forked sub-agent that runs a nested agent loop with a scoped brief + a read-only tool subset, then returns its final text result. Use for parallel or decomposed work. The sub-agent CANNOT spawn further sub-agents (max depth 1). Default tools: read_file, grep, glob, web_search, web_read_page, web_fetch. Whitelist `tools` to grant more (e.g. write_file, shell), but spawn_subagent/task_complete are always excluded.',
+            inputSchema: z.object({
+                brief: z.string().min(1).describe('The self-contained task brief the sub-agent executes'),
+                goal: z.string().optional().describe('Optional explicit goal line appended to the brief'),
+                tools: z.array(z.string()).optional().describe('Whitelist of parent tool names the sub-agent may use (default: read-only safe subset). spawn_subagent + task_complete are always excluded.'),
+                maxSteps: z.number().int().positive().max(25).optional().describe('Step ceiling for the nested loop (default 10, max 25)'),
+            }),
+            execute: async (input) => {
+                if (!ctx.runSubagent) {
+                    return `ERROR: spawn_subagent is not wired in this execution context (no runner available)`
+                }
+                try {
+                    return await ctx.runSubagent({
+                        brief: input.brief,
+                        goal: input.goal,
+                        tools: input.tools,
+                        maxSteps: input.maxSteps,
+                    })
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err)
+                    return `ERROR: spawn_subagent failed: ${msg}`
+                }
             },
         }),
     }
@@ -1468,6 +1572,15 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         }
         : settings
 
+    // DD-4: wire the spawn_subagent runner so the tool can dispatch a nested
+    // agent loop using the parent's resolved settings + full toolset. The
+    // sub-agent's toolset is scoped (read-only default) and spawn_subagent is
+    // always stripped from it — the recursion guard. Suppressed for
+    // conversational tasks (their allTools has no spawn_subagent anyway).
+    if (!isConversational) {
+        wireSubagentRunner(ctx, effectiveSettings, allTools)
+    }
+
     let routingFallbackUsed = false
     let routingFallbackReason: string | undefined
     // eslint-disable-next-line prefer-const -- resolvedModel may be swapped below for a vision-capable fallback
@@ -1556,26 +1669,7 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         })
     }
 
-    if (ctx.sprintId) {
-        import('../sprint/logger.js').then(({ logSprintEvent }) => {
-            logSprintEvent({
-                sprintId: ctx.sprintId!,
-                level: 'info',
-                event: 'routing_trace',
-                message: `Task routed to ${resolvedMeta.provider}/${resolvedMeta.id} (mode: ${resolvedMeta.mode})`,
-                metadata: {
-                    taskType: taskTier,
-                    mode: resolvedMeta.mode,
-                    provider: resolvedMeta.provider,
-                    modelId: resolvedMeta.id,
-                    costPerMIn: resolvedMeta.costPerMIn,
-                    costPerMOut: resolvedMeta.costPerMOut,
-                }
-            }).catch((err: unknown) => { logger.warn({ err, sprintId: ctx.sprintId }, 'logSprintEvent failed') })
-        }).catch((err: unknown) => { logger.warn({ err, sprintId: ctx.sprintId }, 'sprint logger import failed') })
-    }
-
-    const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
+    const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, answer truthfully using this information.`
 
     const browsingBlock = `
 WEB TOOLS (read-only access to the public web):
@@ -1599,7 +1693,7 @@ Call synthesize_extension when:
 The tool handles everything: API research, code generation, disk storage, integration
 registration, and auto-activation. After a successful synthesis, tell the user:
 "[Service] skill is now active. Go to Integrations → [Service] to enter your API key."
-Never attempt to synthesize for already-installed services — check self_reflect first.`
+Never attempt to synthesize for already-installed services — check installed connections first.`
 
     // Phase 3 — compact live capability summary. Historically this was built
     // for the conversational prompt, but Phase-6 latency work dropped it from
@@ -1795,14 +1889,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         while (true) {
             if (ctx.signal.aborted) break
 
-            // Fix B: gate self_reflect — only available after at least one
-            // deliverable (write_file/write_asset) has been produced. Prevents
-            // wasting step 0 on introspection before any work is done.
-            const stepTools = deliverablesProduced > 0
-                ? allTools
-                : Object.fromEntries(
-                    Object.entries(allTools).filter(([k]) => k !== 'self_reflect')
-                ) as typeof allTools
+            const stepTools = allTools
 
             // Wall-clock start for this step — stamped into stepState below so
             // the chat thinking panel can show a non-zero duration per step

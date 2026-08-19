@@ -20,9 +20,6 @@ validateEnv()
 import { trackError } from './event-tracker.js'
 import { handoffRouter } from './routes/handoff.js'
 import { ssoRouter } from './routes/sso.js'
-import { channelsSubscriptionRouter } from './routes/channels-subscription.js'
-import { channelsGmessagesRouter } from './routes/channels-gmessages.js'
-import { connectionsGmessagesRouter } from './routes/connections-gmessages.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
 import { inferenceRouter } from './routes/inference.js'
@@ -41,16 +38,9 @@ import { authRouter } from './routes/auth.js'
 import { billingRouter, stripeWebhookHandler } from './routes/billing.js'
 import { oauthRouter } from './routes/oauth.js'
 import { tasksRouter } from './routes/tasks.js'
-import { sprintsRouter } from './routes/sprints.js'
 import { sessionFabricRouter } from './routes/sessions.js'
 import { fabricSecurityRouter } from './routes/fabric-security.js'
 import { dashboardRouter } from './routes/dashboard.js'
-import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
-import { slackRouter } from './routes/slack.js'
-import { twilioRouter } from './routes/twilio.js'
-import { discordRouter } from './routes/discord.js'
-import { owdRouter } from './routes/approvals.js'
-import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { memoryRouter } from './routes/memory.js'
 import { connectionsRouter } from './routes/connections.js'
 import { workspacesRouter } from './routes/workspaces.js'
@@ -58,23 +48,16 @@ import { apiKeysRouter } from './routes/api-keys.js'
 import { aiProvidersRouter } from './routes/ai-providers.js'
 import { aiProviderCredsRouter } from './routes/ai-provider-creds.js'
 import { keySharesRouter } from './routes/key-shares.js'
-import { channelsRouter } from './routes/channels.js'
-import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
 import { membersRouter, invitesRouter } from './routes/members.js'
 import { extensionsRouter } from './routes/extensions.js'
 import { publicSkillsRouter } from './routes/public-skills.js'
 import { auditRouter } from './routes/audit.js'
 import { extensionAuditRouter } from './routes/extension-audit.js'
-import { escalationRouter } from './routes/escalation.js'
-import { foundryRouter } from './routes/foundry.js'
 import { trainingDataRouter } from './routes/training-data.js'
-import { standingApprovalsRouter } from './routes/standing-approvals.js'
 import { userSelfRouter } from './routes/user-self.js'
 import { registryRouter } from './routes/registry.js'
-import { hubRouter } from './routes/hub.js'
 import { analyticsRouter } from './analytics/router.js'
-import { channelDispatchRouter } from './routes/channel-dispatch.js'
 import { configureAnalytics, syncAnalyticsFromDB } from './analytics/config.js'
 import { clarificationRouter } from './routes/clarification.js'
 // External error webhooks removed — analytics uses native relay
@@ -83,8 +66,6 @@ import { webhooksRouter } from './routes/webhooks.js'
 import { githubWebhooksRouter } from './routes/webhooks-github.js'
 import { taskStreamRouter } from './routes/task-stream.js'
 import { agentsActiveStreamRouter } from './routes/agents-active-stream.js'
-import { revisionDecisionRouter } from './routes/revision-decision.js'
-import { outcomesRouter } from './routes/outcomes.js'
 import { registerChannelAdapters } from './channels/register.js'
 import { taskInjectRouter } from './routes/task-inject.js'
 import { sharesRouter, publicShareRouter } from './routes/shares.js'
@@ -92,7 +73,6 @@ import { terminateAll } from '@plexo/agent/persistent-pool'
 import { drainPendingJudges } from '@plexo/agent/executor'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
-import { initSprintLogger } from '@plexo/agent/sprint/logger'
 import { setOutboundAttachmentsHandler } from '@plexo/agent/channels/outbound-attachments-port'
 import { setUserTimezoneResolver } from '@plexo/agent/user-timezone-port'
 import { getLevioUserTimezone } from '@plexo/agent/connections/factories/levio'
@@ -144,17 +124,13 @@ import { chatRouter } from './routes/chat.js'
 import { chatAppTransportRouter } from './routes/chat-app-transport.js'
 import { conversationsRouter } from './routes/conversations.js'
 import { draftAttachmentsRouter } from './routes/draft-attachments.js'
-import { messageDeliveriesRouter } from './routes/message-deliveries.js'
 import { behaviorRouter } from './routes/behavior.js'
 import { promptsRouter } from './routes/prompts.js'
 import { contextRouter } from './routes/context.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { searchRouter } from './routes/search.js'
-import { visionRouter } from './routes/vision.js'
-import { introspectRouter } from './routes/introspect.js'
 import { codeRouter } from './routes/code.js'
-import { rsiRouter } from './routes/rsi.js'
 import { stabilizationRouter } from './routes/stabilization.js'
 import { parallelRouter } from './routes/parallel.js'
 import { paxRouter } from './routes/pax.js'
@@ -170,9 +146,7 @@ import { drizzleJexRecognitionRepository } from './repositories/jex-recognitions
 import { nodeEventsRouter } from './routes/node-events.js'
 import { workspaceAppsRouter } from './routes/workspace-apps.js'
 import { workbenchRouter } from './routes/workbench.js'
-import { worksRouter } from './routes/works.js'
 import { toolsRouter } from './routes/tools.js'
-import { toolsGmessagesRouter } from './routes/tools-gmessages.js'
 import { requireAuth } from './middleware/auth.js'
 import { requireWorkspaceMember } from './middleware/workspace-access.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
@@ -182,7 +156,6 @@ import { adminTasksRouter } from './routes/admin/tasks.js'
 import ollamaAdminRouter from './routes/ollama-admin.js'
 import { providerInstancesRouter } from './routes/provider-instances.js'
 import { providerAlertsRouter } from './routes/provider-alerts.js'
-import { embeddingsRouter } from './routes/embeddings.js'
 import { embeddingsServiceRouter } from './routes/embeddings-service.js'
 import { intelligenceRouter } from './routes/intelligence.js'
 import { intelligenceDashboardRouter } from './routes/intelligence-dashboard.js'
@@ -196,8 +169,8 @@ import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 import { startEventProcessor, stopEventProcessor } from './federation/event-processor.js'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
-import { sprints, nodes } from '@plexo/db'
-import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
+import { nodes } from '@plexo/db'
+import { runCronJobs, scheduleMemoryConsolidation } from './cron.js'
 import { setProviderFailureSink } from '@plexo/agent/providers/router-v2'
 import { emitProviderFailureEvent } from './analytics/events.js'
 import { recordProviderFailureForAlert, sloThresholdsFromEnv, opsAlertDeliveryConfigured } from './ops-alerts.js'
@@ -317,10 +290,6 @@ v1.use('/auth/handoff', jsonDefault, handoffRouter) // `/generate` has its own r
 v1.use('/oauth', jsonDefault, oauthRouter)
 v1.use('/webhooks/github', webhookLimiter, githubWebhooksRouter) // GitHub App webhook — raw body, X-Hub-Signature-256
 v1.use('/webhooks', webhookLimiter, jsonSmall, webhooksRouter) // per-workspace HMAC + 256 KB cap
-v1.use('/channels/telegram', webhookLimiter, jsonMedium, telegramRouter) // X-Telegram-Bot-Api-Secret-Token, 2 MB
-v1.use('/channels/slack', webhookLimiter, jsonDefault, slackRouter) // X-Slack-Signature
-v1.use('/channels/discord', webhookLimiter, jsonDefault, discordRouter) // ed25519 signature
-v1.use('/channels/twilio', webhookLimiter, twilioRouter) // X-Twilio-Signature; body parsed by app-wide urlencoded middleware
 v1.use('/a2a', jsonDefault, a2aRouter) // A2A spec — GET discovery is public, POST tasks has per-handler Bearer auth
 v1.use('/registry', jsonDefault, registryRouter) // public tool discovery (POST/DELETE check inside)
 v1.use('/skills', jsonDefault, publicSkillsRouter) // public skill validation (no auth, no DB)
@@ -328,7 +297,6 @@ v1.use('/stabilization', jsonDefault, stabilizationRouter) // service-key auth (
 v1.use('/profiles', jsonDefault, profilesRouter) // service-key auth (self-contained — app registration)
 v1.use('/s', jsonDefault, publicShareRouter) // public share links — no auth
 v1.use('/analytics', jsonDefault, analyticsRouter) // public: ingest, config read — no session required
-v1.use('/channel', jsonDefault, channelDispatchRouter) // service-key auth (Bearer + X-App-Id, self-contained)
 
 // ── Authenticated routes ─────────────────────────────────────
 // Everything mounted after this line requires a valid session.
@@ -355,21 +323,15 @@ v1.use('/agents', agentsActiveStreamRouter) // SSE workspace active-agents feed:
 // Workspace-scoped (CRUD over workspace-owned data)
 v1.use('/tasks', (req, res, next) => req.method === 'POST' ? taskCreationLimiter(req, res, next) : next(), workspaceRateLimit, tasksRouter)
 v1.use('/tasks', taskStreamRouter) // SSE step-tail: GET /tasks/:id/steps/stream
-v1.use('/revisions', jsonDefault, revisionDecisionRouter) // canonical decision seam: POST /revisions/:id/decision
-v1.use('/outcomes', outcomesRouter) // outcomes/learning read view: GET /outcomes?workspaceId=
 v1.use('/tasks', taskInjectRouter) // mid-run inject: POST /tasks/:id/inject
 v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/parallel', parallelRouter)
-v1.use('/sprints', sprintsRouter)
-v1.use('/sprints', sprintRunnerRouter)
 v1.use(sessionFabricRouter) // Session Fabric: /sessions, /sessions/:id/{events,lease,participants}, /runners — per-handler workspace check
 v1.use(fabricSecurityRouter) // Session Fabric security bar (Phase 1c): /fabric/{tokens,kill}, /sessions/:id/{grant,policy/evaluate}
 v1.use('/dashboard', requireWorkspaceMember('workspaceId'), dashboardRouter)
-v1.use('/approvals', owdRouter)
 v1.use('/memory', requireWorkspaceMember('workspaceId'), memoryRouter)
 v1.use('/connections', connectionsRouter) // some endpoints have no workspaceId (registry); per-handler checks
 v1.use('/app-grants', appGrantsRouter) // ADR 0001 §3 — operator per-(app×workspace) capability grants
-v1.use('/connections/gmessages', connectionsGmessagesRouter) // ADR-0005: pairing lifecycle, NOT subscription
 // ADR 0013 §D9 — draft attachments. Mounted BEFORE conversationsRouter so
 // the more specific /:conversationId/draft-attachments path matches first.
 // express.raw() is registered inside the router so the default jsonDefault
@@ -381,19 +343,13 @@ v1.use('/workspaces/:workspaceId/api-keys', requireWorkspaceMember('workspaceId'
 v1.use('/workspaces/:id/ai-providers', requireWorkspaceMember('id'), aiProviderCredsRouter)
 v1.use('/workspaces/:id/key-shares', requireWorkspaceMember('id'), keySharesRouter)
 v1.use('/settings/ai-providers', aiProvidersRouter)
-v1.use('/channels', channelsRouter) // per-handler workspace check
-v1.use('/cron', workspaceRateLimit, cronRouter) // per-handler workspace check
 v1.use('/users', usersRouter)
 v1.use('/workspaces/:id/members', requireWorkspaceMember('id'), membersRouter)
 v1.use('/invites', invitesRouter)
 v1.use('/extensions', workspaceRateLimit, extensionsRouter) // per-handler workspace check
-v1.use('/hub', hubRouter) // in-app Hub catalog — per-handler workspace check
 v1.use('/audit', requireWorkspaceMember('workspaceId'), auditRouter)
 v1.use('/extension-audit', requireWorkspaceMember('workspaceId'), extensionAuditRouter)
-v1.use('/escalations', requireWorkspaceMember('workspaceId'), escalationRouter)
-v1.use('/foundry', requireSuperAdmin, foundryRouter)
 v1.use('/admin/training-data', requireSuperAdmin, trainingDataRouter)
-v1.use('/standing-approvals', standingApprovalsRouter)
 v1.use('/user-self', userSelfRouter)
 v1.use('/billing', billingRouter)
 // Admin task triage — service-key auth (mounted before /admin so Express
@@ -414,10 +370,8 @@ v1.use('/ai', aiMediaRouter)
 v1.use('/ai/tasks', jsonDefault, externalTasksRouter)
 v1.use('/chat', chatRouter) // per-handler workspace check
 v1.use('/chat', jsonDefault, chatAppTransportRouter) // Levio-Pex app transport (service key auth)
-v1.use('/message-deliveries', messageDeliveriesRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/search', searchRouter)
-v1.use('/vision', visionRouter)
 v1.use('/behavior/:workspaceId', requireWorkspaceMember('workspaceId'), behaviorRouter)
 v1.use('/prompts/:workspaceId', requireWorkspaceMember('workspaceId'), promptsRouter)
 v1.use('/context/:workspaceId', requireWorkspaceMember('workspaceId'), contextRouter)
@@ -432,17 +386,12 @@ v1.use('/workspaces/:id/provider-alerts', requireWorkspaceMember('id'), provider
 // Service-key /embed (single segment) must mount BEFORE the workspace-scoped
 // settings router (two-segment /:workspaceId/...) so /embed resolves cleanly.
 v1.use('/embeddings', embeddingsServiceRouter)
-v1.use('/embeddings', embeddingsRouter)
 v1.use('/intelligence', intelligenceRouter)
 v1.use('/intel-dashboard', intelligenceDashboardRouter)
 v1.use('/models', modelsRouter)
-v1.use('/workspaces/:id/introspect', requireWorkspaceMember('id'), introspectRouter)
-v1.use('/workspaces/:id/rsi', requireWorkspaceMember('id'), rsiRouter)
 v1.use('/code', codeRouter)
-v1.use('/works', worksRouter) // works listing — workspace-scoped
 v1.use('/workbench', workbenchRouter) // works phase 7 — per-user pins
 v1.use('/tools', toolsRouter) // works phase 5 — UI-initiated tool invoke
-v1.use('/tools/gmessages', toolsGmessagesRouter) // app-integration surface (Levio SMS card, etc.)
 v1.use('/shares', sharesRouter) // artifact share links — auth required
 
 v1.get('/agent/status', async (req, res) => {
@@ -520,8 +469,6 @@ app.use('/api/jex', jsonDefault, makeJexIdentityRouter(drizzleJexRecognitionRepo
 // HMAC-authenticated; mounted unversioned so app SDKs target a stable URL.
 // The gmessages connector (Go sidecar) posts inbound events to the
 // /gmessages subpath using the same HMAC envelope.
-app.use('/api/plexo/channels/gmessages', jsonMedium, channelsGmessagesRouter)
-app.use('/api/plexo/channels', jsonDefault, channelsSubscriptionRouter)
 
 // Inngest function discovery + invocation. The dev server (compose service
 // `inngest`) GETs this endpoint at boot to list registered functions and
@@ -614,22 +561,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             }
         } catch { /* analytics must never crash the app */ }
     }).catch(() => { /* non-fatal — defaults remain */ })
-    // On startup: reset any sprints left in 'running' state by a previous process.
-    // Fire-and-forget async runners die with the process, leaving DB rows orphaned.
-    void db.update(sprints)
-        .set({ status: 'failed', completedAt: new Date() })
-        .where(eq(sprints.status, 'running'))
-        .then(async () => {
-            logger.info('Startup: orphaned running sprints reset to failed')
-            // FUN-019: also reset orphaned sprint_tasks still in running/queued
-            await db.execute(sql`
-                UPDATE sprint_tasks SET status = 'failed'
-                WHERE status IN ('running', 'queued')
-                  AND sprint_id IN (SELECT id FROM sprints WHERE status = 'failed')
-            `)
-            logger.info('Startup: orphaned sprint_tasks reset to failed')
-        })
-        .catch((err: unknown) => logger.error({ err }, 'Startup: failed to reset orphaned sprints'))
 
     // Reconcile self-node DID with PLEXO_INSTANCE_ID.
     // The migration inserts a placeholder self-record; this corrects it on every boot.
@@ -709,7 +640,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
     startAgentLoop()
     startCronDispatch()
     startEventProcessor()
-    await initTelegramWebhook().catch((err) => logger.error({ err }, 'Telegram init failed'))
 
     // Phase 2b: smart-default seed for routing_chains. Idempotent —
     // workspaces that already have any chain rows are skipped, and
@@ -813,12 +743,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
     }
 
     // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
-    if (process.env.PLEXO_DISABLE_CRONS !== '1') {
-        setTimeout(() => {
-            void runRSIMonitor()
-            setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000).unref()
-        }, 7 * 60 * 1000)
-    }
 
     // Onboarding canary — every 30m (first run after 4m). OFF unless both
     // PLEXO_ONBOARDING_CANARY=1 and PLEXO_ONBOARDING_CANARY_USER_ID are set.
@@ -835,15 +759,12 @@ const server = app.listen(port, '0.0.0.0', async () => {
         INSERT INTO cron_jobs (id, workspace_id, name, schedule, enabled, created_at)
         SELECT gen_random_uuid(), w.id, n.name, '0 */6 * * *', true, now()
         FROM (SELECT id FROM workspaces LIMIT 50) w
-        CROSS JOIN (VALUES ('Memory consolidation'), ('RSI Monitor')) AS n(name)
+        CROSS JOIN (VALUES ('Memory consolidation')) AS n(name)
         WHERE NOT EXISTS (
             SELECT 1 FROM cron_jobs cj
             WHERE cj.workspace_id = w.id AND cj.name = n.name
         )
     `).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed default cron rows — non-fatal'))
-
-    // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
-    initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))
 
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears
@@ -875,13 +796,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
             const [telegramRow] = await db.execute(sql`
                 SELECT 1 FROM telegram_chats LIMIT 1
             `)
-            const [sprintRow] = await db.execute(sql`
-                SELECT 1 FROM sprints WHERE status = 'complete' LIMIT 1
-            `)
-
-            const [rsiRow] = await db.execute(sql`
-                SELECT 1 FROM rsi_proposals LIMIT 1
-            `)
 
             await emitHeartbeat({
                 taskVolumeThisWeek: taskCount,
@@ -892,8 +806,6 @@ const server = app.listen(port, '0.0.0.0', async () => {
                     discord: connTypes.has('discord'),
                     github: connTypes.has('github'),
                     memory: memEntryCount > 0,
-                    sprints: !!sprintRow,
-                    rsi: !!rsiRow,
                 },
             })
             logger.debug('Analytics heartbeat sent')

@@ -584,11 +584,8 @@ export async function chatWithAI(
         if (includeSnapshot) {
             const providerKey = aiSettings.primaryProvider
             const config = aiSettings.providers[providerKey]
-            const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('@plexo/agent/introspection')
             const resolvedModel = config?.model ?? '(unknown)'
-            const snapshot = await buildIntrospectionSnapshot(workspaceId, providerKey, resolvedModel)
-            const conversationSafe = toConversationSnapshot(snapshot)
-            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(conversationSafe)}`
+            finalSystem += `\n\nYour identity: you are Plexo, running on provider "${providerKey}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.`
         }
 
         // Phase 3 — always inject a compact live capability summary, regardless
@@ -697,14 +694,9 @@ export async function chatWithAI(
         let channelTools: Record<string, unknown> = {}
         if (channelContext) {
             try {
-                const { buildChannelTools } = await import('@plexo/agent/channels/channel-tools')
-                channelTools = buildChannelTools({
-                    channel: channelContext.channel,
-                    workspaceId,
-                    chatId: channelContext.chatId,
-                    messageId: channelContext.messageId,
-                    botToken: channelContext.botToken,
-                })
+                // channel-tools module removed in DD-6c (multi-channel surface stripped).
+                // react_to_message-style tools are no longer bound; proceeding without.
+                throw new Error('channel-tools module removed')
             } catch (err) {
                 logger.warn({ err, workspaceId }, 'channel-ai: failed to build channel tools — proceeding without')
             }

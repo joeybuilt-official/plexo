@@ -8,11 +8,8 @@
  * and confidence scores in machine-friendly form. This module turns those
  * into labels a user with no codebase knowledge can scan in two seconds.
  *
- * Sibling helper: `humanizeOperation` in
- * `apps/web/src/app/app/approvals/page.tsx` covers the *operation*
- * namespace (Phase D). This file covers the *plan-step* namespace —
- * tool ids, OWD types, risks, duration, and confidence. Keep them
- * separate; they describe different things.
+ * This file covers the *plan-step* namespace —
+ * tool ids, OWD types, risks, duration, and confidence.
  */
 
 export const PLAN_HEADING = 'Plan'

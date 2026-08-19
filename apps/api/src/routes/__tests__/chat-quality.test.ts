@@ -35,18 +35,26 @@ import {
 
 type GenResult = { text: string; usage: { inputTokens: number; outputTokens: number } }
 
+// Capture of the tools passed to the last streamText call — lets the inline
+// streaming tests assert the full toolset (code + workspace) is wired.
+let lastStreamTools: Record<string, unknown> = {}
+
 const ctl: {
     generateText: Mock<(...args: any[]) => any>
+    streamText: Mock<(...args: any[]) => any>
     pushTask: Mock<(...args: any[]) => any>
     recordConversation: Mock<(...args: any[]) => any>
 } = {
     generateText: vi.fn(),
+    streamText: vi.fn(),
     pushTask: vi.fn(),
     recordConversation: vi.fn(),
 }
 
 vi.mock('ai', () => ({
     generateText: (...args: unknown[]) => ctl.generateText(...args),
+    streamText: (...args: unknown[]) => ctl.streamText(...args),
+    stepCountIs: (n: number) => ({ type: 'step_count', count: n }),
     tool: vi.fn(),
 }))
 
@@ -219,6 +227,28 @@ vi.mock('@plexo/agent/introspection', () => ({
     toConversationSnapshot: vi.fn(() => ({})),
 }))
 
+// DD-3: the inline streaming path loads code tools via buildTools and workspace
+// tools via buildWorkspaceTools. Mock both so the test can assert the merged
+// toolset is passed to streamText without needing live DB/provider deps.
+vi.mock('@plexo/agent/executor', () => ({
+    buildTools: () => ({
+        read_file: { type: 'function', description: 'read' },
+        write_file: { type: 'function', description: 'write' },
+        edit_file: { type: 'function', description: 'edit' },
+        grep: { type: 'function', description: 'grep' },
+        glob: { type: 'function', description: 'glob' },
+        shell: { type: 'function', description: 'shell' },
+        task_complete: { type: 'function', description: 'complete' },
+        write_asset: { type: 'function', description: 'asset' },
+    }),
+}))
+vi.mock('@plexo/agent/tools/workspace-tools', () => ({
+    buildWorkspaceTools: async () => ({
+        web_search: { type: 'function', description: 'web_search' },
+        memory_query: { type: 'function', description: 'memory_query' },
+    }),
+}))
+
 // ────────────────────────────────────────────────────────────────────────────
 // Layer 1 — pure unit tests
 // ────────────────────────────────────────────────────────────────────────────
@@ -351,13 +381,33 @@ describe('chat handler fastpath vs full path', () => {
 
     beforeEach(() => {
         ctl.generateText.mockReset()
+        ctl.streamText.mockReset()
         ctl.pushTask.mockReset()
         ctl.recordConversation.mockReset()
         ctl.recordConversation.mockResolvedValue(undefined)
+        lastStreamTools = {}
     })
 
-    function makeReqRes(body: Record<string, unknown>) {
-        const req: any = { body, headers: {}, query: {} }
+    /** Mock streamText return value: an async-iterable textStream + a text promise. */
+    function mockStream(text: string) {
+        const textStream = (async function* () { yield text })()
+        return { textStream, text: Promise.resolve(text) }
+    }
+
+    /** Wire ctl.streamText so the inline path can run with a canned reply. */
+    function setupInlineReply(reply: string) {
+        ctl.streamText.mockImplementation((opts: any) => {
+            lastStreamTools = (opts.tools ?? {}) as Record<string, unknown>
+            return mockStream(reply)
+        })
+    }
+
+    function makeReqRes(body: Record<string, unknown>, opts: { sse?: boolean } = {}) {
+        const req: any = {
+            body,
+            headers: opts.sse ? { accept: 'text/event-stream' } : {},
+            query: {},
+        }
         let status = 200
         let payload: any = null
         const res: any = {
@@ -371,6 +421,10 @@ describe('chat handler fastpath vs full path', () => {
             },
             set: vi.fn(),
             setHeader: vi.fn(),
+            flushHeaders: vi.fn(),
+            writableEnded: false,
+            write: vi.fn(() => true),
+            end: vi.fn(function (this: any) { this.writableEnded = true }),
         }
         return { req, res, getStatus: () => status, getPayload: () => payload }
     }
@@ -437,10 +491,12 @@ describe('chat handler fastpath vs full path', () => {
         expect(ctl.generateText).toHaveBeenCalledTimes(1)
     })
 
-    it('does NOT fastpath "Create a task to review the Q4 budget report and assign it to me"', async () => {
-        // The fast heuristic in chat.ts will classify this as non-CONVERSATION
+    it('routes a TASK to the async queue when background: true is set (opt-in background)', async () => {
+        // The fast heuristic in chat.ts classifies this as non-CONVERSATION
         // because it contains "create" (and is over 5 words). It falls through
-        // to the LLM classifier, which we steer to TASK, then the synth call.
+        // to the LLM classifier, which we steer to TASK. With background: true
+        // the TASK is queued for the async executor (polled reply path) — this
+        // is the OPT-IN background route; default TASK now goes inline.
         let callIdx = 0
         ctl.generateText.mockImplementation(async () => {
             callIdx++
@@ -456,6 +512,7 @@ describe('chat handler fastpath vs full path', () => {
             workspaceId,
             sessionId: 'sess-1',
             message: 'Create a task to review the Q4 budget report and assign it to me',
+            background: true,
         })
 
         await handler(req, res)
@@ -519,10 +576,11 @@ describe('chat handler fastpath vs full path', () => {
         expect(ctl.pushTask).not.toHaveBeenCalled()
     })
 
-    it('does NOT mis-route "create an HTML snake game" (no project word) as PROJECT', async () => {
+    it('does NOT mis-route "create an HTML snake game" (no project word) as PROJECT — background queue', async () => {
         // Simple TASK-ish asks without the word "project" must still route
-        // through the task queue, not the sprint flow. Regression guard on
-        // the explicit-project heuristic being too greedy.
+        // through the task queue when background is requested, not the sprint
+        // flow. Regression guard on the explicit-project heuristic being too
+        // greedy. Default (no background) now goes inline — covered below.
         let callIdx = 0
         ctl.generateText.mockImplementation(async () => {
             callIdx++
@@ -536,12 +594,73 @@ describe('chat handler fastpath vs full path', () => {
             workspaceId,
             sessionId: 'sess-1',
             message: 'create an HTML snake game for me please',
+            background: true,
         })
 
         await handler(req, res)
         const payload = getPayload()
         expect(payload.status).toBe('task_queued')
         expect(ctl.pushTask).toHaveBeenCalledTimes(1)
+    })
+
+    it('default TASK (no background) goes INLINE streaming — no pushTask, streamText called with full toolset', async () => {
+        // DD-3: the default coding path is a single streaming streamText call
+        // with the full toolset (code + workspace tools), NOT the queue. The
+        // model drives multi-turn tool use inline over the same response.
+        ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
+        setupInlineReply('Built it: wrote src/foo.ts and ran tests.')
+
+        const handler = await getHandler()
+        const { req, res, getPayload } = makeReqRes({
+            workspaceId,
+            sessionId: 'sess-1',
+            message: 'create an HTML snake game for me please',
+        })
+
+        await handler(req, res)
+        const payload = getPayload()
+        expect(ctl.pushTask).not.toHaveBeenCalled()
+        // Inline path produces a JSON complete reply (legacy path, non-SSE).
+        expect(payload.status).toBe('complete')
+        expect(payload.reply).toContain('Built it')
+        // streamText was invoked (the inline loop), with the full toolset.
+        expect(ctl.streamText).toHaveBeenCalledTimes(1)
+        for (const name of ['read_file', 'write_file', 'edit_file', 'grep', 'glob', 'shell']) {
+            expect(lastStreamTools).toHaveProperty(name)
+        }
+    })
+
+    it('inline streaming toolset includes workspace tools (web_search/memory_query) alongside code tools', async () => {
+        ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
+        setupInlineReply('Done.')
+
+        const handler = await getHandler()
+        const { req, res } = makeReqRes({
+            workspaceId,
+            sessionId: 'sess-1',
+            message: 'create an HTML snake game for me please',
+        })
+
+        await handler(req, res)
+        // buildWorkspaceTools adds web_search + memory_query at minimum.
+        expect(lastStreamTools).toHaveProperty('web_search')
+        expect(lastStreamTools).toHaveProperty('memory_query')
+    })
+
+    it('inline streaming stopWhen uses INLINE_STEP_LIMIT (>= 25), not the old fixed 5', async () => {
+        ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
+        setupInlineReply('Done.')
+
+        const handler = await getHandler()
+        const { req, res } = makeReqRes({
+            workspaceId,
+            sessionId: 'sess-1',
+            message: 'create an HTML snake game for me please',
+        })
+
+        await handler(req, res)
+        const opts = ctl.streamText.mock.calls[0]![0] as { stopWhen?: { count?: number } }
+        expect(opts.stopWhen?.count).toBeGreaterThanOrEqual(25)
     })
 
     it('does NOT fastpath a multi-step search+summarize request', async () => {

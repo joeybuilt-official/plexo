@@ -498,6 +498,18 @@ export interface ExecutionContext {
      */
     emitStepEvent?: (event: StepEvent) => void
     /**
+     * spawn_subagent runner — wired by executeTaskInner / chat.ts after the
+     * parent toolset is assembled. When unset, the `spawn_subagent` tool
+     * returns an error string instead of dispatching a nested loop.
+     * See packages/agent/src/executor/subagent.ts.
+     */
+    runSubagent?: (input: {
+        brief: string
+        goal?: string
+        tools?: string[]
+        maxSteps?: number
+    }) => Promise<string>
+    /**
      * Code Mode: track which file is currently "active" in the editor.
      * Used to inject cursor context into chat message dispatch.
      */

@@ -30,7 +30,6 @@ import { PROVIDER_DEFAULT_MODELS, buildModel } from '@plexo/agent/providers/regi
 import { routeAndCall } from '@plexo/agent/providers/router-v2'
 import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } from '@plexo/agent/providers/vision'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
-import { runSprint } from '@plexo/agent/sprint/runner'
 import { storeMemory, rememberInstruction } from '@plexo/agent/memory/store'
 import { detectCredentialMessage, autoInstallConnection } from '../credential-setup.js'
 import { setPreference } from '@plexo/agent/memory/preferences'
@@ -46,6 +45,8 @@ import {
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
 import { buildConversationSystemPrompt, translateErrorForUser, nameProject } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
+import { buildTools, wireSubagentRunner } from '@plexo/agent/executor'
+import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
 import { trackError, trackEvent } from '../event-tracker.js'
@@ -57,8 +58,21 @@ import { getCachedToolSet } from '../lib/tool-set-cache.js'
 import { describeToolCall } from '../utils/tool-labels.js'
 import type { FallbackOptions } from '@plexo/agent/providers/registry'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
+import { resolveModelOverride, composeSystemPrompt } from './chat-overrides.js'
+import * as conversationsRepo from '../repositories/conversations.repository.js'
 
 export const chatRouter: RouterType = Router()
+
+// Inline streaming agent-loop step ceiling. The model can call tools and
+// continue multi-turn over a single SSE response up to this many steps.
+// Configurable via PLEXO_CHAT_INLINE_STEP_LIMIT for operators who want a
+// tighter/looser ceiling.
+const INLINE_STEP_LIMIT = Math.max(1, Number(process.env.PLEXO_CHAT_INLINE_STEP_LIMIT) || 25)
+
+// Code tools exposed to the inline streaming chat path (mirror of the executor
+// task-path toolset, minus task_complete/write_asset/delegate — those are
+// queue-specific and don't belong in an inline conversational turn).
+const INLINE_CODE_TOOLS = ['read_file', 'write_file', 'edit_file', 'grep', 'glob', 'shell'] as const
 
 // ── Per-session mutex ────────────────────────────────────────────────────────
 // Prevents concurrent message processing for the same session, which would
@@ -201,13 +215,16 @@ function classifyAIError(err: unknown): ClassifiedError {
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession } = req.body as {
+    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession, background, modelOverride: bodyModelOverride, systemPromptOverride: bodySystemPromptOverride } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
         forceConversation?: boolean
         images?: Array<{ data: string; mimeType: string; name: string }>
         newSession?: boolean
+        background?: boolean
+        modelOverride?: string | null
+        systemPromptOverride?: string | null
     }
     // Mutable sessionId — starts as what the client sent, gets replaced by
     // the universal resolver once we know the message text. We still load
@@ -397,6 +414,28 @@ chatRouter.post('/message', async (req, res) => {
 
         // ── Conversation history load (AFTER resolver) ───────────────────────
         const dbTurns = await getSessionTurns(workspaceId, sessionId ?? sid, 30)
+
+        // DD-5: inherit per-conversation model + system-prompt overrides from
+        // the latest prior turn in this session (copy-forward). A per-turn
+        // value sent in the POST body takes precedence so the UI can change
+        // it mid-conversation. Non-fatal: on DB failure we fall back to none.
+        let persistedModelOverride: string | null = null
+        let persistedSystemPromptOverride: string | null = null
+        try {
+            if (sessionId) {
+                const prev = await conversationsRepo.getLatestSessionOverrides(workspaceId, sessionId)
+                if (prev) {
+                    persistedModelOverride = prev.modelOverride
+                    persistedSystemPromptOverride = prev.systemPromptOverride
+                }
+            }
+        } catch (err) {
+            logger.warn({ err, workspaceId, sessionId }, 'webchat: load session overrides failed (non-fatal)')
+        }
+        const effectiveModelOverride = resolveModelOverride(bodyModelOverride ?? null, persistedModelOverride)
+        const effectiveSystemPromptOverride = bodySystemPromptOverride !== undefined
+            ? (bodySystemPromptOverride ?? null)
+            : persistedSystemPromptOverride
 
         // Prepend recent turns from prior sessions so the agent retains
         // cross-session memory. The session resolver isolates sessions by design
@@ -723,17 +762,7 @@ chatRouter.post('/message', async (req, res) => {
         }
 
 
-        // Lazy-load full introspection snapshot only for TASK/PROJECT paths
-        // (skipped for CONVERSATION to save 80-150ms of DB queries)
-        let fullIdentityLine = identityLine
-        if (intent === 'TASK' || intent === 'PROJECT') {
-            try {
-                const { buildIntrospectionSnapshot, toConversationSnapshot } = await import('@plexo/agent/introspection')
-                const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
-                const conversationSafe = toConversationSnapshot(snapshot)
-                fullIdentityLine = `${identityLine}\n\nHere is your state and self-awareness snapshot:\n${JSON.stringify(conversationSafe, null, 2)}`
-            } catch { /* non-fatal — proceed with slim identity */ }
-        }
+        const fullIdentityLine = identityLine
 
         // Consultative routing: Check for recommended model
         let recommendedSwitch = ''
@@ -772,6 +801,8 @@ chatRouter.post('/message', async (req, res) => {
             status: 'pending',
             intent,
             messageEmbedding: _resolvedEmbedding,
+            modelOverride: effectiveModelOverride ?? null,
+            systemPromptOverride: effectiveSystemPromptOverride ?? null,
         }).catch(() => null)
 
         // ── MEMORY intent: store instruction immediately ───────────────────────────
@@ -796,7 +827,7 @@ chatRouter.post('/message', async (req, res) => {
                         await updateConversationById(conversationId, { reply, status: 'complete' })
                         turnSettled = true
                     } else {
-                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                         turnSettled = true
                     }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -810,7 +841,12 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        if (intent === 'CONVERSATION') {
+        // ── Inline streaming agent loop ──────────────────────────────────────
+        // Default path for CONVERSATION *and* TASK-without-background. The model
+        // gets the full toolset (code tools + workspace tools + MCP tools) and
+        // can multi-turn over a single SSE response up to INLINE_STEP_LIMIT
+        // steps. The async task queue is opt-in via `background: true`.
+        if (intent === 'CONVERSATION' || (intent === 'TASK' && !background)) {
             // ── Correction feedback loop: detect and record user corrections ──
             try {
                 const { hasCorrectionIntent, recordCorrection } = await import('@plexo/agent/memory/corrections')
@@ -871,9 +907,12 @@ chatRouter.post('/message', async (req, res) => {
                     ? `${resolvedProvider}/${resolvedModel} → ${visionFallbackModel.label}`
                     : `${resolvedProvider}/${resolvedModel}`
 
-                const systemPrompt = `${personaPrefix}${buildConversationSystemPrompt('webchat', `${identityLine}
+                const compiledSystemPrompt = `${personaPrefix}${buildConversationSystemPrompt('webchat', `${identityLine}
 
 For service integrations, provide direct links: [Connect Gmail](/connections?highlight=google-workspace), [Connect GitHub](/connections?highlight=github), etc. Format: /connections?highlight={service-id}. Known IDs: github, google-workspace, google-drive, slack, discord, jira, linear, notion, cloudflare, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog.${workspaceSnapshot}${memoryContext ? '\n\n' + memoryContext : ''}`)}`
+
+                // DD-5: prepend the per-conversation system-prompt override (if any).
+                const systemPrompt = composeSystemPrompt(compiledSystemPrompt, effectiveSystemPromptOverride)
 
                 const streamMessages = [
                     ...history,
@@ -882,9 +921,11 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                 logger.info({ workspaceId, historyTurns: history.length, totalMessages: streamMessages.length }, 'webchat: conversation context size')
 
-                // Load workspace tools (web_search, memory_query, connection tools, etc.)
-                // so webchat conversations have the same tool access as Telegram/Slack/Discord.
-                // Cached per workspace to avoid re-hydrating the bridge on every turn.
+                // Load workspace tools (web_search, memory_query, MCP connection tools, etc.)
+                // PLUS executor code tools (read_file, write_file, edit_file, grep, glob,
+                // shell) so the inline streaming path has the full toolset — the model
+                // decides whether to use them. Cached per workspace to avoid re-hydrating
+                // the bridge on every turn.
                 let chatTools: Record<string, unknown> = {}
                 try {
                     const { buildWorkspaceTools } = await import('@plexo/agent/tools/workspace-tools')
@@ -893,7 +934,47 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         () => buildWorkspaceTools(workspaceId),
                     )
                 } catch (toolErr) {
-                    logger.warn({ err: toolErr, workspaceId }, 'webchat: workspace tools load failed — continuing without tools (web_search/memory_query unavailable this turn)')
+                    logger.warn({ err: toolErr, workspaceId }, 'webchat: workspace tools load failed — continuing without workspace tools (web_search/memory_query/MCP unavailable this turn)')
+                }
+
+                // Code tools — bound to a minimal ExecutionContext so dispatchTool
+                // can emit step.file_write / step.shell_line / step.test_result
+                // events via emitToWorkspace. The workbench's use-code-stream
+                // subscribes to that same workspace SSE channel and renders them
+                // in the diff-viewer / terminal-panel exactly as it does for
+                // queued tasks — no new event shapes.
+                const inlineTaskId = `chat-${turnId}`
+                const inlineCtx: ExecutionContext = {
+                    taskId: inlineTaskId,
+                    workspaceId,
+                    userId: (req.user?.id as string) ?? 'chat',
+                    credential: credential as unknown as ExecutionContext['credential'],
+                    taskType: 'coding',
+                    tokenBudget: 0,
+                    taskCostCeilingUsd: null,
+                    signal: AbortSignal.timeout(120_000),
+                    activeProvider: resolvedProvider,
+                    activeModel: resolvedModel,
+                    emitStepEvent: (event: StepEvent) => {
+                        emitToWorkspace(workspaceId, event as unknown as import('../sse-emitter.js').AgentEvent)
+                    },
+                }
+                try {
+                    const codeToolsAll = buildTools(inlineCtx, null)
+                    const codeTools: Record<string, unknown> = {}
+                    for (const name of INLINE_CODE_TOOLS) {
+                        const t = (codeToolsAll as Record<string, unknown>)[name]
+                        if (t) codeTools[name] = t
+                    }
+                    chatTools = { ...codeTools, ...chatTools }
+                    // DD-4: wire spawn_subagent runner so the inline chat loop
+                    // can dispatch forked sub-agents using the resolved settings
+                    // + the full chat toolset.
+                    if (aiSettings) {
+                        wireSubagentRunner(inlineCtx, aiSettings, chatTools)
+                    }
+                } catch (toolErr) {
+                    logger.warn({ err: toolErr, workspaceId }, 'webchat: code tools build failed — continuing with workspace tools only')
                 }
 
                 if (wantsSSE) {
@@ -924,17 +1005,34 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 system: systemPrompt,
                                 messages: streamMessages,
                                 tools: chatTools as any,
-                                stopWhen: stepCountIs(5),
+                                stopWhen: stepCountIs(INLINE_STEP_LIMIT),
                                 abortSignal: AbortSignal.timeout(120_000),
                             })
                             let attemptText = ''
-                            for await (const chunk of stream.textStream) {
-                                attemptText += chunk
-                                fullText += chunk
-                                res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
+                            let hasWritten = false
+                            try {
+                                for await (const chunk of stream.textStream) {
+                                    attemptText += chunk
+                                    fullText += chunk
+                                    res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
+                                    hasWritten = true
+                                }
+                                // Ensure the full text promise resolves (side effects)
+                                await stream.text
+                            } catch (streamErr) {
+                                if (hasWritten) {
+                                    // Partial output already delivered to the client. Do NOT
+                                    // let the router cascade to another provider — it would
+                                    // re-stream from the start and duplicate what the client
+                                    // already received. Throw a sentinel the classifier treats
+                                    // as non-fallback so routeAndCall stops here; the outer
+                                    // streamErr handler surfaces the error to the client.
+                                    const sentinel = new Error('partial stream already delivered; not retryable to avoid duplicate output')
+                                    sentinel.name = 'StreamPartialAbortError'
+                                    throw sentinel
+                                }
+                                throw streamErr
                             }
-                            // Ensure the full text promise resolves (side effects)
-                            await stream.text
                             // Surface an empty stream as an error so router-v2 sees it
                             // (classifyError -> 'empty-output') and runs the
                             // retry-same-then-fallback cascade, instead of the silent
@@ -956,6 +1054,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 settings: aiSettings,
                                 doCall: streamFn,
                                 opts: fallbackOpts(workspaceId),
+                                ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                             })
 
                         fullText = result.text
@@ -976,6 +1075,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                         abortSignal: AbortSignal.timeout(120_000),
                                     }),
                                     opts: fallbackOpts(workspaceId),
+                                    ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                                 })
                                 const retryText = (retryResult.text ?? '').trim()
                                 if (retryText) {
@@ -996,7 +1096,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                     await updateConversationById(conversationId, { errorMsg: EMPTY_RESPONSE_MSG, status: 'failed' })
                                     turnSettled = true
                                 } else {
-                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                     turnSettled = true
                                 }
                             } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1005,7 +1105,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         }
 
                         // Signal completion with model info
-                        res.write(`data: ${JSON.stringify({ done: true, model: usedModel, ...(visionDegraded ? { visionDegraded: true } : {}) })}\n\n`)
+                        res.write(`data: ${JSON.stringify({ done: true, model: usedModel, conversationId: conversationId ?? undefined, ...(visionDegraded ? { visionDegraded: true } : {}) })}\n\n`)
                         res.end()
                     } catch (streamErr) {
                         const classified = classifyAIError(streamErr)
@@ -1020,7 +1120,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                                 turnSettled = true
                             } else {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                 turnSettled = true
                             }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1051,7 +1151,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
                             turnSettled = true
                         } else {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                             turnSettled = true
                         }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1093,7 +1193,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             system: systemPrompt,
                             messages: streamMessages,
                             tools: chatTools as any,
-                            stopWhen: stepCountIs(5),
+                            stopWhen: stepCountIs(INLINE_STEP_LIMIT),
                             // No SSE heartbeat on this buffered path, so keep the
                             // request under the ~100s upstream tunnel idle window.
                             abortSignal: AbortSignal.timeout(90_000),
@@ -1116,6 +1216,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             settings: aiSettings,
                             doCall: streamFn,
                             opts: fallbackOpts(workspaceId),
+                            ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                         })
 
                     let replyText = result.text
@@ -1140,7 +1241,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                                 turnSettled = true
                             } else {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                 turnSettled = true
                             }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1154,7 +1255,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
                             turnSettled = true
                         } else {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                             turnSettled = true
                         }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1188,7 +1289,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
 
                     trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
-                    res.json({ status: 'complete', reply: replyText, model: usedModel, ...(visionDegraded ? { visionDegraded: true } : {}) })
+                    res.json({ status: 'complete', reply: replyText, model: usedModel, conversationId: conversationId ?? undefined, ...(visionDegraded ? { visionDegraded: true } : {}) })
                 }
             } catch (err) {
                 const classified = classifyAIError(err)
@@ -1199,7 +1300,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                         turnSettled = true
                     } else {
-                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                         turnSettled = true
                     }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1209,9 +1310,12 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
         }
 
 
-        // TASK: auto-queue immediately — no confirmation step. The user asked, we act.
+        // Background task queue: OPT-IN only (background: true). The default
+        // coding path is the inline streaming loop above. When the caller asks
+        // for background, queue to the async executor and return a taskId for
+        // polling via /api/chat/reply/:taskId.
         // PROJECT: still show one confirm because it spins up a full multi-step sprint.
-        if (intent === 'TASK') {
+        if (intent === 'TASK' && background) {
             // Synthesize a clean task description from conversation context
             let cleanDescription = trimmedMsg
             try {
@@ -1419,89 +1523,8 @@ chatRouter.post('/execute-action', async (req, res) => {
             emitToWorkspace(workspaceId, { type: 'task_queued', taskId, source: 'dashboard' })
             audit(req, { workspaceId, userId: req.user?.id, action: 'task.create', resource: 'tasks', resourceId: taskId, metadata: { source: 'dashboard', via: 'chat' } })
             res.status(202).json({ taskId, status: 'queued' })
-        } else if (intent === 'PROJECT') {
-            if (resolvedCategory === 'code' && process.env.ENABLE_SPRINT_CODING_TASKS !== 'true') {
-                res.status(503).json({ error: { code: 'SPRINT_CODING_DISABLED', message: 'Sprint coding tasks are disabled on this instance. Set ENABLE_SPRINT_CODING_TASKS=true to enable; see docs/operations/sprint-coding-flag.md.' } })
-                return
-            }
-
-            // Pre-check: verify at least one AI provider is configured before creating the sprint row.
-            // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
-            let aiSettings: Awaited<ReturnType<typeof loadWorkspaceAISettings>>['aiSettings'] = null
-            let hasCredential = false
-            try {
-                const loaded = await loadWorkspaceAISettings(workspaceId)
-                hasCredential = !!loaded.credential
-                if (loaded.aiSettings) aiSettings = loaded.aiSettings
-            } catch (err) {
-                logger.warn({ err, workspaceId }, 'Could not resolve AI settings for sprint planner — using env fallback')
-            }
-
-            if (!hasCredential) {
-                res.status(402).json({
-                    error: {
-                        code: 'NO_AI_CREDENTIAL',
-                        message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before starting a project.',
-                    },
-                })
-                return
-            }
-
-            const id = ulid()
-            const projectName = await nameProject(workspaceId, description)
-            const sprint = await sprintsRepo.createSprint({
-                id,
-                workspaceId,
-                request: description,
-                category: resolvedCategory,
-                repo: repo ?? null,
-                status: 'planning',
-                metadata: { name: projectName },
-            })
-            if (!sprint) throw new Error('Sprint insert returned no rows')
-            logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
-
-            runSprint({
-                sprintId: sprint.id,
-                workspaceId,
-                category: resolvedCategory,
-                repo: repo ?? undefined,
-                request: description,
-                aiSettings,
-            }).catch((err: unknown) => {
-                logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
-                trackEvent('sprint.failed', 'error', { channel: 'webchat', sprintId: sprint.id, workspaceId })
-                trackError(err, { sprintId: sprint.id, workspaceId, category: resolvedCategory })
-
-                // Report the failure back to the originating conversation/session
-                // so the user isn't left staring at a silent "Created" status.
-                const errMsg = err instanceof Error ? err.message : String(err)
-                const userFacingReply = translateErrorForUser(errMsg)
-
-                void recordConversation({
-                    workspaceId,
-                    sessionId: sessionId ?? null,
-                    source: 'dashboard',
-                    message: description,
-                    reply: userFacingReply,
-                    errorMsg: errMsg,
-                    status: 'failed',
-                    intent: 'PROJECT',
-                    messageEmbedding: _executeActionEmbedding,
-                }).catch((recErr: unknown) => logger.warn({ recErr }, 'Failed to record sprint error turn'))
-
-                emitToWorkspace(workspaceId, {
-                    type: 'chat_error',
-                    sessionId: sessionId ?? null,
-                    sprintId: sprint.id,
-                    message: userFacingReply,
-                })
-            })
-
-            audit(req, { workspaceId, userId: req.user?.id, action: 'sprint.create', resource: 'sprints', resourceId: sprint.id, metadata: { category: resolvedCategory } })
-            res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory, name: projectName })
         } else {
-            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })
+            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK' } })
         }
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')
