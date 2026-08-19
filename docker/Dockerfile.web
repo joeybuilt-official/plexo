@@ -30,6 +30,7 @@ COPY apps/api/package.json apps/api/
 COPY packages/ui/package.json packages/ui/
 COPY packages/logger/package.json packages/logger/
 COPY packages/db/package.json packages/db/
+COPY packages/auth/package.json packages/auth/
 COPY packages/agent/package.json packages/agent/
 COPY packages/queue/package.json packages/queue/
 COPY packages/sdk/package.json packages/sdk/
@@ -54,6 +55,7 @@ COPY apps/web ./apps/web
 COPY packages/ui ./packages/ui
 COPY packages/logger ./packages/logger
 COPY packages/db ./packages/db
+COPY packages/auth ./packages/auth
 COPY --from=git-meta /meta/SOURCE_COMMIT /tmp/SOURCE_COMMIT
 ENV NEXT_PUBLIC_SOURCE_COMMIT=""
 # INTERNAL_API_URL must be available at build time for Next.js rewrites

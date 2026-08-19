@@ -43,6 +43,8 @@ COPY apps/api/package.json              apps/api/
 COPY apps/web/package.json              apps/web/
 COPY packages/agent/package.json        packages/agent/
 COPY packages/db/package.json           packages/db/
+COPY packages/domain/package.json       packages/domain/
+COPY packages/auth/package.json         packages/auth/
 COPY packages/queue/package.json        packages/queue/
 COPY packages/sdk/package.json          packages/sdk/
 COPY packages/logger/package.json       packages/logger/
@@ -117,6 +119,8 @@ COPY tsconfig.base.json ./
 COPY apps/api        ./apps/api
 COPY packages/agent  ./packages/agent
 COPY packages/db     ./packages/db
+COPY packages/domain ./packages/domain
+COPY packages/auth   ./packages/auth
 COPY packages/queue  ./packages/queue
 COPY packages/sdk             ./packages/sdk
 COPY --from=deps /app/packages/sdk/dist ./packages/sdk/dist
@@ -164,7 +168,7 @@ ENV APP_VERSION=auto
 # Link workspace packages so dynamic imports resolve at runtime (tsx static
 # imports work via process memory; dynamic imports need these symlinks)
 RUN mkdir -p /app/node_modules/@plexo && \
-    for pkg in agent db queue sdk logger scl-core storage session-fabric; do \
+    for pkg in agent db domain auth queue sdk logger scl-core storage session-fabric; do \
       ln -sf /app/packages/${pkg} /app/node_modules/@plexo/${pkg}; \
     done
 
