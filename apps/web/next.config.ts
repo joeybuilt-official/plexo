@@ -2,10 +2,31 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
 import localPkg from "./package.json";
+
+// A stable build id keeps code-split chunk hashes identical across identical
+// rebuilds, so an already-open tab does not 404 on a chunk after a redeploy.
+// Prefer an id the deploy pipeline injects (PLEXO_BUILD_ID); fall back to the
+// git SHA; else return null so Next uses its default random id.
+function resolveBuildId(): string | null {
+  if (process.env.PLEXO_BUILD_ID) return process.env.PLEXO_BUILD_ID;
+  try {
+    return (
+      execSync("git rev-parse --short HEAD", {
+        stdio: ["ignore", "pipe", "ignore"],
+      })
+        .toString()
+        .trim() || null
+    );
+  } catch {
+    return null;
+  }
+}
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  generateBuildId: resolveBuildId,
   devIndicators: false,
   transpilePackages: ["@plexo/ui", "@plexo/logger", "@plexo/db"],
   // L4.5 — strip data-testid attributes from production builds. Tests use them
