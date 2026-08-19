@@ -59,6 +59,8 @@ import { getCachedToolSet } from '../lib/tool-set-cache.js'
 import { describeToolCall } from '../utils/tool-labels.js'
 import type { FallbackOptions } from '@plexo/agent/providers/registry'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
+import { resolveModelOverride, composeSystemPrompt } from './chat-overrides.js'
+import * as conversationsRepo from '../repositories/conversations.repository.js'
 
 export const chatRouter: RouterType = Router()
 
@@ -214,7 +216,7 @@ function classifyAIError(err: unknown): ClassifiedError {
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession, background } = req.body as {
+    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession, background, modelOverride: bodyModelOverride, systemPromptOverride: bodySystemPromptOverride } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
@@ -222,6 +224,8 @@ chatRouter.post('/message', async (req, res) => {
         images?: Array<{ data: string; mimeType: string; name: string }>
         newSession?: boolean
         background?: boolean
+        modelOverride?: string | null
+        systemPromptOverride?: string | null
     }
     // Mutable sessionId — starts as what the client sent, gets replaced by
     // the universal resolver once we know the message text. We still load
@@ -411,6 +415,28 @@ chatRouter.post('/message', async (req, res) => {
 
         // ── Conversation history load (AFTER resolver) ───────────────────────
         const dbTurns = await getSessionTurns(workspaceId, sessionId ?? sid, 30)
+
+        // DD-5: inherit per-conversation model + system-prompt overrides from
+        // the latest prior turn in this session (copy-forward). A per-turn
+        // value sent in the POST body takes precedence so the UI can change
+        // it mid-conversation. Non-fatal: on DB failure we fall back to none.
+        let persistedModelOverride: string | null = null
+        let persistedSystemPromptOverride: string | null = null
+        try {
+            if (sessionId) {
+                const prev = await conversationsRepo.getLatestSessionOverrides(workspaceId, sessionId)
+                if (prev) {
+                    persistedModelOverride = prev.modelOverride
+                    persistedSystemPromptOverride = prev.systemPromptOverride
+                }
+            }
+        } catch (err) {
+            logger.warn({ err, workspaceId, sessionId }, 'webchat: load session overrides failed (non-fatal)')
+        }
+        const effectiveModelOverride = resolveModelOverride(bodyModelOverride ?? null, persistedModelOverride)
+        const effectiveSystemPromptOverride = bodySystemPromptOverride !== undefined
+            ? (bodySystemPromptOverride ?? null)
+            : persistedSystemPromptOverride
 
         // Prepend recent turns from prior sessions so the agent retains
         // cross-session memory. The session resolver isolates sessions by design
@@ -786,6 +812,8 @@ chatRouter.post('/message', async (req, res) => {
             status: 'pending',
             intent,
             messageEmbedding: _resolvedEmbedding,
+            modelOverride: effectiveModelOverride ?? null,
+            systemPromptOverride: effectiveSystemPromptOverride ?? null,
         }).catch(() => null)
 
         // ── MEMORY intent: store instruction immediately ───────────────────────────
@@ -810,7 +838,7 @@ chatRouter.post('/message', async (req, res) => {
                         await updateConversationById(conversationId, { reply, status: 'complete' })
                         turnSettled = true
                     } else {
-                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                         turnSettled = true
                     }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -890,9 +918,12 @@ chatRouter.post('/message', async (req, res) => {
                     ? `${resolvedProvider}/${resolvedModel} → ${visionFallbackModel.label}`
                     : `${resolvedProvider}/${resolvedModel}`
 
-                const systemPrompt = `${personaPrefix}${buildConversationSystemPrompt('webchat', `${identityLine}
+                const compiledSystemPrompt = `${personaPrefix}${buildConversationSystemPrompt('webchat', `${identityLine}
 
 For service integrations, provide direct links: [Connect Gmail](/connections?highlight=google-workspace), [Connect GitHub](/connections?highlight=github), etc. Format: /connections?highlight={service-id}. Known IDs: github, google-workspace, google-drive, slack, discord, jira, linear, notion, cloudflare, sentry, posthog, pagerduty, netlify, openai, ovhcloud, datadog.${workspaceSnapshot}${memoryContext ? '\n\n' + memoryContext : ''}`)}`
+
+                // DD-5: prepend the per-conversation system-prompt override (if any).
+                const systemPrompt = composeSystemPrompt(compiledSystemPrompt, effectiveSystemPromptOverride)
 
                 const streamMessages = [
                     ...history,
@@ -1017,6 +1048,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 settings: aiSettings,
                                 doCall: streamFn,
                                 opts: fallbackOpts(workspaceId),
+                                ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                             })
 
                         fullText = result.text
@@ -1037,6 +1069,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                         abortSignal: AbortSignal.timeout(120_000),
                                     }),
                                     opts: fallbackOpts(workspaceId),
+                                    ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                                 })
                                 const retryText = (retryResult.text ?? '').trim()
                                 if (retryText) {
@@ -1057,7 +1090,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                     await updateConversationById(conversationId, { errorMsg: EMPTY_RESPONSE_MSG, status: 'failed' })
                                     turnSettled = true
                                 } else {
-                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                    await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: EMPTY_RESPONSE_MSG, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                     turnSettled = true
                                 }
                             } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1066,7 +1099,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         }
 
                         // Signal completion with model info
-                        res.write(`data: ${JSON.stringify({ done: true, model: usedModel, ...(visionDegraded ? { visionDegraded: true } : {}) })}\n\n`)
+                        res.write(`data: ${JSON.stringify({ done: true, model: usedModel, conversationId: conversationId ?? undefined, ...(visionDegraded ? { visionDegraded: true } : {}) })}\n\n`)
                         res.end()
                     } catch (streamErr) {
                         const classified = classifyAIError(streamErr)
@@ -1081,7 +1114,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                                 turnSettled = true
                             } else {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                 turnSettled = true
                             }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1112,7 +1145,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
                             turnSettled = true
                         } else {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                             turnSettled = true
                         }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1177,6 +1210,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             settings: aiSettings,
                             doCall: streamFn,
                             opts: fallbackOpts(workspaceId),
+                            ...(effectiveModelOverride ? { modelIdOverride: effectiveModelOverride } : {}),
                         })
 
                     let replyText = result.text
@@ -1201,7 +1235,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                                 turnSettled = true
                             } else {
-                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                                await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                                 turnSettled = true
                             }
                         } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1215,7 +1249,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             await updateConversationById(conversationId, { reply: replyText, status: 'complete' })
                             turnSettled = true
                         } else {
-                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding })
+                            await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                             turnSettled = true
                         }
                     } catch (err) { logger.error({ err }, "Failed to record conversation") }
@@ -1249,7 +1283,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     }).catch((err: unknown) => logger.debug({ err, workspaceId }, 'extractConversationMemory failed (non-fatal)'))
 
                     trackDelivery({ workspaceId, channel: 'webchat', chatId: sessionId ?? 'unknown', status: 'sent', messageLength: replyText.length })
-                    res.json({ status: 'complete', reply: replyText, model: usedModel, ...(visionDegraded ? { visionDegraded: true } : {}) })
+                    res.json({ status: 'complete', reply: replyText, model: usedModel, conversationId: conversationId ?? undefined, ...(visionDegraded ? { visionDegraded: true } : {}) })
                 }
             } catch (err) {
                 const classified = classifyAIError(err)
@@ -1260,7 +1294,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         await updateConversationById(conversationId, { errorMsg: classified.message, status: 'failed' })
                         turnSettled = true
                     } else {
-                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding })
+                        await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent, messageEmbedding: _resolvedEmbedding, modelOverride: effectiveModelOverride ?? null, systemPromptOverride: effectiveSystemPromptOverride ?? null })
                         turnSettled = true
                     }
                 } catch (err) { logger.error({ err }, "Failed to record conversation") }

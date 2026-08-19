@@ -31,6 +31,48 @@ export async function getConversationById(id: string): Promise<Conversation | un
     return item
 }
 
+/**
+ * DD-5: PATCH the per-conversation model + system-prompt overrides by id.
+ * `null` clears the field; `undefined` leaves it untouched. Returns the
+ * updated row, or undefined if the row does not exist.
+ */
+export async function updateConversationOverrides(
+    id: string,
+    update: { modelOverride?: string | null; systemPromptOverride?: string | null },
+): Promise<Conversation | undefined> {
+    const set: Record<string, string | null> = {}
+    if (update.modelOverride !== undefined) set.modelOverride = update.modelOverride
+    if (update.systemPromptOverride !== undefined) set.systemPromptOverride = update.systemPromptOverride
+    if (Object.keys(set).length === 0) {
+        return getConversationById(id)
+    }
+    const [item] = await db.update(conversations).set(set).where(eq(conversations.id, id)).returning()
+    return item
+}
+
+/**
+ * DD-5: load the most recent conversation row in a session that carries a
+ * non-null model or system-prompt override. The chat path inherits these
+ * for the next turn (copy-forward) so an override set on any prior turn
+ * stays in effect for the whole session.
+ */
+export async function getLatestSessionOverrides(
+    workspaceId: string,
+    sessionId: string,
+): Promise<{ modelOverride: string | null; systemPromptOverride: string | null } | undefined> {
+    const [row] = await db
+        .select({
+            modelOverride: conversations.modelOverride,
+            systemPromptOverride: conversations.systemPromptOverride,
+        })
+        .from(conversations)
+        .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}
+            AND (model_override IS NOT NULL OR system_prompt_override IS NOT NULL)`)
+        .orderBy(desc(conversations.createdAt))
+        .limit(1)
+    return row
+}
+
 /** All turns for a session, chronological. */
 export async function listSessionTurns(workspaceId: string, sessionId: string, limit: number): Promise<Conversation[]> {
     return db

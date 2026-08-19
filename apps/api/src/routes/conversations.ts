@@ -33,6 +33,56 @@ conversationsRouter.get('/:id', async (req, res) => {
     }
 })
 
+// ── PATCH /api/v1/conversations/:id ───────────────────────────────────────────
+// DD-5: update per-conversation model + system-prompt overrides. Body:
+//   { modelOverride?: string | null, systemPromptOverride?: string | null }
+// `null` clears a field; omitting it leaves it untouched. Auth + workspace
+// access guarded like the GET above.
+
+conversationsRouter.patch('/:id', async (req, res) => {
+    const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid id required (max 64 chars)' } })
+        return
+    }
+    const { modelOverride, systemPromptOverride } = (req.body ?? {}) as {
+        modelOverride?: string | null
+        systemPromptOverride?: string | null
+    }
+    if (modelOverride !== undefined && modelOverride !== null && typeof modelOverride !== 'string') {
+        res.status(400).json({ error: { code: 'INVALID_BODY', message: 'modelOverride must be a string or null' } })
+        return
+    }
+    if (systemPromptOverride !== undefined && systemPromptOverride !== null && typeof systemPromptOverride !== 'string') {
+        res.status(400).json({ error: { code: 'INVALID_BODY', message: 'systemPromptOverride must be a string or null' } })
+        return
+    }
+    if (modelOverride !== undefined && modelOverride && modelOverride.length > 256) {
+        res.status(400).json({ error: { code: 'INVALID_BODY', message: 'modelOverride max 256 chars' } })
+        return
+    }
+    if (systemPromptOverride !== undefined && systemPromptOverride && systemPromptOverride.length > 32_000) {
+        res.status(400).json({ error: { code: 'INVALID_BODY', message: 'systemPromptOverride max 32000 chars' } })
+        return
+    }
+    try {
+        const existing = await conversationsRepo.getConversationById(id)
+        if (!existing) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
+            return
+        }
+        if (!await ensureWorkspaceAccess(req, res, existing.workspaceId)) return
+        const updated = await conversationsRepo.updateConversationOverrides(id, {
+            modelOverride: modelOverride === undefined ? undefined : (modelOverride ?? null),
+            systemPromptOverride: systemPromptOverride === undefined ? undefined : (systemPromptOverride ?? null),
+        })
+        res.json(updated)
+    } catch (err) {
+        logger.error({ err, id }, 'PATCH /api/v1/conversations/:id failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update conversation overrides' } })
+    }
+})
+
 // ── GET /api/v1/conversations?workspaceId=&limit=&cursor=&sessionId= ─────────
 // Returns conversation records for a workspace, newest first.
 // If ?sessionId= is provided, returns all turns for that session in chronological order.
@@ -88,6 +138,8 @@ conversationsRouter.get('/', async (req, res) => {
                 channelRef: row.channel_ref,
                 attachments: row.attachments,
                 createdAt: row.created_at,
+                modelOverride: row.model_override,
+                systemPromptOverride: row.system_prompt_override,
                 turn_count: row.turn_count,
             }))
             const nextCursor = items.length === lim ? (items[items.length - 1]?.id as string ?? null) : null

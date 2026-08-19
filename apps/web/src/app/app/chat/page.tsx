@@ -30,7 +30,7 @@ import type { ChatMessage, Message, PlanProposalMessage, TaskAsset, SprintActivi
 import { isPlanProposalMessage } from './_components/types'
 import { MessageBubble } from './_components/message-bubble'
 import { normalizeEvents, type RawProgressEvent } from './_components/agent-thinking-panel'
-import { Composer } from './_components/composer'
+import { Composer, type ProviderModelOption } from './_components/composer'
 import { useTTS } from './_hooks/use-tts'
 
 // Heavy workbench — lazy loaded, not on initial bundle. SSR disabled as the
@@ -49,6 +49,10 @@ const ArtifactPanel = dynamicImport(
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
 const LARGE_TEXT_THRESHOLD = 1000
+
+// DD-5: per-workspace cache of the provider/model picker rows so the composer
+// doesn't re-fetch the providers list on every chat page mount/tab-switch.
+const providerModelsCache = new Map<string, ProviderModelOption[]>()
 
 export default function ChatPage() {
     return (
@@ -77,6 +81,14 @@ function ChatContent() {
 
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
+    // DD-5: per-conversation model + system-prompt overrides.
+    const [providerModels, setProviderModels] = useState<ProviderModelOption[]>([])
+    const [modelOverride, setModelOverride] = useState<string | null>(null)
+    const [systemPromptOverride, setSystemPromptOverride] = useState('')
+    // DD-5: latest server conversation row id for this session — captured from
+    // the chat SSE `done` event / JSON reply so override PATCHes address a real
+    // row without scraping it out of a UI bubble id.
+    const latestConversationIdRef = useRef<string | null>(null)
     const [, setShowVoiceSetupPrompt] = useState(false)
     const searchParams = useSearchParams()
     const [isLiveMode, setIsLiveMode] = useState(searchParams.get('live') === '1')
@@ -165,6 +177,8 @@ function ChatContent() {
         startedAsNewRef.current = true
         hasSentFirstMessageRef.current = false
         setMessages([])
+        setModelOverride(null)
+        setSystemPromptOverride('')
     }, [searchParams.get('new'), searchParams.get('sessionId')])  // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
@@ -178,6 +192,46 @@ function ChatContent() {
             .then(res => res.json())
             .then(data => setAgentModel((data as { currentModel?: string | null }).currentModel || null))
             .catch((err) => { console.error('[chat] agent status fetch failed', err) })
+    }, [WS_ID])
+
+    // DD-5: load the workspace's configured provider/model list for the picker.
+    // Cached per-workspace at module scope so re-mounts / tab-switches don't
+    // re-fetch (matches the cheap-cache constraint for the tools cache).
+    useEffect(() => {
+        if (!WS_ID) return
+        const cached = providerModelsCache.get(WS_ID)
+        if (cached) { setProviderModels(cached); return }
+        let cancelled = false
+        void fetch(`${API}/api/v1/workspaces/${encodeURIComponent(WS_ID)}/providers`)
+            .then(res => res.ok ? res.json() : null)
+            .then((data: { providers?: Array<{ nickname: string; providerType: string; enabled: boolean; selectedModel: string | null; capabilities?: { chatModels?: string[] } }> } | null) => {
+                if (cancelled || !data?.providers) return
+                const rows: ProviderModelOption[] = []
+                for (const p of data.providers) {
+                    if (!p.enabled) continue
+                    const models = p.capabilities?.chatModels ?? []
+                    const seen = new Set<string>()
+                    for (const m of models) {
+                        const value = `${p.providerType}/${m}`
+                        if (seen.has(value)) continue
+                        seen.add(value)
+                        rows.push({ value, label: `${p.nickname || p.providerType} / ${m}` })
+                    }
+                    // Always include the provider's currently selected model even
+                    // if it's missing from the discovered chatModels list.
+                    if (p.selectedModel) {
+                        const value = `${p.providerType}/${p.selectedModel}`
+                        if (!seen.has(value)) {
+                            seen.add(value)
+                            rows.push({ value, label: `${p.nickname || p.providerType} / ${p.selectedModel}` })
+                        }
+                    }
+                }
+                providerModelsCache.set(WS_ID, rows)
+                if (!cancelled) setProviderModels(rows)
+            })
+            .catch((err) => { console.error('[chat] provider models fetch failed', err) })
+        return () => { cancelled = true }
     }, [WS_ID])
 
     useEffect(() => {
@@ -321,6 +375,19 @@ function ChatContent() {
                     if (loaded.length > 0) setMessages(loaded)
                     sessionId.current = sessionIdParam
                     sessionStorage.setItem('plexo-chat-session', sessionIdParam)
+                    // DD-5: track the latest conversation row id for override PATCHes.
+                    if (turns.length > 0) latestConversationIdRef.current = turns[turns.length - 1]!.id
+                    // DD-5: hydrate per-conversation overrides from the latest
+                    // turn that carries them (copy-forward semantics on the
+                    // server side; the UI reads the newest non-null row).
+                    const overrideTurn = turns.find((t: Record<string, unknown>) => t.model_override || t.system_prompt_override) as Record<string, unknown> | undefined
+                    if (overrideTurn) {
+                        setModelOverride((overrideTurn.model_override as string | null) ?? null)
+                        setSystemPromptOverride(((overrideTurn.system_prompt_override as string | null) ?? '').toString())
+                    } else {
+                        setModelOverride(null)
+                        setSystemPromptOverride('')
+                    }
                     // Backfill agent-bubble works from the tasks assets
                     // endpoint (the right source), capped to avoid a
                     // thundering herd on long histories.
@@ -342,7 +409,11 @@ function ChatContent() {
                     }
                     const data = await res.json() as {
                         id: string; message: string; reply: string | null; sessionId: string | null; status: string
+                        modelOverride?: string | null; systemPromptOverride?: string | null
                     }
+                    setModelOverride(data.modelOverride ?? null)
+                    setSystemPromptOverride(data.systemPromptOverride ?? '')
+                    latestConversationIdRef.current = data.id
                     const loaded: Message[] = []
                     if (data.message) {
                         loaded.push({
@@ -981,6 +1052,11 @@ function ChatContent() {
                         repo: workbenchContext.repo,
                         branch: workbenchContext.branch,
                     } : {}),
+                    // DD-5: thread per-conversation overrides into the turn.
+                    // The server uses these for this turn AND persists them on
+                    // the new conversation row (copy-forward).
+                    modelOverride: modelOverride ?? null,
+                    systemPromptOverride: systemPromptOverride || null,
                     images: rasterImages.length > 0
                         ? rasterImages.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
                         : undefined,
@@ -1026,6 +1102,7 @@ function ChatContent() {
                             try {
                                 const ev = JSON.parse(line.slice(6)) as {
                                     chunk?: string; done?: boolean; model?: string
+                                    conversationId?: string
                                     error?: string; fixUrl?: string; fixLabel?: string
                                     visionDegraded?: boolean
                                 }
@@ -1050,6 +1127,7 @@ function ChatContent() {
 
                                 if (ev.done) {
                                     streamModel = ev.model
+                                    if (ev.conversationId) latestConversationIdRef.current = ev.conversationId
                                 }
                             } catch { /* malformed SSE event — skip */ }
                         }
@@ -1076,7 +1154,9 @@ function ChatContent() {
             }
 
             // ── Legacy JSON path (fallback for non-SSE responses) ───────────
-            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string; fixUrl?: string; fixLabel?: string; technicalDetail?: string; model?: string }
+            const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string; fixUrl?: string; fixLabel?: string; technicalDetail?: string; model?: string; conversationId?: string }
+
+            if (data.conversationId) latestConversationIdRef.current = data.conversationId
 
             if (data.status === 'error') {
                 setMessages((prev) => prev.map((m) =>
@@ -1199,6 +1279,38 @@ function ChatContent() {
         }
     }
 
+    // DD-5: persist override changes to the latest conversation row in this
+    // session so they survive across turns and page reloads. Fire-and-forget
+    // PATCH keyed by the latest conversation id; non-fatal on failure (the
+    // next send also threads the override through the POST body, so it lands
+    // regardless). Skipped when no turns exist yet (the first send stores it).
+    const persistOverrides = useCallback(async (patch: { modelOverride?: string | null; systemPromptOverride?: string | null }) => {
+        const latestConvId = latestConversationIdRef.current
+        if (!latestConvId) return
+        try {
+            await fetch(`${API}/api/v1/conversations/${encodeURIComponent(latestConvId)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patch),
+            })
+        } catch (err) {
+            console.error('[chat] persist overrides failed', err)
+        }
+    }, [])
+
+    const handleModelOverrideChange = useCallback((v: string | null) => {
+        setModelOverride(v)
+        void persistOverrides({ modelOverride: v })
+    }, [persistOverrides])
+
+    const handleSystemPromptOverrideChange = useCallback((v: string) => {
+        setSystemPromptOverride(v)
+    }, [])
+
+    const handleSystemPromptOverrideBlur = useCallback(() => {
+        void persistOverrides({ systemPromptOverride: systemPromptOverride || null })
+    }, [persistOverrides, systemPromptOverride])
+
     const modelToUse = agentModel ?? 'claude-sonnet-4-5'
     const caps = getModelCapabilities(modelToUse)
     const suggestion = recommendModelForInput(input, modelToUse)
@@ -1263,6 +1375,8 @@ function ChatContent() {
                             onClick={() => {
                                 setMessages([])
                                 setHistoryError(false)
+                                setModelOverride(null)
+                                setSystemPromptOverride('')
                                 tts.stop()
                                 const fresh = `session-${Date.now()}`
                                 sessionId.current = fresh
@@ -1463,6 +1577,12 @@ function ChatContent() {
                             if (!next) { tts.stop(); voice.stop() }
                             else if (!sending && !isListening) void voice.start()
                         }}
+                        modelOptions={providerModels}
+                        modelOverride={modelOverride}
+                        onModelOverrideChange={handleModelOverrideChange}
+                        systemPromptOverride={systemPromptOverride}
+                        onSystemPromptOverrideChange={handleSystemPromptOverrideChange}
+                        onSystemPromptOverrideBlur={handleSystemPromptOverrideBlur}
                     />
                 </div>
             </div>

@@ -60,6 +60,10 @@ export interface RecordConversationParams {
      * typically get this from the session resolver.
      */
     messageEmbedding?: number[] | null
+    /** DD-5: per-conversation model override (`<providerType>/<modelId>` or bare `<modelId>`). */
+    modelOverride?: string | null
+    /** DD-5: per-conversation system-prompt override; non-empty prepends to the compiled prompt. */
+    systemPromptOverride?: string | null
 }
 
 // ── Record a single conversation turn ─────────────────────────────────────────
@@ -81,6 +85,8 @@ export async function recordConversation(params: RecordConversationParams): Prom
         channelRef: params.channelRef ?? null,
         attachments: params.attachments ?? [],
         sessionEmbedding: params.messageEmbedding ?? null,
+        modelOverride: params.modelOverride ?? null,
+        systemPromptOverride: params.systemPromptOverride ?? null,
         createdAt,
     })
 
