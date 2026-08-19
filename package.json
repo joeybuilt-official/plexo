@@ -116,6 +116,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
+    "arch:check": "dependency-cruiser --config .dependency-cruiser.js --ignore-known .dependency-cruiser-baseline.json packages/db/src packages/sdk/src packages/logger/src packages/storage/src packages/queue/src packages/mcp-server/src packages/agent/src apps/api/src",
+    "arch:baseline": "dependency-cruiser --config .dependency-cruiser.js --output-type baseline packages/db/src packages/sdk/src packages/logger/src packages/storage/src packages/queue/src packages/mcp-server/src packages/agent/src apps/api/src > .dependency-cruiser-baseline.json",
     "test": "turbo test",
     "test:unit": "vitest run tests/unit",
     "test:unit:watch": "vitest tests/unit",
@@ -145,6 +147,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^22",
+    "dependency-cruiser": "^18.2.0",
     "prettier": "^3",
     "tsx": "^4.21.0",
     "turbo": "^2",

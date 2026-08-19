@@ -1,0 +1,2621 @@
+[
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/behavior/reflect.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/behavior/reflect.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/behavior/resolver.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/behavior/resolver.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/capabilities/manifest.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/capabilities/manifest.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/escalation/manager.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/escalation/manager.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/index.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/index.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/quality-judge.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/quality-judge.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/step-builder.test.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/step-builder.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/executor/step-builder.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/__tests__/extract.test.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/__tests__/namespace.test.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "type-import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/ab-variants.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/ab-variants.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/consolidation.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/consolidation.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/conversation-bridge.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/conversation-bridge.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/corrections.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/corrections.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/extract-worker.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/extract-worker.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/preferences.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/preferences.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/prompt-improvement.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/prompt-improvement.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/self-improvement.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/self-improvement.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/store.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/store.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/write.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/write.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/chain-resolver.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/chain-resolver.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/discovery.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/discovery.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/instances.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/instances.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/knowledge.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/knowledge.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/migrate-to-instances.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/migrate-to-instances.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/registry.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/registry.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/router-v2/telemetry.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/router-v2/telemetry.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/router.test.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/router.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/router.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/settings-from-instances.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/providers/settings-from-instances.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/tasks/artifact-share.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/tasks/artifact-share.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/tasks/terminal-fail.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/tasks/terminal-fail.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "agent-core-imports-orm"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/admin/tasks.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.2_@opentelemetry+api@1.9.1_@types+pg@8.20.0_kysely@0.29.2_pg@8.22.0_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-routes-imports-drizzle"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/logger/src/drizzle-session-log-store.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "logger-imports-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/logger/src/ports.ts",
+    "to": "packages/db/src/index.ts",
+    "unresolvedTo": "@plexo/db",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "logger-imports-outer"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "apps/api/src/channel-delivery.ts",
+    "unresolvedTo": "./channel-delivery.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "apps/api/src/channel-delivery.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "apps/api/src/channel-ai.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "apps/api/src/agent-loop.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/agent/src/connections/bridge.ts",
+    "to": "packages/agent/src/connections/registry.ts",
+    "unresolvedTo": "./registry.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/agent/src/connections/registry.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/factories/google-workspace.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/bridge.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/agent/src/connections/factories/levio.ts",
+    "to": "packages/agent/src/connections/bridge.ts",
+    "unresolvedTo": "../bridge.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/agent/src/connections/bridge.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/registry.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/factories/levio.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/agent/src/connections/factories/ssh.ts",
+    "to": "packages/agent/src/connections/bridge.ts",
+    "unresolvedTo": "../bridge.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/agent/src/connections/bridge.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/registry.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/factories/ssh.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/agent/src/connections/factories/stubs.ts",
+    "to": "packages/agent/src/connections/bridge.ts",
+    "unresolvedTo": "../bridge.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/agent/src/connections/bridge.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/registry.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/connections/factories/stubs.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/agent/src/providers/registry.ts",
+    "to": "packages/agent/src/providers/router.ts",
+    "unresolvedTo": "./router.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/agent/src/providers/router.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/agent/src/providers/registry.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/db/src/schema.ts",
+    "to": "packages/db/src/session-fabric-schema.ts",
+    "unresolvedTo": "./session-fabric-schema",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/db/src/session-fabric-schema.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/db/src/schema.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "packages/sdk/src/types/data-residency.ts",
+    "to": "packages/sdk/src/types/manifest.ts",
+    "unresolvedTo": "./manifest.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-circular"
+    },
+    "cycle": [
+      {
+        "name": "packages/sdk/src/types/manifest.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "packages/sdk/src/types/data-residency.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/behavior/reflect",
+    "unresolvedTo": "@plexo/agent/behavior/reflect",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/event-bus",
+    "unresolvedTo": "@plexo/agent/event-bus",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/executor",
+    "unresolvedTo": "@plexo/agent/executor",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/money",
+    "unresolvedTo": "@plexo/agent/money",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/one-way-door",
+    "unresolvedTo": "@plexo/agent/one-way-door",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/planner",
+    "unresolvedTo": "@plexo/agent/planner",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/tasks/classify-capability-gap",
+    "unresolvedTo": "@plexo/agent/tasks/classify-capability-gap",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/tasks/terminal-fail",
+    "unresolvedTo": "@plexo/agent/tasks/terminal-fail",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/tasks/types",
+    "unresolvedTo": "@plexo/agent/tasks/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/agent-loop.ts",
+    "to": "@plexo/agent/types",
+    "unresolvedTo": "@plexo/agent/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/principles",
+    "unresolvedTo": "@plexo/agent/principles",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/prompts/build-system-prompt",
+    "unresolvedTo": "@plexo/agent/prompts/build-system-prompt",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-ai.ts",
+    "to": "@plexo/agent/providers/vision",
+    "unresolvedTo": "@plexo/agent/providers/vision",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-delivery.ts",
+    "to": "@plexo/agent/tasks/types",
+    "unresolvedTo": "@plexo/agent/tasks/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/channel-state-format.ts",
+    "to": "@plexo/agent/tasks/types",
+    "unresolvedTo": "@plexo/agent/tasks/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron.ts",
+    "to": "@plexo/agent/memory/self-improvement",
+    "unresolvedTo": "@plexo/agent/memory/self-improvement",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron.ts",
+    "to": "@plexo/agent/providers/knowledge",
+    "unresolvedTo": "@plexo/agent/providers/knowledge",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron.ts",
+    "to": "@plexo/db/auth/config",
+    "unresolvedTo": "@plexo/db/auth/config",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/cron/confidence-lifecycle.ts",
+    "to": "@plexo/agent/analytics/memory-events",
+    "unresolvedTo": "@plexo/agent/analytics/memory-events",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/federation/event-processor.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/channels/outbound-attachments-port",
+    "unresolvedTo": "@plexo/agent/channels/outbound-attachments-port",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/connections/factories/levio",
+    "unresolvedTo": "@plexo/agent/connections/factories/levio",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/event-bus",
+    "unresolvedTo": "@plexo/agent/event-bus",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/executor",
+    "unresolvedTo": "@plexo/agent/executor",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/memory/inngest/extract-turn-fn",
+    "unresolvedTo": "@plexo/agent/memory/inngest/extract-turn-fn",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/persistent-pool",
+    "unresolvedTo": "@plexo/agent/persistent-pool",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/agent/user-timezone-port",
+    "unresolvedTo": "@plexo/agent/user-timezone-port",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/index.ts",
+    "to": "@plexo/queue/inngest-express",
+    "unresolvedTo": "@plexo/queue/inngest-express",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/middleware/better-auth.ts",
+    "to": "@plexo/db/auth/config",
+    "unresolvedTo": "@plexo/db/auth/config",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/onboarding-canary.ts",
+    "to": "@plexo/db/auth/config",
+    "unresolvedTo": "@plexo/db/auth/config",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/profile-negotiation.ts",
+    "to": "@plexo/agent/profile/resolve",
+    "unresolvedTo": "@plexo/agent/profile/resolve",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/repositories/workspaces.repository.ts",
+    "to": "@plexo/db/auth/config",
+    "unresolvedTo": "@plexo/db/auth/config",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/__tests__/executor-tier-routing.test.ts",
+    "to": "@plexo/agent/executor",
+    "unresolvedTo": "@plexo/agent/executor",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/__tests__/executor-tier-routing.test.ts",
+    "to": "@plexo/agent/prompts/build-system-prompt",
+    "unresolvedTo": "@plexo/agent/prompts/build-system-prompt",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/__tests__/executor-tier-routing.test.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/__tests__/executor-tier-routing.test.ts",
+    "to": "@plexo/agent/types",
+    "unresolvedTo": "@plexo/agent/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/__tests__/vision-analyze-transcode.test.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/agents-run-custom.ts",
+    "to": "@plexo/agent/executor/runCustom",
+    "unresolvedTo": "@plexo/agent/executor/runCustom",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/agents-run.ts",
+    "to": "@plexo/agent/profile/grant",
+    "unresolvedTo": "@plexo/agent/profile/grant",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/ai-complete.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/ai-complete.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/ai-provider-creds.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/ai-providers.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/analyze-image-source.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat-app-transport.ts",
+    "to": "@plexo/agent/memory/conversation-bridge",
+    "unresolvedTo": "@plexo/agent/memory/conversation-bridge",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat-app-transport.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat-app-transport.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/executor",
+    "unresolvedTo": "@plexo/agent/executor",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/memory/conversation-bridge",
+    "unresolvedTo": "@plexo/agent/memory/conversation-bridge",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/memory/preferences",
+    "unresolvedTo": "@plexo/agent/memory/preferences",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/prompts/build-system-prompt",
+    "unresolvedTo": "@plexo/agent/prompts/build-system-prompt",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/providers/vision",
+    "unresolvedTo": "@plexo/agent/providers/vision",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/chat.ts",
+    "to": "@plexo/agent/types",
+    "unresolvedTo": "@plexo/agent/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/clarification.ts",
+    "to": "@plexo/agent/types",
+    "unresolvedTo": "@plexo/agent/types",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/connections.ts",
+    "to": "@plexo/agent/tool-set-cache",
+    "unresolvedTo": "@plexo/agent/tool-set-cache",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/embeddings-service.ts",
+    "to": "@plexo/agent/embeddings/router",
+    "unresolvedTo": "@plexo/agent/embeddings/router",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/extensions.ts",
+    "to": "@plexo/agent/persistent-pool",
+    "unresolvedTo": "@plexo/agent/persistent-pool",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/extensions.ts",
+    "to": "@plexo/agent/skills/parser",
+    "unresolvedTo": "@plexo/agent/skills/parser",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/extensions.ts",
+    "to": "@plexo/agent/tool-set-cache",
+    "unresolvedTo": "@plexo/agent/tool-set-cache",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/external-tasks.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/external-tasks.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/health.ts",
+    "to": "@plexo/agent/persistent-pool",
+    "unresolvedTo": "@plexo/agent/persistent-pool",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/inference.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/inference.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/inference.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/inference.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/inference.ts",
+    "to": "@plexo/agent/providers/settings-from-instances",
+    "unresolvedTo": "@plexo/agent/providers/settings-from-instances",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/memory.ts",
+    "to": "@plexo/agent/memory/preferences",
+    "unresolvedTo": "@plexo/agent/memory/preferences",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/memory.ts",
+    "to": "@plexo/agent/memory/prompt-improvement",
+    "unresolvedTo": "@plexo/agent/memory/prompt-improvement",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/memory.ts",
+    "to": "@plexo/agent/memory/self-improvement",
+    "unresolvedTo": "@plexo/agent/memory/self-improvement",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/memory.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/memory.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/ollama-admin.ts",
+    "to": "@plexo/agent/ollama/classify-model",
+    "unresolvedTo": "@plexo/agent/ollama/classify-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/public-skills.ts",
+    "to": "@plexo/agent/skills/parser",
+    "unresolvedTo": "@plexo/agent/skills/parser",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/sessions.ts",
+    "to": "@plexo/agent/providers/settings-from-instances",
+    "unresolvedTo": "@plexo/agent/providers/settings-from-instances",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/sessions.ts",
+    "to": "@plexo/agent/session-fabric/anthropic-model-client",
+    "unresolvedTo": "@plexo/agent/session-fabric/anthropic-model-client",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/sessions.ts",
+    "to": "@plexo/agent/session-fabric/router-model-client",
+    "unresolvedTo": "@plexo/agent/session-fabric/router-model-client",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/shadow-extraction.ts",
+    "to": "@plexo/agent/providers/call-model",
+    "unresolvedTo": "@plexo/agent/providers/call-model",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/shadow-extraction.ts",
+    "to": "@plexo/agent/providers/registry",
+    "unresolvedTo": "@plexo/agent/providers/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/shadow-extraction.ts",
+    "to": "@plexo/agent/providers/router-v2",
+    "unresolvedTo": "@plexo/agent/providers/router-v2",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/tasks.ts",
+    "to": "@plexo/agent/executor/step-builder",
+    "unresolvedTo": "@plexo/agent/executor/step-builder",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/tasks.ts",
+    "to": "@plexo/agent/one-way-door",
+    "unresolvedTo": "@plexo/agent/one-way-door",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/telegram.ts",
+    "to": "@plexo/agent/memory/conversation-bridge",
+    "unresolvedTo": "@plexo/agent/memory/conversation-bridge",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/routes/workspaces.ts",
+    "to": "@plexo/db/auth/config",
+    "unresolvedTo": "@plexo/db/auth/config",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/scripts/embed-backfill.ts",
+    "to": "@plexo/agent/memory/store",
+    "unresolvedTo": "@plexo/agent/memory/store",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/api/src/services/connections.service.ts",
+    "to": "@plexo/agent/connections/registry",
+    "unresolvedTo": "@plexo/agent/connections/registry",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/memory/inngest/extract-turn-fn.ts",
+    "to": "@plexo/queue/inngest",
+    "unresolvedTo": "@plexo/queue/inngest",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/agent/src/tests/work-kind.test.ts",
+    "to": "@plexo/db/work-kind",
+    "unresolvedTo": "@plexo/db/work-kind",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/db/src/auth/config.ts",
+    "to": "better-auth/plugins",
+    "unresolvedTo": "better-auth/plugins",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/mcp-server/src/index.ts",
+    "to": "@modelcontextprotocol/sdk/server/mcp.js",
+    "unresolvedTo": "@modelcontextprotocol/sdk/server/mcp.js",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/mcp-server/src/index.ts",
+    "to": "@modelcontextprotocol/sdk/server/stdio.js",
+    "unresolvedTo": "@modelcontextprotocol/sdk/server/stdio.js",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "packages/mcp-server/src/index.ts",
+    "to": "@modelcontextprotocol/sdk/server/streamableHttp.js",
+    "unresolvedTo": "@modelcontextprotocol/sdk/server/streamableHttp.js",
+    "dependencyTypes": [
+      "unknown"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "not-unresolvable"
+    }
+  }
+]

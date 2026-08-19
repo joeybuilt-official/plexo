@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@plexo/agent": ["packages/agent/src/index.ts"],
+      "@plexo/api": ["packages/api/src/index.ts"],
+      "@plexo/web": ["packages/web/src/index.ts"],
+      "@plexo/cli": ["packages/cli/src/index.ts"],
+      "@plexo/db": ["packages/db/src/index.ts"],
+      "@plexo/ui": ["packages/ui/src/index.ts"],
+      "@plexo/sdk": ["packages/sdk/src/index.ts"],
+      "@plexo/storage": ["packages/storage/src/index.ts"],
+      "@plexo/queue": ["packages/queue/src/index.ts"],
+      "@plexo/logger": ["packages/logger/src/index.ts"],
+      "@plexo/session-fabric": ["packages/session-fabric/src/index.ts"],
+      "@plexo/mcp-server": ["packages/mcp-server/src/index.ts"]
+    }
+  }
+}
