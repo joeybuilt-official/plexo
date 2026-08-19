@@ -11,10 +11,7 @@ import { toast } from 'sonner'
 import {
     MessagesSquare,
     CheckSquare,
-    FileOutput,
-    FolderOpen,
     Plug,
-    Store,
     Brain,
     Bot,
     Settings as SettingsIcon,
@@ -28,21 +25,16 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     Palette,
-    ShieldAlert,
     Zap,
-    Radio,
-    Clock,
     Search,
     Sparkles,
     ChevronRight,
-    AlertTriangle,
     FileText,
     Bug,
-    Calendar,
     ShieldCheck,
 } from 'lucide-react'
 import { ArrowUpCircle } from 'lucide-react'
-import { Activity, ClipboardCheck, Target } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { ThemeToggle } from '@web/components/theme-toggle'
 import { useWorkspace } from '@web/context/workspace'
@@ -74,24 +66,11 @@ const NAV_CHAT: NavItem[] = [
 ]
 
 // Work — daily operator loop
-//
-// Sprints used to be a separate page; they now live under Projects.
-// `/app/sprints` still exists as a redirect stub for bookmarks but the
-// nav entry was removed because clicking it landed users on Projects
-// anyway, which read as a bug. If sprints come back as a first-class
-// surface, restore the entry here.
 const NAV_WORK_GROUP = {
     label: 'Work',
     items: [
         { label: 'Tasks', href: '/app/tasks', icon: CheckSquare },
-        { label: 'Works', href: '/app/works', icon: FileOutput },
-        { label: 'Projects', href: '/app/projects', icon: FolderOpen },
-        { label: 'Approvals', href: '/app/approvals', icon: ShieldAlert },
-        { label: 'Escalations', href: '/app/escalations', icon: AlertTriangle },
-        { label: 'Updates to Review', href: '/app/revisions', icon: ClipboardCheck },
-        { label: 'Outcomes', href: '/app/outcomes', icon: Target },
         { label: 'Memory', href: '/app/memory', icon: Brain },
-        { label: 'Routines', href: '/routines', icon: Calendar },
     ] as NavItem[],
 }
 const NAV_WORK = NAV_WORK_GROUP.items
@@ -103,8 +82,6 @@ const NAV_PLATFORM: NavItem[] = [
     { label: 'Live Agents', href: '/app/agents/live', icon: Activity },
     { label: 'Extensions', href: '/app/extensions', icon: Zap },
     { label: 'Connections', href: '/app/connections', icon: Plug },
-    { label: 'Channels', href: '/app/settings/channels', icon: Radio },
-    { label: 'Hub', href: '/app/hub', icon: Store },
 ]
 
 // Ops — infrastructure dashboards. NOTE: the `/app/ops/*` pages do not exist in
@@ -119,7 +96,6 @@ const NAV_PLATFORM: NavItem[] = [
 // Audit removed from nav: `/app/audit` has no page (stale after the UX-016 refactor).
 const NAV_SYSTEM: NavItem[] = [
     { label: 'Settings', href: '/app/settings', icon: SettingsIcon },
-    { label: 'Scheduling', href: '/app/scheduling', icon: Clock },
     { label: 'Logs', href: '/app/logs', icon: FileText },
 ]
 
@@ -139,34 +115,19 @@ function sectionForPath(pathname: string): SectionId | null {
     if (pathname === '/app/conversations' || pathname.startsWith('/app/conversations/') || pathname.startsWith('/conversations/') || pathname === '/app/chat' || pathname.startsWith('/app/chat/')) return 'chat'
     if (
         pathname === '/app/tasks' || pathname.startsWith('/app/tasks/') ||
-        pathname === '/app/works' || pathname.startsWith('/app/works/') ||
-        pathname === '/app/sprints' || pathname.startsWith('/app/sprints/') ||
-        pathname === '/app/projects' || pathname.startsWith('/app/projects/') ||
-        pathname === '/app/approvals' || pathname.startsWith('/app/approvals/') ||
-        pathname === '/app/escalations' || pathname.startsWith('/app/escalations/') ||
-        pathname === '/app/revisions' || pathname.startsWith('/app/revisions/') ||
-        pathname === '/app/outcomes' || pathname.startsWith('/app/outcomes/') ||
-        pathname === '/app/memory' || pathname.startsWith('/app/memory/') ||
-        pathname === '/insights' || pathname.startsWith('/insights/') ||
-        pathname === '/routines' || pathname.startsWith('/routines/')
+        pathname === '/app/memory' || pathname.startsWith('/app/memory/')
     ) return 'work'
     if (
         // AI Models entry now points at /app/settings/intelligence (UX-016)
         pathname === '/app/settings/intelligence' || pathname.startsWith('/app/settings/intelligence/') ||
         pathname === '/app/agents' || pathname.startsWith('/app/agents/') ||
         pathname === '/app/extensions' || pathname.startsWith('/app/extensions/') ||
-        pathname === '/app/connections' || pathname.startsWith('/app/connections/') ||
-        pathname === '/app/settings/channels' || pathname.startsWith('/app/settings/channels/') ||
-        pathname === '/app/hub' || pathname.startsWith('/app/hub/') ||
-        pathname === '/app/marketplace' || pathname.startsWith('/app/marketplace/')
+        pathname === '/app/connections' || pathname.startsWith('/app/connections/')
     ) return 'platform'
     if (
         (pathname === '/app/settings' || pathname.startsWith('/app/settings/')) &&
-        !pathname.startsWith('/app/settings/intelligence') &&
-        !pathname.startsWith('/app/settings/channels')
+        !pathname.startsWith('/app/settings/intelligence')
     ) return 'system'
-    if (pathname === '/app/scheduling' || pathname.startsWith('/app/scheduling/')) return 'system'
-    if (pathname === '/app/cron' || pathname.startsWith('/app/cron/')) return 'system'
     if (pathname === '/app/logs' || pathname.startsWith('/app/logs/')) return 'system'
     if (pathname === '/app/intelligence' || pathname.startsWith('/app/intelligence/')) return 'system'
     if (pathname === '/app/debug' || pathname.startsWith('/app/debug/')) return 'system'
@@ -475,7 +436,7 @@ function NavBadge({ href, sidebarCollapsed, pendingApprovals, blockedTasks, pend
             : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-amber-500 px-1 text-[10px] font-medium text-black">{blockedTasks}</span>
     }
     // Memory / Improvements
-    if ((href === '/app/memory' || href === '/insights') && pendingImprovements > 0) {
+    if (href === '/app/memory' && pendingImprovements > 0) {
         return sidebarCollapsed
             ? <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-azure" />
             : <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-sm bg-azure px-1 text-[10px] font-medium text-white">{pendingImprovements}</span>

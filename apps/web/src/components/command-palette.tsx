@@ -10,21 +10,14 @@ import {
     Home,
     MessagesSquare,
     CheckSquare,
-    FolderOpen,
-    ShieldAlert,
     Brain,
     Bot,
     Zap,
     Plug,
-    Radio,
-    Store,
-    Clock,
     Settings,
     Search,
     ArrowRight,
     Plus,
-    Rocket,
-    Lightbulb,
     Network,
     FileText,
     Bug,
@@ -49,11 +42,7 @@ const DESTINATIONS: PaletteItem[] = [
 
     // Work
     { id: 'tasks', label: 'Tasks', section: 'Navigate', href: '/app/tasks', icon: CheckSquare, keywords: ['todo', 'work'] },
-    { id: 'sprints', label: 'Sprints', section: 'Navigate', href: '/app/sprints', icon: Rocket, keywords: ['sprint', 'batch'] },
-    { id: 'projects', label: 'Projects', section: 'Navigate', href: '/app/projects', icon: FolderOpen },
-    { id: 'approvals', label: 'Approvals', section: 'Navigate', href: '/app/approvals', icon: ShieldAlert, keywords: ['review', 'pending'] },
     { id: 'memory', label: 'Memory', section: 'Navigate', href: '/app/memory', icon: Brain, keywords: ['knowledge', 'learn', 'scl'] },
-    { id: 'insights', label: 'Insights', section: 'Navigate', href: '/app/memory', icon: Lightbulb, keywords: ['scl', 'memory', 'improvements'] },
 
     // Platform
     { id: 'agents', label: 'Agents', section: 'Navigate', href: '/app/agents', icon: Bot, keywords: ['persona', 'behavior', 'tuning', 'config', 'plexo bot'] },
@@ -62,9 +51,6 @@ const DESTINATIONS: PaletteItem[] = [
     { id: 'agent-limits', label: 'Agent: Limits', section: 'Navigate', href: '/app/agents?tab=limits', icon: Bot, keywords: ['cost', 'budget', 'safe mode'] },
     { id: 'extensions', label: 'Extensions', section: 'Navigate', href: '/app/extensions', icon: Zap, keywords: ['tools', 'skills', 'agents', 'channels'] },
     { id: 'integrations', label: 'Integrations', section: 'Navigate', href: '/app/connections', icon: Plug, keywords: ['connections', 'oauth'] },
-    { id: 'channels', label: 'Channels', section: 'Navigate', href: '/app/settings/channels', icon: Radio, keywords: ['telegram', 'slack', 'discord'] },
-    { id: 'hub', label: 'Hub', section: 'Navigate', href: '/app/hub', icon: Store, keywords: ['marketplace', 'browse', 'extensions'] },
-    { id: 'schedules', label: 'Scheduling', section: 'Navigate', href: '/app/scheduling', icon: Clock, keywords: ['cron', 'recurring', 'scheduled', 'reminder', 'reminders'] },
 
     // System
     { id: 'settings', label: 'Settings', section: 'Navigate', href: '/app/settings', icon: Settings },
