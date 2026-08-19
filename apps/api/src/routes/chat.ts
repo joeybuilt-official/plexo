@@ -46,6 +46,8 @@ import {
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
 import { buildConversationSystemPrompt, translateErrorForUser, nameProject } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
+import { buildTools } from '@plexo/agent/executor'
+import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
 import { trackError, trackEvent } from '../event-tracker.js'
@@ -59,6 +61,17 @@ import type { FallbackOptions } from '@plexo/agent/providers/registry'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 
 export const chatRouter: RouterType = Router()
+
+// Inline streaming agent-loop step ceiling. The model can call tools and
+// continue multi-turn over a single SSE response up to this many steps.
+// Configurable via PLEXO_CHAT_INLINE_STEP_LIMIT for operators who want a
+// tighter/looser ceiling.
+const INLINE_STEP_LIMIT = Math.max(1, Number(process.env.PLEXO_CHAT_INLINE_STEP_LIMIT) || 25)
+
+// Code tools exposed to the inline streaming chat path (mirror of the executor
+// task-path toolset, minus task_complete/write_asset/delegate — those are
+// queue-specific and don't belong in an inline conversational turn).
+const INLINE_CODE_TOOLS = ['read_file', 'write_file', 'edit_file', 'grep', 'glob', 'shell'] as const
 
 // ── Per-session mutex ────────────────────────────────────────────────────────
 // Prevents concurrent message processing for the same session, which would
@@ -201,13 +214,14 @@ function classifyAIError(err: unknown): ClassifiedError {
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession } = req.body as {
+    const { workspaceId, message, sessionId: clientSessionId, forceConversation, images, newSession, background } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
         forceConversation?: boolean
         images?: Array<{ data: string; mimeType: string; name: string }>
         newSession?: boolean
+        background?: boolean
     }
     // Mutable sessionId — starts as what the client sent, gets replaced by
     // the universal resolver once we know the message text. We still load
@@ -810,7 +824,12 @@ chatRouter.post('/message', async (req, res) => {
             return
         }
 
-        if (intent === 'CONVERSATION') {
+        // ── Inline streaming agent loop ──────────────────────────────────────
+        // Default path for CONVERSATION *and* TASK-without-background. The model
+        // gets the full toolset (code tools + workspace tools + MCP tools) and
+        // can multi-turn over a single SSE response up to INLINE_STEP_LIMIT
+        // steps. The async task queue is opt-in via `background: true`.
+        if (intent === 'CONVERSATION' || (intent === 'TASK' && !background)) {
             // ── Correction feedback loop: detect and record user corrections ──
             try {
                 const { hasCorrectionIntent, recordCorrection } = await import('@plexo/agent/memory/corrections')
@@ -882,9 +901,11 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
                 logger.info({ workspaceId, historyTurns: history.length, totalMessages: streamMessages.length }, 'webchat: conversation context size')
 
-                // Load workspace tools (web_search, memory_query, connection tools, etc.)
-                // so webchat conversations have the same tool access as Telegram/Slack/Discord.
-                // Cached per workspace to avoid re-hydrating the bridge on every turn.
+                // Load workspace tools (web_search, memory_query, MCP connection tools, etc.)
+                // PLUS executor code tools (read_file, write_file, edit_file, grep, glob,
+                // shell) so the inline streaming path has the full toolset — the model
+                // decides whether to use them. Cached per workspace to avoid re-hydrating
+                // the bridge on every turn.
                 let chatTools: Record<string, unknown> = {}
                 try {
                     const { buildWorkspaceTools } = await import('@plexo/agent/tools/workspace-tools')
@@ -893,7 +914,41 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         () => buildWorkspaceTools(workspaceId),
                     )
                 } catch (toolErr) {
-                    logger.warn({ err: toolErr, workspaceId }, 'webchat: workspace tools load failed — continuing without tools (web_search/memory_query unavailable this turn)')
+                    logger.warn({ err: toolErr, workspaceId }, 'webchat: workspace tools load failed — continuing without workspace tools (web_search/memory_query/MCP unavailable this turn)')
+                }
+
+                // Code tools — bound to a minimal ExecutionContext so dispatchTool
+                // can emit step.file_write / step.shell_line / step.test_result
+                // events via emitToWorkspace. The workbench's use-code-stream
+                // subscribes to that same workspace SSE channel and renders them
+                // in the diff-viewer / terminal-panel exactly as it does for
+                // queued tasks — no new event shapes.
+                const inlineTaskId = `chat-${turnId}`
+                const inlineCtx: ExecutionContext = {
+                    taskId: inlineTaskId,
+                    workspaceId,
+                    userId: (req.user?.id as string) ?? 'chat',
+                    credential: credential as unknown as ExecutionContext['credential'],
+                    taskType: 'coding',
+                    tokenBudget: 0,
+                    taskCostCeilingUsd: null,
+                    signal: AbortSignal.timeout(120_000),
+                    activeProvider: resolvedProvider,
+                    activeModel: resolvedModel,
+                    emitStepEvent: (event: StepEvent) => {
+                        emitToWorkspace(workspaceId, event as unknown as import('../sse-emitter.js').AgentEvent)
+                    },
+                }
+                try {
+                    const codeToolsAll = buildTools(inlineCtx, null)
+                    const codeTools: Record<string, unknown> = {}
+                    for (const name of INLINE_CODE_TOOLS) {
+                        const t = (codeToolsAll as Record<string, unknown>)[name]
+                        if (t) codeTools[name] = t
+                    }
+                    chatTools = { ...codeTools, ...chatTools }
+                } catch (toolErr) {
+                    logger.warn({ err: toolErr, workspaceId }, 'webchat: code tools build failed — continuing with workspace tools only')
                 }
 
                 if (wantsSSE) {
@@ -924,7 +979,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                                 system: systemPrompt,
                                 messages: streamMessages,
                                 tools: chatTools as any,
-                                stopWhen: stepCountIs(5),
+                                stopWhen: stepCountIs(INLINE_STEP_LIMIT),
                                 abortSignal: AbortSignal.timeout(120_000),
                             })
                             let attemptText = ''
@@ -1093,7 +1148,7 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             system: systemPrompt,
                             messages: streamMessages,
                             tools: chatTools as any,
-                            stopWhen: stepCountIs(5),
+                            stopWhen: stepCountIs(INLINE_STEP_LIMIT),
                             // No SSE heartbeat on this buffered path, so keep the
                             // request under the ~100s upstream tunnel idle window.
                             abortSignal: AbortSignal.timeout(90_000),
@@ -1209,9 +1264,12 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
         }
 
 
-        // TASK: auto-queue immediately — no confirmation step. The user asked, we act.
+        // Background task queue: OPT-IN only (background: true). The default
+        // coding path is the inline streaming loop above. When the caller asks
+        // for background, queue to the async executor and return a taskId for
+        // polling via /api/chat/reply/:taskId.
         // PROJECT: still show one confirm because it spins up a full multi-step sprint.
-        if (intent === 'TASK') {
+        if (intent === 'TASK' && background) {
             // Synthesize a clean task description from conversation context
             let cleanDescription = trimmedMsg
             try {

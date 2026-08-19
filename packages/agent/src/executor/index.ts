@@ -592,7 +592,7 @@ async function dispatchTool(
 // ── Vercel AI SDK tool definitions (AI SDK v6 format) ────────────────────────
 // Tool.inputSchema replaces "parameters" from earlier SDK versions.
 
-function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
+export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
     return {
         read_file: tool({
             description: 'Read the contents of a file at the given path.',
