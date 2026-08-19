@@ -126,9 +126,6 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      embeddings:
-        condition: service_healthy
-        required: false
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -215,102 +212,6 @@ services:
       start_period: 40s
     mem_limit: 512m
     memswap_limit: 768m
-
-  # ── Embeddings Server (native ONNX embeddings) ─────
-  # Bundled local embeddings via snowflake-arctic-embed.
-  # Always-on as of 2026-06-27 (BYOK collapse, operator panel 5/5):
-  # this is the single canonical 384-d embedding path for every workspace.
-
-  embeddings:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.embeddings
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      NODE_ENV: production
-      PORT: "3001"
-      EMBEDDING_MODEL_NAME: plexo-embed-v1
-      EMBEDDING_MODEL_DIR: /app/apps/embeddings/models/snowflake-arctic-embed-s
-    healthcheck:
-      # node-based probe — slim image has no wget/curl. Uses /health.
-      test: [ "CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>process.exit(/\"ok\"\\s*:\\s*true|\\bok\\b/.test(d)?0:1))}).on('error',()=>process.exit(1))" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    mem_limit: 512m
-    memswap_limit: 768m
-
-  # ── Vision Service (ONNX CLIP / faces / OCR, opt-in) ──────
-  # Self-hosted vision pipeline matching Immich's intelligence features
-  # (CLIP image+text, RetinaFace+ArcFace, RapidOCR). All on ONNX Runtime
-  # Node per ADR 0001 — no Python sidecar. Off by default; enable with
-  #   docker compose --profile vision up
-  # Phase 4.1 ships the route surface; model weights and SHA-256s land in
-  # Phase 4.2 (until then, inference routes return 503 model_unavailable).
-  vision:
-    profiles: ["vision"]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.vision
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      NODE_ENV: production
-      PORT: "7000"
-      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
-      MODEL_CACHE_DIR: /home/plexo/.plexo/vision/models
-      MODELS_CDN_URL: ${MODELS_CDN_URL:-}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-    volumes:
-      # Persist the model cache across container restarts so we don't
-      # re-download ~600MB on every `up`.
-      - vision-models:/home/plexo/.plexo/vision/models
-    healthcheck:
-      test: [ "CMD", "wget", "-q", "-O-", "http://127.0.0.1:7000/vision/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    mem_limit: 2g
-    memswap_limit: 3g
-
-  # ── Google Messages connector (Go sidecar, ADR-0001) ──────
-  # Single-process multi-tenant per ADR-0004. Posts to Plexo API via the
-  # /api/plexo/channels/gmessages/* HMAC-authed contract; never touches
-  # Postgres directly. Phase 3 ships a skeleton with no libgmessages link;
-  # Phase 4 wires the real session lifecycle.
-  gmessages:
-    build:
-      context: .
-      dockerfile: apps/gmessages/docker/Dockerfile
-    restart: unless-stopped
-    logging: *default-logging
-    depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      PORT: "3010"
-      PLEXO_BASE_URL: http://api:3001
-      PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY:-}
-      # Master key for HKDF per-session derivation. Reuses the existing
-      # ENCRYPTION_SECRET so operators don't need to manage a second
-      # secret; the derivation produces a session-scoped key per
-      # (workspace, paired_session) pair.
-      GMESSAGES_MASTER_KEY: ${ENCRYPTION_SECRET}
-      # Phase 3 self-test — emits one synthetic event on boot if set.
-      # Disable in production (Phase 6).
-      GMESSAGES_SYNTHETIC_BOOT: ${GMESSAGES_SYNTHETIC_BOOT:-0}
-    healthcheck:
-      # Distroless image — binary self-probes /health via -healthcheck flag.
-      test: ["CMD", "/gmessages", "-healthcheck"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    mem_limit: 256m
-    memswap_limit: 384m
 
   # ── Inngest (durable cron + workflow chaining, ADR-0006) ──
   # Postgres-backed dev server. UI binds to 127.0.0.1 — never exposed
@@ -460,7 +361,6 @@ services:
 
   # ── Ollama — local LLM + embeddings for GPU users ────────
   # Only starts with: docker compose --profile local-llm up
-  # Default embeddings are handled by the embeddings service when enabled
   ollama:
     profiles: ["local-llm"]
     image: ollama/ollama:0.6.2
@@ -552,4 +452,3 @@ volumes:
   postgres-backups:
   graphiti_data:  # ADR 0015: orphaned by FalkorDB switch; retain 30 days then drop
   falkordb_data:
-  vision-models:  # ONNX weight cache for the @plexo/vision service

@@ -1,47 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 Joeybuilt LLC
 #
-# GPU acceleration override for the plexo-vision sidecar.
-#
-# Runs CLIP image/text embeddings + face detect/recognize on an NVIDIA GPU
-# via onnxruntime-node's CUDA execution provider (OCR + object labels already
-# use the Ollama container). Drop-in: layer this over the base compose.
-#
-#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-#     --profile vision up -d --build vision
-#
-# Requirements on the host:
-#   - NVIDIA GPU + driver
-#   - NVIDIA Container Toolkit (so Docker can expose the GPU)
-#   Verify with:  docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-#
-# It falls back to CPU per-op for any unsupported node, and if the CUDA EP
-# can't initialise at all it falls back entirely to CPU — so a misconfigured
-# host degrades instead of crashing.
+# Obsolete: the plexo-vision sidecar was removed (DD-6a). Retained as an empty
+# override so any stale `-f docker-compose.gpu.yml` invocations no-op instead of
+# failing. Safe to delete in a follow-up.
 
-services:
-  vision:
-    build:
-      # Same context, CUDA-enabled image (CUDA 12 + cuDNN 9 runtime).
-      dockerfile: docker/Dockerfile.vision.gpu
-    environment:
-      # Turn on the CUDA execution provider in the vision app.
-      VISION_ORT_EP: cuda
-      # Point OCR + labels at your Ollama (already GPU if its container has one).
-      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
-      OLLAMA_OCR_MODEL: ${OLLAMA_OCR_MODEL:-qwen2.5vl:7b}
-      NVIDIA_VISIBLE_DEVICES: ${VISION_GPUS:-all}
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    # Expose the GPU(s) to the container (modern compose spec). If your
-    # Docker/host needs the legacy path instead, comment this out and add
-    # `runtime: nvidia` plus NVIDIA_VISIBLE_DEVICES above.
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # CUDA contexts + cuDNN need more than the 2g CPU cap.
-    mem_limit: 8g
-    memswap_limit: 8g
+services: {}
