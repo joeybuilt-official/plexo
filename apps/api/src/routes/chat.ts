@@ -49,6 +49,8 @@ import { buildTools, wireSubagentRunner } from '@plexo/agent/executor'
 import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
+import { validateImages } from '../application/chat/validateImages.js'
+import { resolveHeuristicIntent, parseClassifyResponse } from '../application/chat/classifyIntent.js'
 import { trackError, trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
@@ -241,30 +243,12 @@ chatRouter.post('/message', async (req, res) => {
     if (!await ensureWorkspaceAccess(req, res, workspaceId)) return
 
     // Validate images (raster only — SVG and PDF are handled client-side as extracted text)
-    const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
-    const validImages: Array<{ data: string; mimeType: string; name: string }> = []
-    if (Array.isArray(images)) {
-        if (images.length > 5) {
-            res.status(400).json({ error: { code: 'TOO_MANY_IMAGES', message: 'Maximum 5 images per message' } })
-            return
-        }
-        for (const img of images) {
-            if (typeof img.data !== 'string' || !img.data.startsWith('data:image/')) {
-                res.status(400).json({ error: { code: 'INVALID_IMAGE', message: 'Images must be base64 data URLs (data:image/...)' } })
-                return
-            }
-            if (img.data.length > MAX_IMAGE_BYTES) {
-                res.status(400).json({ error: { code: 'IMAGE_TOO_LARGE', message: 'Image too large (max 10MB)' } })
-                return
-            }
-            // Block SVG from the image path — it must go through the text path
-            if (img.mimeType === 'image/svg+xml') {
-                res.status(400).json({ error: { code: 'INVALID_IMAGE', message: 'SVG must be sent as a text document, not an image' } })
-                return
-            }
-            validImages.push(img)
-        }
+    const imagesResult = validateImages(images)
+    if (!imagesResult.ok) {
+        res.status(400).json({ error: { code: imagesResult.code, message: imagesResult.message } })
+        return
     }
+    const validImages = imagesResult.validImages
 
     const hasImages = validImages.length > 0
     const textMessage = (message ?? '').trim()
@@ -701,23 +685,19 @@ chatRouter.post('/message', async (req, res) => {
             // the LLM classifier for unambiguous messages. Ambiguous ones defer
             // to the LLM classifier below.
             const pre = preClassifyIntent(trimmedMsg)
-            if (pre.kind === 'project') {
-                intent = 'PROJECT'
-                isComplex = true
-                logger.info({ workspaceId, message: trimmedMsg.slice(0, 80) }, 'Webchat: explicit project intent detected — skipping LLM classifier')
-            } else if (pre.kind === 'task') {
-                intent = 'TASK'
-                isComplex = pre.isComplex
-            } else if (pre.kind === 'memory') {
-                intent = 'MEMORY'
-            } else if (pre.kind === 'conversation') {
-                intent = 'CONVERSATION'
+            const resolved = resolveHeuristicIntent(pre)
+            if (resolved.kind === 'decided') {
+                intent = resolved.intent
+                isComplex = resolved.isComplex
+                if (resolved.intent === 'PROJECT') {
+                    logger.info({ workspaceId, message: trimmedMsg.slice(0, 80) }, 'Webchat: explicit project intent detected — skipping LLM classifier')
+                }
             } else {
                 // Ambiguous — defer to the LLM classifier. On failure or an
                 // unrecognized label, fail TOWARD execution when the message
                 // carries a task verb (never silently degrade a build request
                 // to chat).
-                const execDefault: 'TASK' | 'CONVERSATION' = pre.hasTaskVerb ? 'TASK' : 'CONVERSATION'
+                const execDefault = resolved.execDefault
                 try {
                     const classifyMessages = [
                         ...textHistory,
@@ -745,16 +725,9 @@ chatRouter.post('/message', async (req, res) => {
                             setTimeout(() => reject(new Error('classify-budget-exceeded')), 12_000).unref(),
                         ),
                     ])
-                    const text = classifyResult.text?.trim() ?? ''
-                    const upperText = text.toUpperCase()
-                    const parts = text.split(/\s+/)
-                    if (upperText.startsWith('TASK')) intent = 'TASK'
-                    else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
-                    else if (upperText.startsWith('MEMORY')) intent = 'MEMORY'
-                    else if (upperText.startsWith('CONVERSATION')) intent = 'CONVERSATION'
-                    else intent = execDefault
-
-                    if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
+                    const parsed = parseClassifyResponse(classifyResult.text, execDefault)
+                    intent = parsed.intent
+                    isComplex = parsed.isComplex
                 } catch {
                     intent = execDefault
                 }
