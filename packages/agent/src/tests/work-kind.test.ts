@@ -8,7 +8,7 @@ import { describe, test, expect } from 'vitest'
 // Import directly from the pure work-kind subpath to avoid pulling in the
 // @plexo/db barrel (which touches the postgres client). The subpath is
 // declared in packages/db/package.json exports.
-import { inferKind, kindToLegacyType, WORK_KINDS, type WorkKind } from '@plexo/db/work-kind'
+import { inferKind, kindToLegacyType, WORK_KINDS, type WorkKind } from '@plexo/domain'
 
 describe('WORK_KINDS constant', () => {
     test('contains the full Phase 2 taxonomy', () => {

@@ -2555,19 +2555,6 @@
   },
   {
     "type": "dependency",
-    "from": "packages/agent/src/tests/work-kind.test.ts",
-    "to": "@plexo/db/work-kind",
-    "unresolvedTo": "@plexo/db/work-kind",
-    "dependencyTypes": [
-      "unknown"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-unresolvable"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "packages/db/src/auth/config.ts",
     "to": "better-auth/plugins",
     "unresolvedTo": "better-auth/plugins",

@@ -111,6 +111,7 @@
     "@anthropic-ai/sdk": "^0.39",
     "@openrouter/ai-sdk-provider": "^2.2.3",
     "@plexo/db": "workspace:*",
+    "@plexo/domain": "workspace:*",
     "@plexo/queue": "workspace:*",
     "@joeybuilt/plexo-sdk": "workspace:*",
     "@plexo/storage": "workspace:*",

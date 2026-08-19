@@ -4,7 +4,6 @@
 export * from './schema'
 export * from './pushd-schema'
 export * from './gmessages-schema'
-export * from './work-kind'
 export { db, type Database } from './client'
 // ADR-0045 Phase 2: drizzle operators are intentionally NOT re-exported here.
 // Import operators (eq, and, sql, …) directly from 'drizzle-orm' in

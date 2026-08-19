@@ -5,6 +5,7 @@
     "paths": {
       "@plexo/agent": ["packages/agent/src/index.ts"],
       "@plexo/api": ["packages/api/src/index.ts"],
+      "@plexo/domain": ["packages/domain/src/index.ts"],
       "@plexo/web": ["packages/web/src/index.ts"],
       "@plexo/cli": ["packages/cli/src/index.ts"],
       "@plexo/db": ["packages/db/src/index.ts"],

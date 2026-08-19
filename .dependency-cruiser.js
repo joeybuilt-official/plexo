@@ -11,6 +11,13 @@ module.exports = {
     forbidden: [
         // ── Dependency Rule: lower packages must not import higher ───────────
         {
+            name: 'domain-imports-outer',
+            comment: '@plexo/domain is the innermost ring — no ORM/framework/app/other-package deps',
+            severity: 'error',
+            from: { path: '^packages/domain/src/' },
+            to: { path: '(drizzle-orm|(^|/)express/|packages/(agent|api|db|queue|logger|storage|session-fabric|mcp-server|ui|sdk)/)' },
+        },
+        {
             name: 'db-imports-agent-or-api',
             comment: 'packages/db is an inner adapter — must not depend on agent/api/apps',
             severity: 'error',
