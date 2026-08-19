@@ -50,6 +50,7 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
 COPY --from=deps /app/packages/logger/node_modules ./packages/logger/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/packages/auth/node_modules ./packages/auth/node_modules
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/ui ./packages/ui

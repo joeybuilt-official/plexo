@@ -108,6 +108,7 @@ COPY --from=deps /app/node_modules              ./node_modules
 COPY --from=deps /app/apps/api/node_modules     ./apps/api/node_modules
 COPY --from=deps /app/packages/agent/node_modules  ./packages/agent/node_modules
 COPY --from=deps /app/packages/db/node_modules     ./packages/db/node_modules
+COPY --from=deps /app/packages/auth/node_modules   ./packages/auth/node_modules
 COPY --from=deps /app/packages/queue/node_modules  ./packages/queue/node_modules
 COPY --from=deps /app/packages/sdk/node_modules    ./packages/sdk/node_modules
 COPY --from=deps /app/packages/logger/node_modules    ./packages/logger/node_modules
