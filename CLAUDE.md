@@ -26,6 +26,7 @@ Plexo is an open-source AI agent platform for autonomous task execution, persist
 | Lint | `pnpm lint` |
 | Format check | `pnpm format:check` |
 | Build | `pnpm build` |
+| Architecture boundary check | `pnpm arch:check` |
 | Generate migration | `pnpm db:generate` |
 | Apply migration | `pnpm db:migrate` |
 
@@ -55,6 +56,8 @@ adr/                      Architecture decision records
 
 `AGENTS.md` is user-owned and authoritative. Read it before changes. Read the applicable rule module before touching code.
 
+@AGENTS.md
+
 ### Architecture
 @.claude/rules/clean-architecture.md
 
@@ -83,7 +86,7 @@ adr/                      Architecture decision records
 
 ## Project Knowledge
 
-Shared context lives in `docs/claude/`. Read `in-progress.md` first, then the relevant architecture, patterns, infrastructure, completed-work, and area docs.
+Shared context lives in `docs/claude/`. Read `roadmap.md` (the overall plan) and `in-progress.md` (the next-up queue) first, then the relevant architecture, patterns, infrastructure, completed-work, and area docs.
 
 ## Project-Specific Rules
 

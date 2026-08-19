@@ -3,7 +3,9 @@
 
 'use client'
 
+import { useEffect } from 'react'
 import { PlexoMark } from '@web/components/plexo-logo'
+import { isChunkLoadError } from './chunk-load-error'
 
 export default function DashboardError({
     error,
@@ -12,6 +14,17 @@ export default function DashboardError({
     error: Error & { digest?: string }
     reset: () => void
 }) {
+    useEffect(() => {
+        if (!isChunkLoadError(error)) return
+        const KEY = 'plexo:chunk-reload-at'
+        const last = Number(sessionStorage.getItem(KEY) ?? '0')
+        // Already reloaded for a stale chunk within the last 10s → the reload did
+        // not resolve it, so stop and surface the error rather than looping.
+        if (Date.now() - last < 10_000) return
+        sessionStorage.setItem(KEY, String(Date.now()))
+        window.location.reload()
+    }, [error])
+
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
             <PlexoMark className="h-10 w-10 text-text-muted" />

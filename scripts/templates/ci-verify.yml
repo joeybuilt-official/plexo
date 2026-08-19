@@ -1,0 +1,50 @@
+# Starter CI workflow — the ONE plane that binds every agent, in any tool.
+#
+# .claude/settings.json only fences Claude Code. This workflow is what actually blocks a bad merge
+# from a Cursor / Codex / Copilot / Windsurf / Cline / aider agent — because it runs on the server,
+# not on anyone's machine, and a required status check cannot be skipped with `--no-verify`.
+#
+# TO MAKE IT REAL (two steps, both done by a human once):
+#   1. Copy this file to .github/workflows/verify.yml and replace each <CMD> with the command from
+#      CLAUDE.md → Key Commands (the same ones your pre-commit gate runs).
+#   2. In repo Settings → Branches, add a branch-protection rule on the default branch that marks
+#      the "verify" check REQUIRED and forbids force-push / direct push. Until you do step 2, this
+#      workflow reports but does not block — see AGENTS.md → "Enforcement — the honest version".
+#
+# Not on GitHub? The same four gates belong in your CI of choice (GitLab CI, CircleCI, Buildkite…);
+# the point is server-side + required, not the vendor.
+
+name: verify
+on:
+  pull_request:
+  push:
+    branches: [main]   # <- your default branch
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck          # CLAUDE.md → Key Commands
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test:all
+
+      # Architecture-boundary check — fails on any import that points outward across a layer.
+      # Delete this step only if the repo has no boundary linter wired yet (MODULE:arch dropped).
+      - name: Architecture boundaries
+        run: pnpm arch:check         # dependency-cruiser / import-linter / ArchUnit / …
+
+      # Secret scan — the repo ships .gitleaks.toml, so this gate is real.
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
