@@ -12,7 +12,7 @@
  * into the app chunk. The version pin must match the installed pdfjs-dist.
  */
 
-const PDFJS_VERSION = '5.5.207'
+const PDFJS_VERSION = '6.2.108'
 const WORKER_SRC = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`
 
 let workerConfigured = false
