@@ -227,7 +227,10 @@ function ChatContent() {
                         }
                     }
                 }
-                providerModelsCache.set(WS_ID, rows)
+                // Only cache a non-empty result. Caching an empty list would
+                // permanently hide the model selector even after the user adds
+                // a provider — the cache would never refetch.
+                if (rows.length > 0) providerModelsCache.set(WS_ID, rows)
                 if (!cancelled) setProviderModels(rows)
             })
             .catch((err) => { console.error('[chat] provider models fetch failed', err) })
