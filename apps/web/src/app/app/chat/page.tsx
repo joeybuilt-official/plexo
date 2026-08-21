@@ -1106,6 +1106,10 @@ function ChatContent() {
                                     conversationId?: string
                                     error?: string; fixUrl?: string; fixLabel?: string
                                     visionDegraded?: boolean
+                                    reasoning?: string
+                                    toolCall?: { toolCallId: string; toolName: string; input?: unknown }
+                                    toolResult?: { toolCallId: string; toolName: string; output?: unknown }
+                                    toolError?: { toolCallId: string; toolName: string; error?: string }
                                 }
 
                                 if (ev.error) {
@@ -1124,6 +1128,76 @@ function ChatContent() {
                                     setMessages((prev) => prev.map((m) =>
                                         m.id === pendingId ? { ...m, content: fullText } : m
                                     ))
+                                }
+
+                                if (ev.reasoning) {
+                                    setMessages((prev) => prev.map((m) =>
+                                        m.id === pendingId ? { ...m, reasoning: (((m as Message).reasoning ?? '') + ev.reasoning) } : m
+                                    ))
+                                }
+
+                                if (ev.toolCall) {
+                                    setMessages((prev) => prev.map((m) => {
+                                        if (m.id !== pendingId) return m
+                                        const msg = m as Message
+                                        const existing = msg.toolCalls ?? []
+                                        if (existing.some((tc) => tc.id === ev.toolCall!.toolCallId)) return m
+                                        return {
+                                            ...msg,
+                                            toolCalls: [...existing, {
+                                                id: ev.toolCall!.toolCallId,
+                                                toolName: ev.toolCall!.toolName,
+                                                input: ev.toolCall!.input,
+                                                status: 'running',
+                                            }],
+                                        }
+                                    }))
+                                }
+
+                                if (ev.toolResult) {
+                                    setMessages((prev) => prev.map((m) => {
+                                        if (m.id !== pendingId) return m
+                                        const msg = m as Message
+                                        const existing = msg.toolCalls ?? []
+                                        const idx = existing.findIndex((tc) => tc.id === ev.toolResult!.toolCallId)
+                                        if (idx === -1) {
+                                            return {
+                                                ...msg,
+                                                toolCalls: [...existing, {
+                                                    id: ev.toolResult!.toolCallId,
+                                                    toolName: ev.toolResult!.toolName,
+                                                    output: ev.toolResult!.output,
+                                                    status: 'done',
+                                                }],
+                                            }
+                                        }
+                                        const next = existing.slice()
+                                        next[idx] = { ...next[idx], status: 'done', output: ev.toolResult!.output }
+                                        return { ...msg, toolCalls: next }
+                                    }))
+                                }
+
+                                if (ev.toolError) {
+                                    setMessages((prev) => prev.map((m) => {
+                                        if (m.id !== pendingId) return m
+                                        const msg = m as Message
+                                        const existing = msg.toolCalls ?? []
+                                        const idx = existing.findIndex((tc) => tc.id === ev.toolError!.toolCallId)
+                                        if (idx === -1) {
+                                            return {
+                                                ...msg,
+                                                toolCalls: [...existing, {
+                                                    id: ev.toolError!.toolCallId,
+                                                    toolName: ev.toolError!.toolName,
+                                                    error: ev.toolError!.error,
+                                                    status: 'error',
+                                                }],
+                                            }
+                                        }
+                                        const next = existing.slice()
+                                        next[idx] = { ...next[idx], status: 'error', error: ev.toolError!.error }
+                                        return { ...msg, toolCalls: next }
+                                    }))
                                 }
 
                                 if (ev.done) {
