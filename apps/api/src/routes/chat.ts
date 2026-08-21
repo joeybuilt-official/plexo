@@ -163,6 +163,19 @@ function classifyAIError(err: unknown): ClassifiedError {
         return { type: 'no_provider', message: 'No AI provider is configured for this workspace task type. Add one in Settings → AI Providers.', fixUrl: '/settings/ai-providers', fixLabel: 'Configure AI provider', technical }
     }
     if (errName === 'RouterV2CascadeExhausted') {
+        // The router preserves the most actionable error (auth/quota) across the
+        // cascade. Reclassify from it so the user sees "top up balance" / "fix
+        // your key" instead of the generic chain-exhausted message.
+        const cause = (err as { lastError?: unknown }).lastError
+        if (cause instanceof Error) {
+            const cMsg = cause.message.toLowerCase()
+            if (cMsg.includes('insufficient balance') || cMsg.includes('insufficient_balance') || cMsg.includes('out of credit') || cMsg.includes('credit balance') || cMsg.includes('no credit') || /\b402\b/.test(cMsg)) {
+                return { type: 'balance_exhausted', message: "Your AI provider's account balance is empty. Top it up on the provider's dashboard, then retry.", fixUrl: '/settings/ai-providers', fixLabel: 'Top up balance', technical: cause.message.slice(0, 300) }
+            }
+            if (cMsg.includes('unauthorized') || cMsg.includes('invalid api key') || cMsg.includes('invalid_api_key') || cMsg.includes('authentication') || cMsg.includes('401') || cMsg.includes('403')) {
+                return { type: 'invalid_api_key', message: 'Your API key was rejected by the provider. Update it in Settings → AI Providers.', fixUrl: '/settings/ai-providers', fixLabel: 'Update API key', technical: cause.message.slice(0, 300) }
+            }
+        }
         return { type: 'cascade_exhausted', message: "Every provider in this workspace's chain failed in a row. Try again in a moment, or add a fresh provider in Settings.", fixUrl: '/settings/ai-providers', fixLabel: 'Add another provider', technical }
     }
     if (errName === 'RouterV2CallError' || lower.includes('parse-malformed') || (lower.includes('no object generated') && lower.includes('json'))) {
@@ -189,6 +202,9 @@ function classifyAIError(err: unknown): ClassifiedError {
     }
     if (lower.includes('no ai provider') || lower.includes('not configured') || lower.includes('plexo_encryption_key') || lower.includes('encryption_secret')) {
         return { type: 'no_provider', message: 'No AI provider is configured for this workspace. Add and verify one in Settings → AI Providers.', fixUrl: '/settings/ai-providers', fixLabel: 'Configure AI provider', technical }
+    }
+    if (lower.includes('insufficient balance') || lower.includes('out of credit') || lower.includes('insufficient_balance') || lower.includes('balance exhausted') || lower.includes('no credit')) {
+        return { type: 'balance_exhausted', message: "Your AI provider's account balance is empty. Top it up on the provider's dashboard, then retry.", fixUrl: '/settings/ai-providers', fixLabel: 'Top up balance', technical }
     }
     if (lower.includes('billing') || lower.includes('payment') || lower.includes('insufficient_quota') || lower.includes('delinquent')) {
         return { type: 'billing', message: "Your AI provider account has a billing issue. Check your billing status on the provider's dashboard.", fixUrl: '/settings/ai-providers', fixLabel: 'Check provider settings', technical }

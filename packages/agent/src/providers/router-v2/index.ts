@@ -197,6 +197,11 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     }
 
     let lastError: unknown
+    // The most user-actionable error seen across the cascade (auth/quota outrank
+    // a generic empty-output/network tail). Preserved so the exhausted error
+    // surfaces "top up balance" / "fix your key" instead of the last provider's
+    // opaque "No output generated".
+    let actionableError: unknown
     let fallbackEngaged = false
     let cascadePos = 0
     let sameRetries = 0
@@ -309,6 +314,13 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             )
 
             const cls = classifyError(err)
+            // Track the most actionable error: auth/quota (billing/key problems)
+            // outrank a generic empty-output or network tail. The exhausted error
+            // surfaces this so the user sees "top up balance" / "fix your key"
+            // rather than the last provider's opaque "No output generated".
+            if (cls.class === 'auth' || cls.class === 'quota') {
+                if (actionableError === undefined) actionableError = err
+            }
             // Hard funds-depletion: persist the provider as balance-exhausted so
             // it's pulled from the routing chain (stops wasting a cascade slot on
             // a dead primary) and the web app surfaces a site-wide notice. Only
@@ -383,10 +395,10 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     if (lastError instanceof Error) {
         throw new RouterV2CascadeExhausted(
             `router-v2 fallback chain exhausted: ${lastError.message.slice(0, 200)}`,
-            lastError,
+            actionableError ?? lastError,
         )
     }
-    throw new RouterV2CascadeExhausted('router-v2 fallback chain exhausted', lastError)
+    throw new RouterV2CascadeExhausted('router-v2 fallback chain exhausted', actionableError ?? lastError)
 }
 
 export interface RouteAndBuildResult {
