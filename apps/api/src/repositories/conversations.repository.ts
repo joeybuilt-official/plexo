@@ -75,10 +75,18 @@ export async function getLatestSessionOverrides(
 
 /** All turns for a session, chronological. */
 export async function listSessionTurns(workspaceId: string, sessionId: string, limit: number): Promise<Conversation[]> {
+    // Webchat client mints `session-<ts>` but the resolver persists turns under
+    // `web:session-<ts>:<ulid>`. A strict equality match on the client id finds
+    // nothing after a reload, so the transcript looks lost. Match the resolver
+    // prefix too so the full thread is recoverable. External channel ids
+    // (telegram:/slack:/discord:) keep strict equality.
+    const isWebClientId = sessionId.startsWith('session-')
     return db
         .select()
         .from(conversations)
-        .where(sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)
+        .where(isWebClientId
+            ? sql`workspace_id = ${workspaceId} AND (session_id = ${sessionId} OR session_id LIKE ${'web:' + sessionId + ':%'})`
+            : sql`workspace_id = ${workspaceId} AND session_id = ${sessionId}`)
         .orderBy(asc(conversations.createdAt))
         .limit(limit)
 }

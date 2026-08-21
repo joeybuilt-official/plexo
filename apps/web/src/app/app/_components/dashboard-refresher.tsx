@@ -4,7 +4,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 /**
  * Invisible component that:
@@ -17,11 +17,19 @@ import { useRouter } from 'next/navigation'
  */
 export function DashboardRefresher() {
     const router = useRouter()
+    const pathname = usePathname()
     const sseRef = useRef<EventSource | null>(null)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const apiBase = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
     const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
+
+    // The chat page is fully client-rendered (messages, model selector, and
+    // conversation state all live in useState). A router.refresh() re-suspends
+    // its Suspense boundary and remounts the page, wiping the transcript and
+    // the model selector. Skip RSC refresh there — the chat page manages its
+    // own live updates via its own SSE stream.
+    const isChatRoute = pathname?.startsWith('/app/chat')
 
     useEffect(() => {
         let failed = false
@@ -31,6 +39,7 @@ export function DashboardRefresher() {
         // fires its own router.refresh() (full RSC roundtrip). Trailing 1s window
         // collapses the burst to a single refresh once it settles.
         function scheduleRefresh() {
+            if (isChatRoute) return
             if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
             refreshTimerRef.current = setTimeout(() => {
                 refreshTimerRef.current = null
@@ -39,7 +48,7 @@ export function DashboardRefresher() {
         }
 
         function startPolling() {
-            if (pollRef.current) return
+            if (isChatRoute || pollRef.current) return
             pollRef.current = setInterval(() => router.refresh(), 15_000)
         }
 
@@ -120,7 +129,7 @@ export function DashboardRefresher() {
                 refreshTimerRef.current = null
             }
         }
-    }, [apiBase, workspaceId, router])
+    }, [apiBase, workspaceId, router, isChatRoute])
 
     return null
 }
