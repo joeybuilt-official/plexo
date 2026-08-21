@@ -405,10 +405,6 @@ function ChatBubble({
                     <LivePlanCard plan={msg.livePlan} />
                 )}
 
-                {msg.role === 'agent' && (
-                    <ThinkingTrace reasoning={msg.reasoning} toolCalls={msg.toolCalls} />
-                )}
-
                 {msg.role === 'agent' && (msg.progressEvents && msg.progressEvents.length > 0 || msg.status === 'running') && (
                     <AgentThinkingPanel
                         events={msg.progressEvents ?? []}
@@ -534,6 +530,10 @@ function ChatBubble({
                     )}
 
                 </div>
+                )}
+
+                {msg.role === 'agent' && (
+                    <ThinkingTrace reasoning={msg.reasoning} toolCalls={msg.toolCalls} />
                 )}
 
                 {msg.status !== 'queued' && msg.status !== 'running' && msg.status !== 'confirm_action' && msg.content && (
