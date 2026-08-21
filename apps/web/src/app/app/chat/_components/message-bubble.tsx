@@ -7,7 +7,7 @@ import { useState, useEffect, memo } from 'react'
 import Link from 'next/link'
 import {
     User, CheckCircle2, XCircle, Loader2, Copy, Check, FileText, Circle,
-    ChevronDown, ArrowUpRight, ListChecks,
+    ChevronDown, ArrowUpRight, ListChecks, Brain,
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
@@ -152,6 +152,88 @@ function LivePlanCard({ plan }: { plan: NonNullable<Message['livePlan']> }) {
                             </span>
                         </div>
                     ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── ThinkingTrace ─────────────────────────────────────────────────
+function safeStringify(v: unknown): string {
+    if (typeof v === 'string') return v
+    try { return JSON.stringify(v, null, 2) } catch { return String(v) }
+}
+
+function ThinkingTrace({ reasoning, toolCalls }: {
+    reasoning?: string
+    toolCalls?: NonNullable<Message['toolCalls']>
+}) {
+    const [expanded, setExpanded] = useState(false)
+    const hasReasoning = !!reasoning && !!reasoning.trim()
+    const hasTools = !!toolCalls && toolCalls.length > 0
+    if (!hasReasoning && !hasTools) return null
+
+    return (
+        <div className="mb-1.5 w-full">
+            <button
+                type="button"
+                aria-expanded={expanded}
+                aria-label={expanded ? 'Hide thinking' : 'Show thinking'}
+                onClick={() => setExpanded(!expanded)}
+                className="flex items-center gap-2 px-3 py-1 min-h-6 rounded-sm bg-surface-1/30 border border-border/20 hover:bg-surface-1/50 transition-all text-xs w-full"
+            >
+                <Brain className="h-3 w-3 text-azure shrink-0" />
+                <span className="text-text-secondary truncate flex-1 text-left">
+                    {expanded ? 'Hide thinking' : 'Show thinking'}{hasTools ? ` · ${toolCalls!.length} tools` : ''}
+                </span>
+                <ChevronDown className={`h-3 w-3 text-text-muted transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`} />
+            </button>
+
+            {expanded && (
+                <div className="mt-1 rounded-sm border border-border/40 bg-surface-1/30 overflow-hidden">
+                    {hasReasoning && (
+                        <div className="px-3 py-2 border-b border-border/30">
+                            <div className="text-[10px] uppercase tracking-wide text-text-muted/60 mb-1">Reasoning</div>
+                            <pre className="text-[11px] text-text-muted/80 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                                {reasoning}
+                            </pre>
+                        </div>
+                    )}
+                    {hasTools && (
+                        <div className="px-3 py-2 space-y-1.5">
+                            {toolCalls!.map((tc) => (
+                                <div key={tc.id} className="text-[11px]">
+                                    <div className="flex items-center gap-2">
+                                        {tc.status === 'running' && <Loader2 className="h-3 w-3 text-azure animate-spin shrink-0" />}
+                                        {tc.status === 'done' && <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />}
+                                        {tc.status === 'error' && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                                        <span className="font-mono text-text-secondary">{tc.toolName}</span>
+                                    </div>
+                                    {tc.input !== undefined && tc.input !== null && (
+                                        <details className="pl-5">
+                                            <summary className="cursor-pointer text-text-muted/70 hover:text-text-secondary">Input</summary>
+                                            <pre className="mt-1 p-2 rounded bg-surface-2/60 border border-border/30 overflow-x-auto max-h-48 text-text-muted/90 font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all">
+                                                {safeStringify(tc.input)}
+                                            </pre>
+                                        </details>
+                                    )}
+                                    {tc.output !== undefined && tc.output !== null && tc.output !== '' && (
+                                        <details className="pl-5">
+                                            <summary className="cursor-pointer text-text-muted/70 hover:text-text-secondary">Output</summary>
+                                            <pre className="mt-1 p-2 rounded bg-surface-2/60 border border-border/30 overflow-x-auto max-h-48 text-text-muted/90 font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all">
+                                                {safeStringify(tc.output)}
+                                            </pre>
+                                        </details>
+                                    )}
+                                    {tc.error && (
+                                        <div className="pl-5 mt-1 p-2 rounded bg-red-500/10 border border-red-500/30 text-red-300 font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all">
+                                            {tc.error}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -321,6 +403,10 @@ function ChatBubble({
                 {msg.role === 'agent' && msg.livePlan
                     && (msg.status === 'running' || msg.status === 'queued') && (
                     <LivePlanCard plan={msg.livePlan} />
+                )}
+
+                {msg.role === 'agent' && (
+                    <ThinkingTrace reasoning={msg.reasoning} toolCalls={msg.toolCalls} />
                 )}
 
                 {msg.role === 'agent' && (msg.progressEvents && msg.progressEvents.length > 0 || msg.status === 'running') && (

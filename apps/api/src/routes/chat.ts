@@ -972,12 +972,30 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                             })
                             let attemptText = ''
                             let hasWritten = false
+                            const safeErrorString = (e: unknown): string => {
+                                if (e instanceof Error) return e.message
+                                if (typeof e === 'string') return e
+                                try { return JSON.stringify(e) } catch { return String(e) }
+                            }
+                            const emitFrame = (obj: unknown) => {
+                                try { res.write('data: ' + JSON.stringify(obj) + '\n\n') } catch { /* ignore */ }
+                            }
                             try {
-                                for await (const chunk of stream.textStream) {
-                                    attemptText += chunk
-                                    fullText += chunk
-                                    res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
-                                    hasWritten = true
+                                for await (const part of stream.fullStream) {
+                                    if (part.type === 'text-delta') {
+                                        attemptText += part.text
+                                        fullText += part.text
+                                        emitFrame({ chunk: part.text })
+                                        hasWritten = true
+                                    } else if (part.type === 'reasoning-delta') {
+                                        emitFrame({ reasoning: part.text })
+                                    } else if (part.type === 'tool-call') {
+                                        emitFrame({ toolCall: { toolCallId: part.toolCallId, toolName: part.toolName, input: part.input } })
+                                    } else if (part.type === 'tool-result') {
+                                        emitFrame({ toolResult: { toolCallId: part.toolCallId, toolName: part.toolName, output: part.output } })
+                                    } else if (part.type === 'tool-error') {
+                                        emitFrame({ toolError: { toolCallId: part.toolCallId, toolName: part.toolName, error: safeErrorString(part.error) } })
+                                    }
                                 }
                                 // Ensure the full text promise resolves (side effects)
                                 await stream.text

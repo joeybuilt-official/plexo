@@ -138,6 +138,17 @@ export interface Message {
      * <AgentActivityPanel>. Undefined for single-agent tasks.
      */
     sprint?: SprintActivity
+    /** Accumulated model chain-of-thought for this turn (reasoning-delta concat). */
+    reasoning?: string
+    /** Live tool-call activity for this turn, matched by toolCallId. */
+    toolCalls?: Array<{
+        id: string
+        toolName: string
+        input?: unknown
+        output?: unknown
+        error?: string
+        status: 'running' | 'done' | 'error'
+    }>
     at: number
 }
 
