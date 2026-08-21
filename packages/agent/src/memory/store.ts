@@ -27,6 +27,7 @@ import {
     sharedNamespaces,
 } from './namespace.js'
 import { emitMemoryCacheHit, emitMemoryCacheMiss } from '../analytics/memory-events.js'
+import { inngest } from '@plexo/queue/inngest'
 
 const logger = pino({ name: 'memory' })
 
@@ -276,9 +277,9 @@ export async function storeMemory(params: {
     }
 
     // Embedding floor: pattern/note rows MUST land with an embedding so
-    // semantic search never sees nulls. For other types we keep the legacy
-    // fire-and-forget path so non-knowledge hot-path writes (task outcomes,
-    // incidents) stay snappy.
+    // semantic search never sees nulls. For other types we use the durable
+    // Inngest job (Phase 3.5) so non-knowledge hot-path writes (task outcomes,
+    // incidents) stay snappy while gaining retry + DLQ visibility.
     const mustAwaitEmbedding = type === 'pattern' || (type as string) === 'note'
     if (mustAwaitEmbedding) {
         try {
@@ -289,19 +290,26 @@ export async function storeMemory(params: {
                     sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
                 )
             } else {
-                logger.warn({ id, workspaceId, type }, 'embed() returned null for pattern/note — row will land without embedding')
+                logger.warn({ id, workspaceId, type }, 'embed() returned null for pattern/note — enqueueing for retry')
+                void inngest.send({
+                    name: 'memory.embedding.requested',
+                    data: { workspaceId, memoryEntryId: id, content, aiSettings },
+                }).catch((err) => logger.error({ err, id }, 'Failed to enqueue embedding job'))
             }
         } catch (err) {
-            logger.error({ err, id }, 'Failed to embed pattern/note synchronously')
+            logger.error({ err, id }, 'Failed to embed pattern/note synchronously — enqueueing for retry')
+            void inngest.send({
+                name: 'memory.embedding.requested',
+                data: { workspaceId, memoryEntryId: id, content, aiSettings },
+            }).catch((err) => logger.error({ err, id }, 'Failed to enqueue embedding job'))
         }
     } else {
-        embed(content, workspaceId, aiSettings).then(async (vector) => {
-            if (!vector) return
-            const vecStr = `[${vector.join(',')}]`
-            await db.execute(
-                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-            )
-        }).catch((err) => logger.error({ err, id }, 'Failed to update embedding'))
+        // Fire-and-forget replaced with durable Inngest job (Phase 3.5).
+        // The embedding is generated asynchronously with retry + DLQ.
+        void inngest.send({
+            name: 'memory.embedding.requested',
+            data: { workspaceId, memoryEntryId: id, content, aiSettings },
+        }).catch((err) => logger.error({ err, id }, 'Failed to enqueue embedding job'))
     }
 
     return id
@@ -468,6 +476,166 @@ export async function searchMemory(params: {
     }
 
     return results
+}
+
+export async function searchMemoryBatch(params: {
+    workspaceId: string
+    queries: string[]
+    type?: MemoryType
+    limit?: number
+    useCache?: boolean
+    namespace?: string
+    namespaces?: string[]
+    agentId?: string
+}): Promise<Map<string, MemorySearchResult[]>> {
+    const { workspaceId, queries, type, limit = 5, useCache = true } = params
+
+    if (queries.length === 0) return new Map()
+
+    const resolvedNamespaces: string[] = (() => {
+        if (params.namespaces && params.namespaces.length > 0) return params.namespaces
+        if (params.namespace) return [params.namespace]
+        if (params.agentId) return sharedNamespaces(params.agentId)
+        return [DEFAULT_NAMESPACE]
+    })()
+    const nsCacheKey = resolvedNamespaces.slice().sort().join(',')
+
+    const resultMap = new Map<string, MemorySearchResult[]>()
+
+    if (useCache) {
+        try {
+            const redis = await getRedis()
+            if (redis) {
+                const cacheKeys = queries.map(q => searchKey(workspaceId, (q || '') + '|ns:' + nsCacheKey, type))
+                const cachedResults = await redis.mGet(cacheKeys)
+                let allCached = true
+                for (let i = 0; i < queries.length; i++) {
+                    if (cachedResults[i]) {
+                        resultMap.set(queries[i]!, JSON.parse(cachedResults[i]!) as MemorySearchResult[])
+                    } else {
+                        allCached = false
+                    }
+                }
+                if (allCached) {
+                    emitMemoryCacheHit({ workspaceId, cacheKind: 'search' })
+                    return resultMap
+                }
+                if (resultMap.size > 0) {
+                    emitMemoryCacheHit({ workspaceId, cacheKind: 'search' })
+                }
+                if (resultMap.size < queries.length) {
+                    emitMemoryCacheMiss({ workspaceId, cacheKind: 'search' })
+                }
+            }
+        } catch { /* non-fatal */ }
+    }
+
+    const uncachedQueries = queries.filter(q => !resultMap.has(q))
+    if (uncachedQueries.length === 0) return resultMap
+
+    const vectors = await Promise.all(
+        uncachedQueries.map(q => q.trim() ? embed(q, workspaceId) : Promise.resolve(null))
+    )
+
+    const nsArray = sql`ARRAY[${sql.join(resolvedNamespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
+    const typeClause = type ? sql`AND type = ${type}::memory_type` : sql``
+
+    for (let i = 0; i < uncachedQueries.length; i++) {
+        const query = uncachedQueries[i]!
+        const vector = vectors[i]!
+
+        let results: MemorySearchResult[]
+
+        if (vector) {
+            const vecStr = `[${vector.join(',')}]`
+            const rows = await db.execute<{
+                id: string
+                workspace_id: string
+                type: string
+                content: string
+                metadata: Record<string, unknown>
+                shorthand: string | null
+                tier: string
+                confidence: number | null
+                namespace: string
+                created_at: Date
+                similarity: number
+            }>(sql`
+        SELECT id, workspace_id, type, content, shorthand, metadata, tier, confidence, namespace, created_at,
+                 1 - (embedding <=> ${vecStr}::vector) AS similarity
+        FROM memory_entries
+        WHERE workspace_id = ${workspaceId}::uuid
+          AND embedding IS NOT NULL
+          AND tier != 'cold'
+          AND namespace = ANY(${nsArray})
+          ${typeClause}
+        ORDER BY
+          CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
+          embedding <=> ${vecStr}::vector ASC
+        LIMIT ${limit}
+      `)
+
+            results = rows.map((r) => ({
+                id: r.id,
+                workspaceId: r.workspace_id,
+                type: r.type as MemoryType,
+                content: r.content,
+                shorthand: r.shorthand ?? undefined,
+                metadata: r.metadata,
+                tier: (r.tier ?? 'active') as MemoryTier,
+                confidence: r.confidence ?? null,
+                namespace: r.namespace ?? DEFAULT_NAMESPACE,
+                createdAt: r.created_at,
+                similarity: r.similarity,
+            }))
+            promoteTier(results.map((r) => r.id))
+        } else {
+            const conditions: NonNullable<Parameters<typeof and>[0]>[] = [
+                eq(memoryEntries.workspaceId, workspaceId),
+                ne(memoryEntries.tier, 'cold'),
+                inArray(memoryEntries.namespace, resolvedNamespaces),
+            ]
+
+            if (query.trim()) {
+                conditions.push(sql`content ILIKE ${'%' + query.split(' ').slice(0, 5).join('%') + '%'}`)
+            }
+
+            if (type) conditions.push(eq(memoryEntries.type, type))
+
+            const rows = await db.select().from(memoryEntries)
+                .where(and(...conditions))
+                .orderBy(desc(memoryEntries.createdAt))
+                .limit(limit)
+
+            results = rows.map((r) => ({
+                id: r.id,
+                workspaceId: r.workspaceId,
+                type: r.type,
+                content: r.content,
+                shorthand: r.shorthand ?? undefined,
+                metadata: r.metadata as Record<string, unknown>,
+                tier: (r.tier ?? 'active') as MemoryTier,
+                confidence: r.confidence ?? null,
+                namespace: (r as { namespace?: string }).namespace ?? DEFAULT_NAMESPACE,
+                createdAt: r.createdAt,
+                similarity: 0.5,
+            }))
+            promoteTier(results.map((r) => r.id))
+        }
+
+        resultMap.set(query, results)
+
+        if (useCache && results.length > 0) {
+            try {
+                const redis = await getRedis()
+                if (redis) {
+                    await redis.setEx(searchKey(workspaceId, (query || '') + '|ns:' + nsCacheKey, type), SEARCH_TTL, JSON.stringify(results))
+                }
+            } catch { /* non-fatal */ }
+        }
+    }
+
+    return resultMap
 }
 
 // ── Record task outcome as memory (DISABLED — ADR 0017) ─────────────────────

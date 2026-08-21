@@ -114,17 +114,20 @@ describe('DD-4: recursion guard — sub-agent toolset', () => {
         expect(Object.keys(sub).sort()).toEqual([...SUBAGENT_DEFAULT_TOOLS].sort())
     })
 
-    it('excludes spawn_subagent + task_complete even when explicitly whitelisted', () => {
+    it('excludes spawn_subagent + task_complete + denied tools even when explicitly whitelisted', () => {
         const parent = {
             read_file: {},
             write_file: {},
+            edit_file: {},
             shell: {},
             spawn_subagent: {},
             task_complete: {},
         }
-        const sub = buildSubagentToolset(parent, ['read_file', 'write_file', 'spawn_subagent', 'task_complete'])
+        const sub = buildSubagentToolset(parent, ['read_file', 'write_file', 'edit_file', 'shell', 'spawn_subagent', 'task_complete'])
         expect(sub).toHaveProperty('read_file')
-        expect(sub).toHaveProperty('write_file')
+        expect(sub).not.toHaveProperty('write_file')
+        expect(sub).not.toHaveProperty('edit_file')
+        expect(sub).not.toHaveProperty('shell')
         expect(sub).not.toHaveProperty('spawn_subagent')
         expect(sub).not.toHaveProperty('task_complete')
     })

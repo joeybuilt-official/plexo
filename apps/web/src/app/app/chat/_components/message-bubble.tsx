@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { PlexoAwarenessBadge } from '@web/components/plexo-awareness-badge'
+import { getProviderColorClass } from '@plexo/ui/lib/provider-colors'
 import type { ChatMessage, Message, TaskAsset } from './types'
 import { isPlanProposalMessage } from './types'
 import { PlanCard } from './plan-card'
@@ -542,7 +543,6 @@ function ChatBubble({
                         onClick={copyMsg}
                         aria-label={copied ? 'Copied!' : 'Copy message'}
                         className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-surface-2 border border-border p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3 z-10"
-                        title={copied ? 'Copied!' : 'Copy'}
                     >
                         {copied
                             ? <Check className="h-3 w-3 text-azure" />
@@ -564,15 +564,7 @@ function ChatBubble({
                     {msg.model && (() => {
                         const [provider, ...rest] = msg.model!.split('/')
                         const modelName = rest.join('/') || provider
-                        const providerColors: Record<string, string> = {
-                            deepseek: 'bg-blue-500/15 text-blue-400',
-                            anthropic: 'bg-amber-500/15 text-amber-400',
-                            openai: 'bg-signal-green/15 text-emerald-400',
-                            google: 'bg-sky-500/15 text-sky-400',
-                            groq: 'bg-orange-500/15 text-orange-400',
-                            ollama: 'bg-purple-500/15 text-purple-400',
-                        }
-                        const color = providerColors[provider] ?? 'bg-surface-2 text-text-muted'
+                        const color = getProviderColorClass(provider)
                         return (
                             <span className="flex items-center gap-1">
                                 <span className={`rounded px-1 py-px text-[10px] font-medium ${color}`}>{provider}</span>

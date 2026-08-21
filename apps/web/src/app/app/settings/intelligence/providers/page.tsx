@@ -1003,7 +1003,7 @@ export default function ProvidersPage() {
                         <button
                             onClick={() => void handleTest(selectedInstance)}
                             disabled={testing}
-                            className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0"
+                            className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 focus-ring"
                         >
                             {testing ? <Loader2 className="h-3 w-3 animate-spin" />
                                 : testResult?.ok ? <CheckCircle2 className="h-3 w-3 text-azure" />
@@ -1016,7 +1016,7 @@ export default function ProvidersPage() {
                         href={selectedCatalog.docsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0"
+                        className="flex items-center justify-center gap-1 rounded-sm border border-border bg-surface-2 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-text-secondary hover:border-border hover:text-text-primary transition-colors min-h-[44px] sm:min-h-0 focus-ring"
                     >
                         <ExternalLink className="h-3 w-3" />
                         Docs
@@ -1027,14 +1027,14 @@ export default function ProvidersPage() {
                                 <button
                                     onClick={() => void handleRemove(selectedInstance)}
                                     disabled={removing}
-                                    className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 whitespace-nowrap focus-ring"
                                 >
                                     <Trash2 className="h-3 w-3" />
                                     {removing ? 'Removing…' : 'Confirm'}
                                 </button>
                                 <button
                                     onClick={() => setConfirmRemove(false)}
-                                    className="text-xs text-text-muted hover:text-text-primary px-2"
+                                    className="text-xs text-text-muted hover:text-text-primary px-2 focus-ring"
                                 >
                                     Cancel
                                 </button>
@@ -1042,7 +1042,7 @@ export default function ProvidersPage() {
                         ) : (
                             <button
                                 onClick={() => setConfirmRemove(true)}
-                                className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors min-h-[44px] sm:min-h-0 whitespace-nowrap"
+                                className="flex items-center justify-center gap-1.5 rounded-sm border border-red-800/50 bg-red-dim px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red hover:border-red-700 hover:bg-red-dim/50 transition-colors min-h-[44px] sm:min-h-0 whitespace-nowrap focus-ring"
                             >
                                 <Trash2 className="h-3 w-3" />
                                 Remove
@@ -1142,6 +1142,7 @@ export default function ProvidersPage() {
                                     <button
                                         onClick={() => moveInChain(selectedCatalog.type, -1)}
                                         disabled={(chainPositionByType.get(selectedCatalog.type) ?? 1) === 1}
+                                        aria-label="Move up"
                                         className="flex items-center gap-1 rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                     >
                                         <ArrowUp className="h-3 w-3" />
@@ -1150,6 +1151,7 @@ export default function ProvidersPage() {
                                     <button
                                         onClick={() => moveInChain(selectedCatalog.type, 1)}
                                         disabled={(chainPositionByType.get(selectedCatalog.type) ?? userProviders.length) === userProviders.length}
+                                        aria-label="Move down"
                                         className="flex items-center gap-1 rounded border border-border bg-surface-2 px-2 py-1 text-xs text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                     >
                                         <ArrowDown className="h-3 w-3" />

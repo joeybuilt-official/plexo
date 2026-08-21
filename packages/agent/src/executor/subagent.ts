@@ -25,6 +25,7 @@ import { generateText, stepCountIs } from 'ai'
 import { routeAndCall } from '../providers/router-v2/index.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import type { ExecutionContext } from '../types.js'
+import pino from 'pino'
 
 /** Tools the sub-agent gets by default (read-only safe subset). */
 export const SUBAGENT_DEFAULT_TOOLS: readonly string[] = [
@@ -39,6 +40,16 @@ export const SUBAGENT_DEFAULT_TOOLS: readonly string[] = [
 export const SUBAGENT_BLOCKED_TOOLS: readonly string[] = [
     'spawn_subagent', 'task_complete',
 ]
+
+/**
+ * Tools ALWAYS denied to sub-agents — parent whitelist cannot override.
+ * Enforces FS isolation: sub-agent cannot modify parent filesystem.
+ */
+export const SUBAGENT_DENIED_TOOLS: readonly string[] = [
+    'write_file', 'edit_file', 'shell', 'task_complete', 'spawn_subagent',
+]
+
+const logger = pino({ name: 'executor:subagent' })
 
 export const SUBAGENT_MAX_STEPS = 10
 export const SUBAGENT_TIMEOUT_MS = 120_000
@@ -58,17 +69,23 @@ export interface SubagentRunner {
 
 /**
  * Build the sub-agent's scoped toolset from the parent's full toolset.
- * - If `whitelist` is provided, keep exactly those names (minus blocked).
- * - Otherwise keep {@link SUBAGENT_DEFAULT_TOOLS} (minus blocked).
- * - Unknown / blocked names are silently dropped.
+ * - If `whitelist` is provided, keep exactly those names (minus blocked/denied).
+ * - Otherwise keep {@link SUBAGENT_DEFAULT_TOOLS} (minus blocked/denied).
+ * - Unknown / blocked / denied names are dropped; denied whitelist attempts log a warning.
  */
 export function buildSubagentToolset(
     parentTools: Record<string, unknown>,
     whitelist?: string[],
 ): Record<string, unknown> {
+    const base = whitelist && whitelist.length > 0 ? whitelist : SUBAGENT_DEFAULT_TOOLS
+    const deniedInWhitelist = base.filter((n) => SUBAGENT_DENIED_TOOLS.includes(n))
+    if (deniedInWhitelist.length > 0) {
+        logger.warn({ denied: deniedInWhitelist }, 'Sub-agent whitelist contains denied tools — stripped')
+    }
     const allowed = new Set<string>(
-        (whitelist && whitelist.length > 0 ? whitelist : SUBAGENT_DEFAULT_TOOLS)
-            .filter((n) => !SUBAGENT_BLOCKED_TOOLS.includes(n)),
+        base
+            .filter((n) => !SUBAGENT_BLOCKED_TOOLS.includes(n))
+            .filter((n) => !SUBAGENT_DENIED_TOOLS.includes(n)),
     )
     const out: Record<string, unknown> = {}
     for (const name of Object.keys(parentTools)) {

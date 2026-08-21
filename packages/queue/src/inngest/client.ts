@@ -16,6 +16,7 @@
  */
 
 import { Inngest, EventSchemas } from 'inngest'
+import type { WorkspaceAISettings } from '@plexo/agent/providers/registry'
 
 /**
  * Event catalogue. Phase 4 + 5 + L will fill these in. Declared up-front so
@@ -46,6 +47,14 @@ export type GmessagesEvents = {
             assistantReply: string
             sessionId: string
             source: string
+        }
+    }
+    'memory.embedding.requested': {
+        data: {
+            workspaceId: string
+            memoryEntryId: string
+            content: string
+            aiSettings?: WorkspaceAISettings
         }
     }
 }

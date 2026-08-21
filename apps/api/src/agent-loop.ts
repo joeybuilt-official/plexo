@@ -30,6 +30,7 @@ import { claimBatch, releaseSlot, extendSlot, HEARTBEAT_INTERVAL_MS } from './pa
 import { requestApproval, waitForDecision, getDecision, elevateOutboundOneWayDoors, type PendingDecision } from '@plexo/agent/one-way-door'
 import { getCachedIntelligenceSettings, type IntelligenceSettings } from './lib/intelligence-cache.js'
 import { incrementCounter } from './lib/metrics.js'
+import { createHash } from 'node:crypto'
 
 const POLL_INTERVAL_MS = 2_000
 const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '50')
@@ -842,17 +843,23 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         // 'queued'. Skip planning + gate; the original run already persisted
         // tasks.plan. Clear `_resumeAt` so a future approval flow doesn't loop.
         const resumeAt = taskContext._resumeAt
+        const storedPlanHash = taskContext.planHash
         const isResume = resumeAt === 'after_planner_gate' && task.plan !== null && task.plan !== undefined
 
         let plan: ExecutionPlan
         if (isResume) {
             plan = task.plan as ExecutionPlan
+            const currentPlanHash = createHash('sha256').update(JSON.stringify(plan)).digest('hex')
+            if (storedPlanHash !== currentPlanHash) {
+                logger.error({ taskId: task.id, storedPlanHash, currentPlanHash }, 'plan hash mismatch on resume — plan was modified after approval')
+                throw new Error('Plan hash mismatch: task plan was modified after approval. Resume rejected.')
+            }
             try {
                 await db.update(tasks)
-                    .set({ context: sql`context - '_resumeAt'` })
+                    .set({ context: sql`context - '_resumeAt' - 'planHash'` })
                     .where(eq(tasks.id, task.id))
             } catch (clearErr) {
-                logger.warn({ err: clearErr, taskId: task.id }, 'clear _resumeAt failed — non-fatal')
+                logger.warn({ err: clearErr, taskId: task.id }, 'clear _resumeAt/planHash failed — non-fatal')
             }
             logger.info({ event: 'task.lifecycle', taskId: task.id, from: 'awaiting_approval', to: 'running', workspaceId: taskWorkspaceId, steps: plan.steps.length }, 'resumed after planner-gate approval')
             void recordTaskEvent({ workspaceId: taskWorkspaceId ?? '', taskId: task.id, eventType: 'resumed', fromState: 'awaiting_approval', toState: 'running', metadata: { steps: plan.steps.length } })
@@ -1114,8 +1121,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 if (OWD_RELEASE_SLOT) {
                     let resumePersisted = false
                     try {
+                        const planHash = createHash('sha256').update(JSON.stringify(plan)).digest('hex')
                         await db.update(tasks)
-                            .set({ context: sql`context || ${JSON.stringify({ _resumeAt: 'after_planner_gate' })}::jsonb` })
+                            .set({ context: sql`context || ${JSON.stringify({ _resumeAt: 'after_planner_gate', planHash })}::jsonb` })
                             .where(eq(tasks.id, task.id))
                         resumePersisted = true
                     } catch (resumeErr) {

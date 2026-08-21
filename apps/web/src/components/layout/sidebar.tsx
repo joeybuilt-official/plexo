@@ -750,7 +750,7 @@ export function Sidebar({ user, onNavClick, className = '', mobile = false }: { 
     }
 
     return (
-        <aside className={`${mobile ? 'flex' : 'hidden md:flex'} flex-col shrink-0 border-r border-border-subtle bg-canvas transition-all duration-300 ${className} ${mobile ? 'w-full h-full' : sidebarCollapsed ? 'w-[68px]' : 'w-[248px]'}`}>
+        <aside className={`${mobile ? 'flex' : 'hidden md:flex'} flex-col shrink-0 border-r border-border-subtle bg-canvas transition-all duration-300 ${className} ${mobile ? 'w-full h-full' : sidebarCollapsed ? 'w-[80px]' : 'w-[248px]'}`}>
             <div className={`relative group/collapse ${sidebarCollapsed ? 'border-b border-border-subtle' : ''}`}>
                 <WorkspaceSwitcher collapsed={sidebarCollapsed} className={!sidebarCollapsed ? 'border-b border-border-subtle' : ''} />
                 {!sidebarCollapsed && (

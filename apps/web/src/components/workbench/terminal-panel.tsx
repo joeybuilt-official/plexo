@@ -17,29 +17,29 @@ interface TerminalPanelProps {
 // Minimal ANSI colour renderer — handles the most common escape sequences
 function renderAnsi(line: string): string {
     return line
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
+        .replace(/&/g, '&')
+        .replace(/</g, '<')
+        .replace(/>/g, '>')
         // Reset
         .replace(/\x1b\[0?m/g, '</span>')
         // Bright variants (must come before dim)
-        .replace(/\x1b\[1;30m/g, '<span style="color:#686868">')
-        .replace(/\x1b\[1;31m/g, '<span style="color:#ff5f5f">')
-        .replace(/\x1b\[1;32m/g, '<span style="color:#5fff5f">')
-        .replace(/\x1b\[1;33m/g, '<span style="color:#ffff5f">')
-        .replace(/\x1b\[1;34m/g, '<span style="color:#5f87ff">')
-        .replace(/\x1b\[1;35m/g, '<span style="color:#ff5fff">')
-        .replace(/\x1b\[1;36m/g, '<span style="color:#5fffff">')
-        .replace(/\x1b\[1;37m/g, '<span style="color:#ffffff">')
+        .replace(/\x1b\[1;30m/g, '<span class="ansi-bright-black">')
+        .replace(/\x1b\[1;31m/g, '<span class="ansi-bright-red">')
+        .replace(/\x1b\[1;32m/g, '<span class="ansi-bright-green">')
+        .replace(/\x1b\[1;33m/g, '<span class="ansi-bright-yellow">')
+        .replace(/\x1b\[1;34m/g, '<span class="ansi-bright-blue">')
+        .replace(/\x1b\[1;35m/g, '<span class="ansi-bright-magenta">')
+        .replace(/\x1b\[1;36m/g, '<span class="ansi-bright-cyan">')
+        .replace(/\x1b\[1;37m/g, '<span class="ansi-bright-white">')
         // Standard colours
-        .replace(/\x1b\[30m/g, '<span style="color:#686868">')
-        .replace(/\x1b\[31m/g, '<span style="color:#e74c3c">')
-        .replace(/\x1b\[32m/g, '<span style="color:#2ecc71">')
-        .replace(/\x1b\[33m/g, '<span style="color:#f39c12">')
-        .replace(/\x1b\[34m/g, '<span style="color:#5f87ff">')
-        .replace(/\x1b\[35m/g, '<span style="color:#9b59b6">')
-        .replace(/\x1b\[36m/g, '<span style="color:#1abc9c">')
-        .replace(/\x1b\[37m/g, '<span style="color:#bdc3c7">')
+        .replace(/\x1b\[30m/g, '<span class="ansi-black">')
+        .replace(/\x1b\[31m/g, '<span class="ansi-red">')
+        .replace(/\x1b\[32m/g, '<span class="ansi-green">')
+        .replace(/\x1b\[33m/g, '<span class="ansi-yellow">')
+        .replace(/\x1b\[34m/g, '<span class="ansi-blue">')
+        .replace(/\x1b\[35m/g, '<span class="ansi-magenta">')
+        .replace(/\x1b\[36m/g, '<span class="ansi-cyan">')
+        .replace(/\x1b\[37m/g, '<span class="ansi-white">')
         // Background colours (mostly strip)
         .replace(/\x1b\[\d{1,3}(;\d{1,3})*m/g, '')
 }
@@ -47,6 +47,7 @@ function renderAnsi(line: string): string {
 export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPanelProps) {
     const bottomRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const preRef = useRef<HTMLPreElement>(null)
     const isAtBottomRef = useRef(true)
 
     const filtered = filterLabel ? lines.filter((l) => l.label === filterLabel) : lines
@@ -63,6 +64,19 @@ export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPa
         isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
     }
 
+    function handleCopy() {
+        const pre = preRef.current
+        if (!pre) return
+        const selection = window.getSelection()
+        if (!selection) return
+        const range = document.createRange()
+        range.selectNodeContents(pre)
+        selection.removeAllRanges()
+        selection.addRange(range)
+        document.execCommand('copy')
+        selection.removeAllRanges()
+    }
+
     if (filtered.length === 0) {
         return (
             <div className={`flex items-center justify-center h-full text-xs text-text-muted font-mono select-none ${className}`}>
@@ -75,9 +89,23 @@ export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPa
         <div
             ref={containerRef}
             onScroll={handleScroll}
-            className={`overflow-auto h-full bg-canvas px-3 py-2 ${className}`}
+            tabIndex={0}
+            role="log"
+            aria-live="polite"
+            className={`overflow-auto h-full bg-canvas px-3 py-2 relative ${className}`}
         >
-            <pre className="text-xs font-mono leading-relaxed text-text-primary whitespace-pre-wrap break-all">
+            <button
+                type="button"
+                onClick={handleCopy}
+                className="absolute top-2 right-2 text-xs text-text-muted hover:text-text-primary font-sans px-2 py-1 rounded bg-surface border border-border transition-colors"
+                aria-label="Copy terminal output"
+            >
+                Copy output
+            </button>
+            <pre
+                ref={preRef}
+                className="text-xs font-mono leading-relaxed text-text-primary whitespace-pre-wrap break-all"
+            >
                 {filtered.map((l, i) => (
                     <span
                         key={i}

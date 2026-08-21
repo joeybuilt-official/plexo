@@ -218,32 +218,28 @@ async function promoteWriteFilesToWorks(
             // Write to /tmp so the filesystem fallback in the assets API works
             fs.mkdir(assetDir, { recursive: true })
             fs.writeFile(fs.join(assetDir, filename), content, 'utf8')
-            // Persist to DB
-            try {
-                const inferred = inferKind(filename, content)
-                const kind: WorkKind = inferred.kind
-                const type = kindToLegacyType(kind)
-                const meta: Record<string, unknown> = inferred.language ? { language: inferred.language } : {}
-                const artifactId = ulid()
-                await db.transaction(async (tx) => {
-                    const [existing] = await tx.execute<{ id: string; current_version: number }>(sql`
-                        SELECT id, current_version FROM artifacts
-                        WHERE workspace_id = ${ctx.workspaceId} AND task_id = ${ctx.taskId} AND filename = ${filename}
-                        LIMIT 1 FOR UPDATE
-                    `)
-                    if (!existing) {
-                        await tx.insert(artifacts).values({
-                            id: artifactId, workspaceId: ctx.workspaceId, taskId: ctx.taskId,
-                            projectId: ctx.sprintId ?? null, filename, type, kind, meta, currentVersion: 1,
-                        })
-                        await tx.insert(artifactVersions).values({
-                            artifactId, version: 1, content, changeDescription: 'Promoted from write_file on forced termination',
-                        })
-                    }
-                })
-            } catch (dbErr) {
-                console.warn('[promoteWriteFilesToWorks] DB persist failed for', filename, ctx.taskId, dbErr instanceof Error ? dbErr.message : dbErr)
-            }
+            // Persist to DB — mandatory; on failure, propagate to trigger task retry
+            const inferred = inferKind(filename, content)
+            const kind: WorkKind = inferred.kind
+            const type = kindToLegacyType(kind)
+            const meta: Record<string, unknown> = inferred.language ? { language: inferred.language } : {}
+            const artifactId = ulid()
+            await db.transaction(async (tx) => {
+                const [existing] = await tx.execute<{ id: string; current_version: number }>(sql`
+                    SELECT id, current_version FROM artifacts
+                    WHERE workspace_id = ${ctx.workspaceId} AND task_id = ${ctx.taskId} AND filename = ${filename}
+                    LIMIT 1 FOR UPDATE
+                `)
+                if (!existing) {
+                    await tx.insert(artifacts).values({
+                        id: artifactId, workspaceId: ctx.workspaceId, taskId: ctx.taskId,
+                        projectId: ctx.sprintId ?? null, filename, type, kind, meta, currentVersion: 1,
+                    })
+                    await tx.insert(artifactVersions).values({
+                        artifactId, version: 1, content, changeDescription: 'Promoted from write_file on forced termination',
+                    })
+                }
+            })
             promoted.push(filename)
         }
     }
@@ -450,6 +446,23 @@ async function dispatchTool(
                 const command = input.command as string
                 const TOOL_TIMEOUT_MS = 90_000
 
+                // Shell allowlist validation (workspace-level config)
+                const shellAllowlist: string[] = (ctx as { shellAllowlist?: string[] }).shellAllowlist ?? []
+                if (shellAllowlist.length > 0) {
+                    const allowed = shellAllowlist.some((pattern) => {
+                        // Glob pattern match: convert to regex
+                        const regexPattern = pattern
+                            .replace(/\./g, '\\.')
+                            .replace(/\*/g, '.*')
+                            .replace(/\?/g, '.')
+                        return new RegExp(`^${regexPattern}$`).test(command)
+                    })
+                    if (!allowed) {
+                        logger.warn({ workspaceId: ctx.workspaceId, taskId: ctx.taskId, command, allowlist: shellAllowlist }, 'shell command rejected by allowlist')
+                        return `ERROR: Command "${command}" is not allowed by workspace shell allowlist`
+                    }
+                }
+
                 // Detect label from command content for better UI grouping
                 const label = /ssh\s/.test(command)
                     ? 'ssh'
@@ -478,6 +491,8 @@ async function dispatchTool(
                 // Async spawn with process group isolation + timeout kill.
                 // The child runs in its own process group (detached) so we can
                 // kill the entire tree on timeout without affecting the agent.
+                const startTime = Date.now()
+                let exitCode = 0
                 const combined = await new Promise<string>((resolve, reject) => {
                     const child = spawn('sh', ['-c', command], {
                         cwd,
@@ -502,6 +517,7 @@ async function dispatchTool(
                     child.on('close', (code) => {
                         clearTimeout(timer)
                         if (killed) return
+                        exitCode = code ?? 0
                         const out = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n')
                         if (code !== 0) {
                             resolve(`ERROR: ${(out || `exit code ${code}`).slice(0, 2000)}`)
@@ -515,6 +531,10 @@ async function dispatchTool(
                         if (!killed) reject(err)
                     })
                 })
+                const durationMs = Date.now() - startTime
+
+                // Audit log: shell command executed
+                logger.info({ workspaceId: ctx.workspaceId, taskId: ctx.taskId, command, exitCode, durationMs }, 'shell command executed')
 
                 // Emit each line as a streaming SSE event
                 if (emit && combined && !combined.startsWith('ERROR:')) {
@@ -2461,8 +2481,15 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             pinoMod.default({ name: 'executor' }).info({ taskId: ctx.taskId, promoted }, 'executor.normal_complete_promote — promoted write_file outputs to works')
                         }
                     } catch (promoteErr) {
-                        const pinoMod = await import('pino')
-                        pinoMod.default({ name: 'executor' }).warn({ err: promoteErr, taskId: ctx.taskId }, 'executor.normal_complete_promote failed')
+                        // Asset promotion DB failure is mandatory — wrap to trigger task retry
+                        // Message includes "timeout" to match agent-loop transient patterns + "asset_promotion_failed" for identification
+                        const msg = promoteErr instanceof Error ? promoteErr.message : String(promoteErr)
+                        throw new PlexoError(
+                            `asset_promotion_failed: DB persist timeout during write_file promotion — ${msg}`,
+                            'ASSET_PROMOTION_FAILED',
+                            'system',
+                            500,
+                        )
                     }
                 }
                 lastResult = result

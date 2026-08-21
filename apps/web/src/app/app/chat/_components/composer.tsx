@@ -4,7 +4,7 @@
 'use client'
 
 import { forwardRef, useState } from 'react'
-import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText, ChevronDown, ChevronUp, Cpu, MessageSquareText } from 'lucide-react'
+import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText, ChevronDown, ChevronUp, Cpu, MessageSquareText, Brain } from 'lucide-react'
 import type { PastedImage, PastedDocument } from '@web/lib/attachments'
 
 export interface ProviderModelOption {
@@ -71,7 +71,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                 <div className="flex flex-wrap items-center gap-2 px-1">
                     {hasModelPicker && (
                         <label className="flex items-center gap-1.5 text-xs text-text-muted">
-                            <Cpu className="h-3.5 w-3.5 shrink-0" />
+                            <Brain className="h-3.5 w-3.5 shrink-0" />
+                            <span>Model</span>
                             <select
                                 value={modelOverride ?? ''}
                                 onChange={(e) => onModelOverrideChange!(e.target.value || null)}
@@ -115,6 +116,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                         placeholder="System prompt override — leave empty to use the compiled behavior prompt. Your text is PREPENDED to the default so identity/capabilities stay intact."
                         rows={4}
                         disabled={sending}
+                        aria-label="System prompt override"
                         className="w-full resize-y rounded border border-border bg-surface-1 px-3 py-2 text-xs font-mono text-text-primary placeholder:text-text-muted placeholder:font-mono focus:outline-none focus:border-accent-dim focus:ring-1 focus:ring-accent/20 disabled:opacity-50 max-h-48 leading-relaxed"
                     />
                 </div>

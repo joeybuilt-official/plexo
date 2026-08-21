@@ -279,11 +279,14 @@ async function extractPersonalFacts(
 
     if (facts.length === 0) return
 
-    const { storeMemory, searchMemory } = await import('./store.js')
+    const { storeMemory, searchMemoryBatch } = await import('./store.js')
+
+    const queries = facts.map(f => f.content)
+    const existingMap = await searchMemoryBatch({ workspaceId, queries, limit: 1 })
 
     for (const { content, category } of facts) {
         // Deduplicate: skip if a similar fact already exists
-        const existing = await searchMemory({ workspaceId, query: content, limit: 1 })
+        const existing = existingMap.get(content) ?? []
         if (existing.length > 0 && existing[0]!.content.toLowerCase().includes(content.toLowerCase().slice(0, 30))) {
             continue
         }

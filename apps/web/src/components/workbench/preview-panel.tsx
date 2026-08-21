@@ -161,7 +161,7 @@ export function PreviewPanel({ workspaceId, taskId, path = 'index.html', classNa
                 ) : (
                     <div 
                         className={`bg-white border border-border transition-all duration-300 origin-center ${
-                            viewMode === 'mobile' ? 'w-[375px] h-[667px]' : 'w-full h-full'
+                            viewMode === 'mobile' ? 'w-[calc(100vw-2rem)] max-w-[375px] h-[667px]' : 'w-full h-full'
                         }`}
                         style={{ borderRadius: viewMode === 'mobile' ? '24px' : '0px', overflow: 'hidden' }}
                     >

@@ -300,162 +300,209 @@ export function ArtifactWorkbench({
         { id: 'browser', Icon: Globe, label: 'Browser' },
     ]
 
-    return (
-        <div
-            className={`flex flex-col h-full overflow-hidden transition-all duration-500 ease-in-out ${
-                isPinned
-                    ? 'border-l border-border/40 bg-surface-2'
-                    : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-surface-2'
-            }`}
-        >
-            {/* ── Toolbar ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-1 px-3 h-12 bg-surface-1/40 border-b border-border/40 flex-shrink-0">
-                <div className="flex items-center gap-3 mr-4">
-                    <div className={`w-2 h-2 rounded-full ${isTaskRunning ? 'bg-azure animate-pulse' : 'bg-surface-2'}`} />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Workbench</span>
+    // Mobile bottom drawer state
+    const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
+
+    // Show mobile drawer when not pinned and on mobile
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
+    function renderWorkbenchContent() {
+        return (
+            <>
+                {/* ── Toolbar ─────────────────────────────────────────────────── */}
+                <div className="flex items-center gap-1 px-3 h-12 bg-surface-1/40 border-b border-border/40 flex-shrink-0">
+                    <div className="flex items-center gap-3 mr-4">
+                        <div className={`w-2 h-2 rounded-full ${isTaskRunning ? 'bg-azure animate-pulse' : 'bg-surface-2'}`} />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Workbench</span>
+                    </div>
+
+                    {hasRepo && (
+                        <button
+                            onClick={() => setShowSidebar((v) => !v)}
+                            aria-label="Toggle files sidebar"
+                            aria-pressed={showSidebar}
+                            className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
+                        >
+                            <Layers className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+
+                    {context.repo ? (
+                        <button
+                            onClick={() => setRepoModalOpen(true)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono bg-surface-2 hover:bg-surface-2 text-text-secondary transition-colors"
+                        >
+                            <GitBranch className="w-3.5 h-3.5 text-azure" />
+                            <span>{context.repo}</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setRepoModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded bg-azure/10 hover:bg-azure/20 border border-azure/30 text-xs font-medium text-azure transition-all"
+                        >
+                            Connect Repository
+                        </button>
+                    )}
+
+                    <div className="flex-1" />
+
+                    {/* Tab controls */}
+                    <div className="flex items-center bg-surface-2/50 p-1 rounded mr-2">
+                        {tabs.map(({ id, Icon, label }) => {
+                            const active = activeTab === id
+                            // Show badge on browser tab if there are screenshots
+                            const hasBadge = id === 'browser' && screenshots.length > 0
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={() => { setActiveTab(id); setShowBottom(true) }}
+                                    className={`relative p-1.5 rounded-md transition-all ${
+                                        active ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:text-text-secondary'
+                                    }`}
+                                    title={label}
+                                    aria-label={label}
+                                    aria-pressed={active}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    {hasBadge && (
+                                        <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-azure" />
+                                    )}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    <div className="w-px h-6 bg-border/40 mx-1" />
+
+                    {/* Pin toggle */}
+                    <button
+                        onClick={onTogglePin}
+                        className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
+                        title={isPinned ? 'Unpin' : 'Pin side-by-side'}
+                        aria-label={isPinned ? 'Unpin workbench' : 'Pin workbench side-by-side'}
+                    >
+                        {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                    </button>
+
+                    {/* Close */}
+                    <button
+                        onClick={onClose}
+                        aria-label="Close workbench"
+                        className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
 
-                {hasRepo && (
-                    <button
-                        onClick={() => setShowSidebar((v) => !v)}
-                        aria-label="Toggle files sidebar"
-                        aria-pressed={showSidebar}
-                        className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
-                    >
-                        <Layers className="w-3.5 h-3.5" />
-                    </button>
-                )}
-
-                {context.repo ? (
-                    <button
-                        onClick={() => setRepoModalOpen(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono bg-surface-2 hover:bg-surface-2 text-text-secondary transition-colors"
-                    >
-                        <GitBranch className="w-3.5 h-3.5 text-azure" />
-                        <span>{context.repo}</span>
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => setRepoModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded bg-azure/10 hover:bg-azure/20 border border-azure/30 text-xs font-medium text-azure transition-all"
-                    >
-                        Connect Repository
-                    </button>
-                )}
-
-                <div className="flex-1" />
-
-                {/* Tab controls */}
-                <div className="flex items-center bg-surface-2/50 p-1 rounded mr-2">
-                    {tabs.map(({ id, Icon, label }) => {
-                        const active = activeTab === id
-                        // Show badge on browser tab if there are screenshots
-                        const hasBadge = id === 'browser' && screenshots.length > 0
-                        return (
-                            <button
-                                key={id}
-                                onClick={() => { setActiveTab(id); setShowBottom(true) }}
-                                className={`relative p-1.5 rounded-md transition-all ${
-                                    active ? 'bg-surface-2 text-text-primary' : 'text-text-muted hover:text-text-secondary'
-                                }`}
-                                title={label}
-                                aria-label={label}
-                                aria-pressed={active}
-                            >
-                                <Icon className="w-3.5 h-3.5" />
-                                {hasBadge && (
-                                    <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-azure" />
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-
-                <div className="w-px h-6 bg-border/40 mx-1" />
-
-                {/* Pin toggle */}
-                <button
-                    onClick={onTogglePin}
-                    className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors"
-                    title={isPinned ? 'Unpin' : 'Pin side-by-side'}
-                    aria-label={isPinned ? 'Unpin workbench' : 'Pin workbench side-by-side'}
-                >
-                    {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                </button>
-
-                {/* Close */}
-                <button
-                    onClick={onClose}
-                    aria-label="Close workbench"
-                    className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
-                >
-                    <X className="w-4 h-4" />
-                </button>
-            </div>
-
-            {/* ── Repo picker modal ───────────────────────────────────── */}
-            {repoModalOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas">
-                    <RepoPicker workspaceId={workspaceId} onSelect={handleRepoSelect} onClose={() => setRepoModalOpen(false)} />
-                </div>
-            )}
-
-            {/* ── Main content ────────────────────────────────────────────── */}
-            <div className="flex flex-1 overflow-hidden">
-                {hasRepo && showSidebar && (
-                    <div className="w-[220px] border-r border-border/40 bg-canvas">
-                        <FileTree
-                            files={files}
-                            modifiedPaths={modifiedPaths}
-                            selectedPath={selectedFile}
-                            onSelect={openFile}
-                            className="flex-1"
-                        />
+                {/* ── Repo picker modal ───────────────────────────────────── */}
+                {repoModalOpen && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-canvas">
+                        <RepoPicker workspaceId={workspaceId} onSelect={handleRepoSelect} onClose={() => setRepoModalOpen(false)} />
                     </div>
                 )}
 
-                <div className="flex flex-col flex-1 overflow-hidden">
-                    {/* File view */}
-                    {selectedFile && (
-                        <div className="flex flex-col h-1/2 border-b border-border/40">
-                             <div className="flex items-center gap-2 px-3 h-10 bg-surface-1 border-b border-border/20 text-xs font-mono">
-                                <Code2 className="w-3.5 h-3.5 text-azure" />
-                                <span className="text-text-secondary flex-1 truncate">{selectedFile}</span>
-                                <button onClick={() => { setSelectedFile(undefined); setFileContent(null) }} aria-label="Close file" className="hover:text-red">
-                                    <X className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-auto p-4 bg-canvas">
-                                {isLoadingFile
-                                    ? <div className="animate-pulse flex space-y-2 flex-col"><div className="h-2 bg-surface-2 rounded w-3/4"></div><div className="h-2 bg-surface-2 rounded w-1/2"></div></div>
-                                    : fileContent !== null
-                                    ? <pre className="text-xs font-mono text-text-secondary leading-relaxed">{fileContent}</pre>
-                                    : <div className="text-xs text-text-muted">Empty file</div>
-                                }
-                            </div>
+                {/* ── Main content ────────────────────────────────────────────── */}
+                <div className="flex flex-1 overflow-hidden">
+                    {hasRepo && showSidebar && (
+                        <div className="w-[220px] border-r border-border/40 bg-canvas">
+                            <FileTree
+                                files={files}
+                                modifiedPaths={modifiedPaths}
+                                selectedPath={selectedFile}
+                                onSelect={openFile}
+                                className="flex-1"
+                            />
                         </div>
                     )}
 
-                    {/* Active tab content */}
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        {activeTab === 'terminal' && <TerminalPanel lines={shellLines} className="flex-1" />}
-                        {activeTab === 'tests' && <TestResultsPanel results={testResults} onRerun={onRerunTest} className="flex-1" />}
-                        {activeTab === 'diff' && <DiffViewer events={fileWrites} className="flex-1" />}
-                        {activeTab === 'preview' && <PreviewPanel workspaceId={workspaceId} taskId={taskId} path={previewPath} className="flex-1" />}
-                        {activeTab === 'browser' && <BrowserPanel screenshots={screenshots} isRunning={isTaskRunning} />}
+                    <div className="flex flex-col flex-1 overflow-hidden">
+                        {/* File view */}
+                        {selectedFile && (
+                            <div className="flex flex-col h-1/2 border-b border-border/40">
+                                 <div className="flex items-center gap-2 px-3 h-10 bg-surface-1 border-b border-border/20 text-xs font-mono">
+                                    <Code2 className="w-3.5 h-3.5 text-azure" />
+                                    <span className="text-text-secondary flex-1 truncate">{selectedFile}</span>
+                                    <button onClick={() => { setSelectedFile(undefined); setFileContent(null) }} aria-label="Close file" className="hover:text-red">
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-auto p-4 bg-canvas">
+                                    {isLoadingFile
+                                        ? <div className="animate-pulse flex space-y-2 flex-col"><div className="h-2 bg-surface-2 rounded w-3/4"></div><div className="h-2 bg-surface-2 rounded w-1/2"></div></div>
+                                        : fileContent !== null
+                                        ? <pre className="text-xs font-mono text-text-secondary leading-relaxed">{fileContent}</pre>
+                                        : <div className="text-xs text-text-muted">Empty file</div>
+                                    }
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Active tab content */}
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                            {activeTab === 'terminal' && <TerminalPanel lines={shellLines} className="flex-1" />}
+                            {activeTab === 'tests' && <TestResultsPanel results={testResults} onRerun={onRerunTest} className="flex-1" />}
+                            {activeTab === 'diff' && <DiffViewer events={fileWrites} className="flex-1" />}
+                            {activeTab === 'preview' && <PreviewPanel workspaceId={workspaceId} taskId={taskId} path={previewPath} className="flex-1" />}
+                            {activeTab === 'browser' && <BrowserPanel screenshots={screenshots} isRunning={isTaskRunning} />}
+                        </div>
                     </div>
+                </div>
+
+                {/* ── Footer ─────────────────────────────────────────────────── */}
+                <div className="flex items-center h-8 px-4 bg-canvas border-t border-border/20 text-[11px] font-mono text-text-muted">
+                    <Activity className="w-3 h-3 mr-2" />
+                    <span>{shellLines.length} events • {fileWrites.length} writes</span>
+                    {screenshots.length > 0 && (
+                        <span className="ml-2 text-azure/60">• {screenshots.length} browser frames</span>
+                    )}
+                    {taskId && <span className="ml-auto opacity-50">{taskId.slice(0, 8)}</span>}
+                </div>
+            </>
+        )
+    }
+
+    return (
+        <>
+            {/* Desktop side panel (md and up) */}
+            <div className="hidden md:flex md:flex-col h-full overflow-hidden transition-all duration-500 ease-in-out">
+                <div
+                    className={`flex flex-col h-full overflow-hidden ${
+                        isPinned
+                            ? 'border-l border-border/40 bg-surface-2'
+                            : 'absolute right-0 top-0 bottom-0 w-[600px] max-w-[calc(100vw-340px)] z-30 rounded-none border-l border-border/40 bg-surface-2'
+                    }`}
+                >
+                    {renderWorkbenchContent()}
                 </div>
             </div>
 
-            {/* ── Footer ─────────────────────────────────────────────────── */}
-            <div className="flex items-center h-8 px-4 bg-canvas border-t border-border/20 text-[11px] font-mono text-text-muted">
-                <Activity className="w-3 h-3 mr-2" />
-                <span>{shellLines.length} events • {fileWrites.length} writes</span>
-                {screenshots.length > 0 && (
-                    <span className="ml-2 text-azure/60">• {screenshots.length} browser frames</span>
-                )}
-                {taskId && <span className="ml-auto opacity-50">{taskId.slice(0, 8)}</span>}
+            {/* Mobile bottom drawer */}
+            <div className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ease-in-out bg-surface-2 border-t border-border/40 ${mobileDrawerOpen ? 'translate-y-0' : 'translate-y-full'}`}>
+                <div className="flex items-center justify-between px-3 py-2 bg-surface-1 border-b border-border/40">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Workbench</span>
+                    <button
+                        onClick={() => setMobileDrawerOpen(false)}
+                        aria-label="Close workbench"
+                        className="p-2 rounded hover:bg-surface-2 text-text-muted hover:text-red transition-colors"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="max-h-[70vh] overflow-auto">
+                    {renderWorkbenchContent()}
+                </div>
             </div>
-        </div>
+
+            {/* Mobile trigger button (when drawer closed) */}
+            {!mobileDrawerOpen && !isPinned && isMobile && (
+                <button
+                    onClick={() => setMobileDrawerOpen(true)}
+                    className="md:hidden fixed bottom-4 right-4 z-30 p-3 rounded-full bg-surface-2 border border-border/40 shadow-lg text-text-primary hover:bg-surface-1 transition-colors"
+                    aria-label="Open workbench"
+                >
+                    <Terminal className="w-5 h-5" />
+                </button>
+            )}
+        </>
     )
 }

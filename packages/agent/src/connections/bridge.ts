@@ -825,8 +825,8 @@ async function maybeRefreshGoogleToken(
     if (!creds.expires_at || !creds.refresh_token) return creds
     if (new Date(creds.expires_at as string) > new Date(Date.now() + 60_000)) return creds
 
-    const clientId = process.env.GOOGLE_CLIENT_ID
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+    const clientId = (creds.client_id as string | undefined) ?? (creds.clientId as string | undefined) ?? process.env.GOOGLE_CLIENT_ID
+    const clientSecret = (creds.client_secret as string | undefined) ?? (creds.clientSecret as string | undefined) ?? process.env.GOOGLE_CLIENT_SECRET
     if (!clientId || !clientSecret) return creds
 
     try {
