@@ -29,6 +29,7 @@
     "./memory/corrections": "./src/memory/corrections.ts",
     "./memory/conversation-bridge": "./src/memory/conversation-bridge.ts",
     "./memory/inngest/extract-turn-fn": "./src/memory/inngest/extract-turn-fn.ts",
+    "./memory/inngest": "./src/memory/inngest/index.ts",
     "./memory/consolidation": "./src/memory/consolidation.ts",
     "./mcp/client": "./src/mcp/client.ts",
     "./connections/registry": "./src/connections/registry.ts",
