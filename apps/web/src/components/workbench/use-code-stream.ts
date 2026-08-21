@@ -88,7 +88,7 @@ export function useCodeStream({
 
         function connect() {
             if (destroyed) return
-            es = new EventSource(`/api/v1/sse?workspaceId=${workspaceId}`)
+            es = new EventSource(`/api/v1/sse?workspaceId=${workspaceId}`, { withCredentials: true })
 
             es.onmessage = (ev) => {
                 let data: unknown

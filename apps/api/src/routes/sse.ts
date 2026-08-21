@@ -11,7 +11,13 @@ export const sseRouter: RouterType = Router()
 
 sseRouter.get('/', requireAuth, async (req, res) => {
     const user = req.user!
-    const workspaceId = (req.query.workspaceId as string) ?? 'global'
+    const workspaceId = req.query.workspaceId as string | undefined
+
+    // workspaceId is required for workspace-scoped streams
+    if (!workspaceId) {
+        res.status(401).json({ error: 'workspaceId is required' })
+        return
+    }
 
     // Global stream requires super-admin; workspace stream requires membership
     if (workspaceId === 'global') {

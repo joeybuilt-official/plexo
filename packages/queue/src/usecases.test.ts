@@ -65,15 +65,15 @@ describe('requeueForRetry() — FUN-037 backoff + max attempts', () => {
         expect(await requeueForRetry('t')).toBe('max_attempts')
     })
 
-    it('requeues with exponential backoff (120s on first retry)', async () => {
+    it('requeues with jittered exponential backoff (60-180s on first retry)', async () => {
         fake.attempt = 0
         const before = Date.now()
         const result = await requeueForRetry('t')
         expect(result).toBe('requeued')
         expect(fake.requeuedTo!.attemptCount).toBe(1)
         const deltaSec = (fake.requeuedTo!.retryAfter.getTime() - before) / 1000
-        expect(deltaSec).toBeGreaterThanOrEqual(119)
-        expect(deltaSec).toBeLessThanOrEqual(122)
+        expect(deltaSec).toBeGreaterThanOrEqual(59) // 0.5 * 120 = 60
+        expect(deltaSec).toBeLessThanOrEqual(181) // 1.5 * 120 = 180
     })
 
     it('fails permanently once attempts exceed maxAttempts', async () => {

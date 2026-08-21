@@ -10,19 +10,26 @@
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import { channels, conversations, installedConnections, pairedSessions } from '@plexo/db'
+import { decryptSensitiveConfigKeys } from '../lib/channel-config-crypto.js'
+
+function decryptConfig<T extends { config: unknown; type: string; workspaceId: string }>(row: T | undefined): T | undefined {
+    if (!row) return row
+    return { ...row, config: decryptSensitiveConfigKeys(row.type, (row.config ?? {}) as Record<string, unknown>, row.workspaceId) } as T
+}
 
 /** Full channel row by id, or undefined. */
 export async function getById(channelId: string) {
     const [row] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
-    return row
+    return decryptConfig(row)
 }
 
 /** {id,config,workspaceId,enabled} rows for all channels of a given type. */
 export async function listByType(type: (typeof channels.$inferSelect)['type']) {
-    return db
-        .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled })
+    const rows = await db
+        .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, enabled: channels.enabled, type: channels.type })
         .from(channels)
         .where(eq(channels.type, type))
+    return rows.map(decryptConfig) as Array<{ id: string; config: unknown; workspaceId: string; enabled: boolean; type: string }>
 }
 
 /** Descriptor rows for the subscription contract, optionally workspace-scoped. */
@@ -50,11 +57,11 @@ export async function existsById(channelId: string): Promise<boolean> {
 /** {id,type,config,enabled} for a channel scoped to a workspace (IDOR guard). */
 export async function getEnabledScoped(channelId: string, workspaceId: string): Promise<{ id: string; type: string; config: unknown; enabled: boolean } | undefined> {
     const [row] = await db
-        .select({ id: channels.id, type: channels.type, config: channels.config, enabled: channels.enabled })
+        .select({ id: channels.id, type: channels.type, config: channels.config, enabled: channels.enabled, workspaceId: channels.workspaceId })
         .from(channels)
         .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
         .limit(1)
-    return row
+    return decryptConfig(row)
 }
 
 /** Latest paired_sessions {channelId,state,stateChangedAt} for a workspace. */
@@ -71,7 +78,18 @@ export async function getPairedSessionsForWorkspace(workspaceId: string) {
 
 /** Full channel rows for a workspace (capped at 200). */
 export async function listByWorkspace(workspaceId: string) {
-    return db.select().from(channels).where(eq(channels.workspaceId, workspaceId)).limit(200)
+    const rows = await db.select().from(channels).where(eq(channels.workspaceId, workspaceId)).limit(200)
+    return rows.map(decryptConfig)
+}
+
+/** First enabled Telegram channel for a workspace, or undefined. */
+export async function getTelegramChannelForWorkspace(workspaceId: string) {
+    const [row] = await db
+        .select({ id: channels.id, config: channels.config, workspaceId: channels.workspaceId, type: channels.type, enabled: channels.enabled })
+        .from(channels)
+        .where(and(eq(channels.workspaceId, workspaceId), eq(channels.type, 'telegram'), eq(channels.enabled, true)))
+        .limit(1)
+    return decryptConfig(row)
 }
 
 /** Full channel row scoped to a workspace (IDOR guard), or undefined. */
@@ -80,7 +98,7 @@ export async function getScopedFull(channelId: string, workspaceId: string) {
         .from(channels)
         .where(and(eq(channels.id, channelId), eq(channels.workspaceId, workspaceId)))
         .limit(1)
-    return row
+    return decryptConfig(row)
 }
 
 /** {id,type} for a channel scoped to a workspace (IDOR guard), or undefined. */

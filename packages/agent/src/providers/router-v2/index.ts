@@ -79,6 +79,15 @@ export class RouterV2CascadeExhausted extends Error {
     }
 }
 
+export class RouterV2TimeoutError extends Error {
+    readonly code = 'ROUTER_V2_TIMEOUT'
+    readonly class = 'transient-5xx'
+    constructor(message: string = 'router-v2: call timed out after 30s') {
+        super(message)
+        this.name = 'RouterV2TimeoutError'
+    }
+}
+
 /**
  * Marker class wrapping a user-thrown error that the router classified as
  * non-fallback. Callers can unwrap `err.cause` to get the original error
@@ -188,6 +197,8 @@ export async function routeAndCall<T>(input: RouteAndCallInput<T>): Promise<T> {
 async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     const { workspaceId, taskId, taskType, settings, doCall, opts, modelIdOverride } = input
 
+    const abortSignal = AbortSignal.timeout(30_000)
+
     let available = buildAvailable(settings)
     if (available.length === 0) {
         throw new RouterV2NoCandidateError(
@@ -211,6 +222,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     const skippedProviders: string[] = []
 
     while (cascadePos < MAX_CASCADE && available.length > 0) {
+        if (abortSignal.aborted) throw new RouterV2TimeoutError()
         const selStart = Date.now()
         const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride })
         const selDur = Date.now() - selStart
@@ -240,6 +252,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
                 const fbStart = Date.now()
                 try {
                     const model = buildModel(fb.provider, fb.config, taskType, settings)
+                    if (abortSignal.aborted) throw new RouterV2TimeoutError()
                     const result = await doCall(model)
                     recordCall({ workspaceId, provider: fb.provider, model: fbModel, taskType }, Date.now() - fbStart, true)
                     recordAuthSuccess({ workspaceId, providerId: fb.provider })
@@ -273,6 +286,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             // (Phase 2), pass the chosen model id so buildModel calls exactly that
             // model rather than the provider's default-resolved model.
             const model = buildModel(chosen.provider, cfg, taskType, settings, sel.forcedModel ? chosen.model : undefined)
+            if (abortSignal.aborted) throw new RouterV2TimeoutError()
             const result = await doCall(model)
             recordCall(
                 { workspaceId, provider: chosen.provider, model: chosen.model, taskType },
@@ -356,6 +370,7 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             // nothing to fall back to, the only path to recovery is retrying.
             if (cls.suggestedAction === 'retry-same' && sameRetries < RETRY_SAME_MAX) {
                 sameRetries++
+                if (abortSignal.aborted) throw new RouterV2TimeoutError()
                 await sleep(RETRY_SAME_BACKOFF_MS * sameRetries)
                 continue
             }

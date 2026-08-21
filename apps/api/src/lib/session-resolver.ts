@@ -31,6 +31,16 @@ import { db } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Escape SQL LIKE wildcards so literal % and _ are matched as themselves.
+ * Prevents wildcard injection when user-controlled strings are used in LIKE patterns.
+ */
+function escapeLikeWildcards(str: string): string {
+    return str.replace(/[%_]/g, '\\$&')
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type SessionChannel = 'telegram' | 'slack' | 'discord' | 'web' | 'dashboard' | 'widget' | 'api' | 'twilio'
@@ -252,7 +262,7 @@ async function findLastTurn(
                 FROM conversations
                 WHERE workspace_id = ${workspaceId}
                   AND source = 'dashboard'
-                  AND (session_id = ${channelThreadId} OR session_id LIKE ${'web:' + channelThreadId + ':%'})
+                  AND (session_id = ${channelThreadId} OR session_id LIKE ${'web:' + escapeLikeWildcards(channelThreadId) + ':%'})
                 ORDER BY created_at DESC
                 LIMIT 1
             `)

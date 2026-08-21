@@ -185,16 +185,10 @@ interface TwilioConfigShape { accountSid?: string; authToken?: string; fromNumbe
 
 async function loadTwilioConfig(channelId: string): Promise<{ accountSid: string; authToken: string; fromNumber: string } | null> {
     try {
-        const { db } = await import('@plexo/db')
-        const { eq } = await import('drizzle-orm')
-        const { channels } = await import('@plexo/db')
-        const [row] = await db.select({ workspaceId: channels.workspaceId, config: channels.config, type: channels.type, enabled: channels.enabled })
-            .from(channels)
-            .where(eq(channels.id, channelId))
-            .limit(1)
+        const { getById } = await import('./repositories/channels.repository.js')
+        const row = await getById(channelId)
         if (!row || row.type !== 'twilio' || !row.enabled) return null
-        const { decryptSensitiveConfigKeys } = await import('./lib/channel-config-crypto.js')
-        const cfg = decryptSensitiveConfigKeys('twilio', (row.config ?? {}) as Record<string, unknown>, row.workspaceId) as TwilioConfigShape
+        const cfg = (row.config ?? {}) as TwilioConfigShape
         if (!cfg.accountSid || !cfg.authToken || !cfg.fromNumber) return null
         return { accountSid: cfg.accountSid, authToken: cfg.authToken, fromNumber: cfg.fromNumber }
     } catch (err) {
@@ -414,14 +408,9 @@ async function deliverToTelegram(
     if (!token) {
         // Try to load from DB as fallback
         try {
-            const { db } = await import('@plexo/db')
-            const { eq } = await import('drizzle-orm')
-            const { channels } = await import('@plexo/db')
-            const [row] = await db.select({ config: channels.config })
-                .from(channels)
-                .where(eq(channels.workspaceId, workspaceId))
-                .limit(1)
-            const cfg = row?.config as { token?: string; bot_token?: string } | null
+            const { getTelegramChannelForWorkspace } = await import('./repositories/channels.repository.js')
+            const row = await getTelegramChannelForWorkspace(workspaceId)
+            const cfg = (row?.config ?? {}) as { token?: string; bot_token?: string } | null
             const dbToken = cfg?.token ?? cfg?.bot_token
             if (dbToken) {
                 workspaceTokens.set(workspaceId, dbToken)

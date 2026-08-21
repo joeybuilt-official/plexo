@@ -318,13 +318,9 @@ async function notifyTelegram(workspaceId: string, chatId: string, n: RevisionNo
 
     if (!token) {
         try {
-            const { db, channels } = await import('@plexo/db')
-            const { eq } = await import('drizzle-orm')
-            const [row] = await db.select({ config: channels.config })
-                .from(channels)
-                .where(eq(channels.workspaceId, workspaceId))
-                .limit(1)
-            const cfg = row?.config as { token?: string; bot_token?: string } | null
+            const { getTelegramChannelForWorkspace } = await import('../repositories/channels.repository.js')
+            const row = await getTelegramChannelForWorkspace(workspaceId)
+            const cfg = (row?.config ?? {}) as { token?: string; bot_token?: string } | null
             token = cfg?.token ?? cfg?.bot_token
         } catch { /* non-fatal */ }
     }

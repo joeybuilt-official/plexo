@@ -59,7 +59,9 @@ type WorkbenchTab = 'terminal' | 'tests' | 'diff' | 'preview' | 'browser'
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchFileTree(workspaceId: string, taskId: string): Promise<FileNode[]> {
-    const res = await fetch(`/api/v1/code/tree?workspaceId=${workspaceId}&taskId=${taskId}`)
+    const res = await fetch(`/api/v1/code/tree?workspaceId=${workspaceId}&taskId=${taskId}`, {
+        credentials: 'include',
+    })
     if (!res.ok) return []
     const data = await res.json() as { files?: FileNode[] }
     return data.files ?? []
@@ -67,7 +69,8 @@ async function fetchFileTree(workspaceId: string, taskId: string): Promise<FileN
 
 async function fetchFileContent(workspaceId: string, taskId: string, path: string): Promise<string | null> {
     const res = await fetch(
-        `/api/v1/code/file?workspaceId=${workspaceId}&taskId=${taskId}&path=${encodeURIComponent(path)}`
+        `/api/v1/code/file?workspaceId=${workspaceId}&taskId=${taskId}&path=${encodeURIComponent(path)}`,
+        { credentials: 'include' }
     )
     if (!res.ok) return null
     const data = await res.json() as { content?: string }

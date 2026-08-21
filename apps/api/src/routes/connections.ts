@@ -19,6 +19,7 @@ import { Router, type Router as RouterType } from 'express'
 import { isSsrfTarget, safeFetch } from '../utils/ssrf.js'
 import * as connectionsRepo from '../repositories/connections.repository.js'
 import { encrypt, decrypt } from '../crypto.js'
+import { encryptSensitiveConfigKeys } from '../lib/channel-config-crypto.js'
 import { logger } from '../logger.js'
 import { trackEvent } from '../event-tracker.js'
 import { UUID_RE } from '../validation.js'
@@ -26,6 +27,14 @@ import { audit } from '../audit.js'
 import { getRegistryStub, liveConnectionTools } from '../services/connections.service.js'
 import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { invalidateWorkspaceToolSets } from '@plexo/agent/tool-set-cache'
+
+function redactCredentials(obj: Record<string, unknown>): Record<string, string> {
+    const redacted: Record<string, string> = {}
+    for (const key of Object.keys(obj)) {
+        redacted[key] = '***'
+    }
+    return redacted
+}
 
 /** Allow Joeybuilt service apps (Levio, Fylo, etc.) to call workspace-scoped endpoints. */
 function isServiceKeyRequest(req: { headers: Record<string, string | string[] | undefined> }): boolean {
@@ -146,7 +155,8 @@ connectionsRouter.get('/github/repos', async (req, res) => {
             let creds: Record<string, string>
             try {
                 creds = JSON.parse(decrypted) as Record<string, string>
-            } catch {
+            } catch (parseErr) {
+                logger.error({ err: parseErr, workspaceId, credentials: redactCredentials(raw) }, 'Failed to parse decrypted credentials for GitHub repos')
                 res.status(500).json({ error: { code: 'CREDENTIAL_CORRUPT', message: 'Stored credential is corrupted' } })
                 return
             }
@@ -189,7 +199,7 @@ connectionsRouter.get('/github/repos', async (req, res) => {
 
         res.json({ items: repos, total: repos.length })
     } catch (err: unknown) {
-        logger.error({ err }, 'GET /api/connections/github/repos failed')
+        logger.error({ err, workspaceId }, 'GET /api/connections/github/repos failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch repositories' } })
     }
 })
@@ -228,7 +238,8 @@ connectionsRouter.get('/github/branches', async (req, res) => {
             let creds: Record<string, string>
             try {
                 creds = JSON.parse(decrypted) as Record<string, string>
-            } catch {
+            } catch (parseErr) {
+                logger.error({ err: parseErr, workspaceId, credentials: redactCredentials(raw) }, 'Failed to parse decrypted credentials for GitHub branches')
                 res.status(500).json({ error: { code: 'CREDENTIAL_CORRUPT', message: 'Stored credential is corrupted' } })
                 return
             }
@@ -265,7 +276,7 @@ connectionsRouter.get('/github/branches', async (req, res) => {
 
         res.json({ items: branches, total: branches.length })
     } catch (err: unknown) {
-        logger.error({ err }, 'GET /api/connections/github/branches failed')
+        logger.error({ err, workspaceId }, 'GET /api/connections/github/branches failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch branches' } })
     }
 })
@@ -400,7 +411,7 @@ connectionsRouter.post('/install', async (req, res) => {
         const CHANNEL_TYPES = ['telegram', 'slack', 'discord', 'whatsapp', 'signal', 'matrix'] as const
         if (reg.category === 'communication' && CHANNEL_TYPES.includes(registryId as any)) {
             try {
-                const channelConfig = { ...credentials } // plain-text config for webhook handler
+                const channelConfig = encryptSensitiveConfigKeys(registryId, { ...credentials }, workspaceId)
                 const ch = await connectionsRepo.insertBridgedChannel({
                     workspaceId,
                     type: registryId as typeof CHANNEL_TYPES[number],
@@ -738,16 +749,17 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
                         if (raw.encrypted) {
                             const decrypted = decrypt(raw.encrypted as string, workspaceId)
                             let creds: Record<string, string>
-                            try {
-                                creds = JSON.parse(decrypted) as Record<string, string>
-                            } catch {
-                                logger.error({ registryId: row.registryId }, 'Corrupted credential JSON for MCP config — skipping tool')
-                                continue
-                            }
+try {
+                creds = JSON.parse(decrypted) as Record<string, string>
+            } catch (parseErr) {
+                logger.error({ err: parseErr, workspaceId }, 'Failed to parse decrypted credentials for GitHub repos')
+                res.status(500).json({ error: { code: 'CREDENTIAL_CORRUPT', message: 'Stored credential is corrupted' } })
+                return
+            }
                             tokenValue = Object.values(creds).find(v => v) ?? ''
                         }
                     } catch (decryptErr) {
-                        logger.error({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for MCP config — tool will be unavailable')
+                        logger.error({ err: decryptErr, registryId: row.registryId, credentials: redactCredentials(row.credentials as Record<string, unknown>) }, 'Failed to decrypt credentials for MCP config — tool will be unavailable')
                         continue
                     }
                 }
@@ -785,7 +797,7 @@ connectionsRouter.get('/mcp-config', async (req, res) => {
                             mcpServers[row.registryId] = mcpEntry
                         }
                     } catch (decryptErr) {
-                        logger.error({ err: decryptErr, registryId: row.registryId }, 'Failed to decrypt credentials for custom MCP config — tool will be unavailable')
+                        logger.error({ err: decryptErr, registryId: row.registryId, credentials: redactCredentials(row.credentials as Record<string, unknown>) }, 'Failed to decrypt credentials for custom MCP config — tool will be unavailable')
                     }
                 }
             }
@@ -838,29 +850,36 @@ connectionsRouter.get('/token', requireServiceKey, async (req, res) => {
         }
 
         const raw = row.credentials as Record<string, unknown>
-        if (!raw.encrypted) {
+        const encryptedCreds = raw.encrypted as string | undefined
+        if (!encryptedCreds) {
             res.status(500).json({ error: { code: 'NO_CREDENTIALS', message: 'No encrypted credentials found' } })
             return
         }
 
-        const decrypted = decrypt(raw.encrypted as string, workspaceId)
-        let creds: Record<string, unknown>
         try {
-            creds = JSON.parse(decrypted) as Record<string, unknown>
-        } catch {
-            res.status(500).json({ error: { code: 'CREDENTIAL_CORRUPT', message: 'Stored credential is corrupted' } })
-            return
-        }
+            const decrypted = decrypt(encryptedCreds, workspaceId)
+            let creds: Record<string, unknown>
+            try {
+                creds = JSON.parse(decrypted) as Record<string, string>
+            } catch (parseErr) {
+                logger.error({ err: parseErr, workspaceId, credentials: redactCredentials(raw) }, 'Failed to parse decrypted credentials for token endpoint')
+                res.status(500).json({ error: { code: 'CREDENTIAL_CORRUPT', message: 'Stored credential is corrupted' } })
+                return
+            }
 
-        res.json({
-            access_token: creds.access_token ?? null,
-            refresh_token: creds.refresh_token ?? null,
-            expires_at: creds.expires_at ?? null,
-            email: creds.email ?? null,
-            scope: creds.scope ?? null,
-        })
+            res.json({
+                access_token: creds.access_token ?? null,
+                refresh_token: creds.refresh_token ?? null,
+                expires_at: creds.expires_at ?? null,
+                email: creds.email ?? null,
+                scope: creds.scope ?? null,
+            })
+        } catch (err: unknown) {
+            logger.error({ err, credentials: redactCredentials(raw) }, 'GET /api/connections/token failed')
+            res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve token' } })
+        }
     } catch (err: unknown) {
-        logger.error({ err }, 'GET /api/connections/token failed')
+        logger.error({ err }, 'GET /api/connections/token failed (outer)')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve token' } })
     }
 })
@@ -917,7 +936,7 @@ connectionsRouter.get('/tokens', requireServiceKey, async (req, res) => {
 
         res.json(tokens)
     } catch (err: unknown) {
-        logger.error({ err }, 'GET /api/connections/tokens failed')
+        logger.error({ err, workspaceId, registryId }, 'GET /api/connections/tokens failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve tokens' } })
     }
 })
@@ -1105,7 +1124,7 @@ connectionsRouter.post('/test', async (req, res) => {
                 }
             }
         } catch (err) {
-            logger.warn({ err }, 'Failed to look up connection for test')
+            logger.warn({ err, connectionId, workspaceId }, 'Failed to look up connection for test')
         }
     }
 

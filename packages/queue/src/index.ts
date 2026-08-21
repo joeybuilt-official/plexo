@@ -114,7 +114,8 @@ export async function requeueForRetry(
     }
 
     const backoffSec = backoffBase * Math.pow(2, nextAttempt - 1) // 120s, 240s, 480s
-    await repo.requeue(taskId, nextAttempt, new Date(Date.now() + backoffSec * 1000))
+    const jitteredBackoffSec = backoffSec * (0.5 + Math.random()) // jittered exponential
+    await repo.requeue(taskId, nextAttempt, new Date(Date.now() + jitteredBackoffSec * 1000))
     return 'requeued'
 }
 

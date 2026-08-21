@@ -304,7 +304,6 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
         together: process.env.TOGETHER_API_KEY,
         fireworks: process.env.FIREWORKS_API_KEY,
         perplexity: process.env.PERPLEXITY_API_KEY,
-        cerebras: process.env.CEREBRAS_API_KEY,
         sambanova: process.env.SAMBANOVA_API_KEY,
         cohere: process.env.COHERE_API_KEY,
         cloudflare: process.env.CLOUDFLARE_API_TOKEN,
@@ -626,18 +625,58 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 const { tmpdir } = await import('node:os')
                 const execAsync = promisify(exec)
 
-                // Resolve token from installed_connections or env
-                const { resolveGitHubToken } = await import('@plexo/agent/github/client')
-                const token = await resolveGitHubToken(ctxWorkspaceId).catch(() => process.env.GITHUB_TOKEN ?? '')
+                // Resolve SSH deploy key from installed_connections (registryId: 'github_deploy_key')
+                const { installedConnections } = await import('@plexo/db')
+                const { eq, and } = await import('drizzle-orm')
+                const { decrypt } = await import('@plexo/agent/connections/crypto-util')
+
+                const [deployKeyRow] = await db
+                    .select({ credentials: installedConnections.credentials })
+                    .from(installedConnections)
+                    .where(and(
+                        eq(installedConnections.workspaceId, ctxWorkspaceId),
+                        eq(installedConnections.registryId, 'github_deploy_key'),
+                        eq(installedConnections.status, 'active'),
+                    ))
+                    .limit(1)
+
+                if (!deployKeyRow?.credentials) {
+                    throw new Error('Configure GitHub deploy key in Settings → Connections')
+                }
+
+                const rawCreds = deployKeyRow.credentials as { encrypted?: string }
+                if (!rawCreds.encrypted) {
+                    throw new Error('Configure GitHub deploy key in Settings → Connections')
+                }
+
+                const decrypted = decrypt(rawCreds.encrypted, ctxWorkspaceId)
+                const creds = JSON.parse(decrypted) as Record<string, string>
+                const privateKey = creds.private_key ?? creds.key ?? Object.values(creds).find(Boolean)
+                if (!privateKey) {
+                    throw new Error('Configure GitHub deploy key in Settings → Connections')
+                }
 
                 const workDir = mkdtempSync(join(tmpdir(), 'plexo-sprint-'))
-                const cloneUrl = `https://x-access-token:${token}@github.com/${repo}.git`
+                const sshUrl = `git@github.com:${repo}.git`
+
+                // Write private key to temp file and use GIT_SSH_COMMAND to specify identity
+                const { writeFileSync, chmodSync } = await import('node:fs')
+                const keyPath = join(workDir, 'deploy_key')
+                writeFileSync(keyPath, privateKey, { mode: 0o600 })
+                chmodSync(keyPath, 0o600)
+
+                const gitSshCommand = `ssh -i ${keyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null`
 
                 await execAsync(
-                    `git clone --depth=1 --branch ${branch} ${cloneUrl} .`,
-                    { cwd: workDir, timeout: 120_000, maxBuffer: 64 * 1024 * 1024 },
+                    `git clone --depth=1 --branch ${branch} ${sshUrl} .`,
+                    {
+                        cwd: workDir,
+                        timeout: 120_000,
+                        maxBuffer: 64 * 1024 * 1024,
+                        env: { ...process.env, GIT_SSH_COMMAND: gitSshCommand },
+                    },
                 )
-                logger.info({ taskId: task.id, repo, branch, workDir }, 'Sprint repo cloned')
+                logger.info({ taskId: task.id, repo, branch, workDir }, 'Sprint repo cloned via SSH')
 
                 sprintWorkDir = workDir
                 sprintRepo = repo

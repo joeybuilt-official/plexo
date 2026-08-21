@@ -538,6 +538,13 @@ chatRouter.post('/message', async (req, res) => {
                 const groqSuggestion = `\n\n> **Image recognition unavailable:** Your current model can't process images, and no vision-capable model is configured. To analyze images, add a free [Groq API key](/settings/ai-providers) — Groq offers generous free limits.`
                 userContent = [{ type: 'text', text: trimmedMsg + groqSuggestion }]
                 logger.info({ workspaceId, model: resolvedModel, provider: providerKey }, 'Vision gate: no vision fallback available, degrading to text')
+                trackEvent('vision_fallback_degraded', 'warning', {
+                    workspaceId,
+                    originalModel: resolvedModel,
+                    fallbackModel: 'groq-llama-3-11b-vision (suggested)',
+                    reason: 'vision_required',
+                    timestamp: new Date().toISOString(),
+                })
             }
         } else {
             userContent = [{ type: 'text', text: trimmedMsg }]
@@ -1043,7 +1050,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                         }
 
                         const result = visionFallbackModel
-                            ? await streamFn(visionFallbackModel.model)
+                            ? await routeAndCall({
+                                workspaceId,
+                                taskType: 'conversation',
+                                settings: aiSettings,
+                                doCall: streamFn,
+                                opts: fallbackOpts(workspaceId),
+                                modelIdOverride: visionFallbackModel.label,
+                            })
                             : await routeAndCall({
                                 workspaceId,
                                 taskType: 'conversation',
@@ -1208,7 +1222,14 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
                     }
 
                     const result = visionFallbackModel
-                        ? await streamFn(visionFallbackModel.model)
+                        ? await routeAndCall({
+                            workspaceId,
+                            taskType: 'summarization',
+                            settings: aiSettings,
+                            doCall: streamFn,
+                            opts: fallbackOpts(workspaceId),
+                            modelIdOverride: visionFallbackModel.label,
+                        })
                         : await routeAndCall({
                             workspaceId,
                             taskType: 'summarization',
