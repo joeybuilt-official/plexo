@@ -34,6 +34,16 @@ import { recordDegradation } from './quality-warnings.js'
 import { buildRoutedEvent, emitRoutedEvent } from './telemetry.js'
 import { emitProviderFailure } from './ops-events.js'
 import { withLane, type Lane } from './lane-limiter.js'
+import {
+    isLocalProvider,
+    isBulkTaskType,
+    localFallbackGuardEnabled,
+    localFallbackCooldownMs,
+    localFallbackMaxPerMin,
+    hasFailingCloudPeer,
+    tryConsumeLocalFallback,
+    emitLocalFallbackThrottled,
+} from './local-guard.js'
 
 export * from './manifest.js'
 export * from './lane-limiter.js'
@@ -44,6 +54,7 @@ export * from './telemetry.js'
 export * from './auth-events.js'
 export * from './ops-events.js'
 export * from './quality-warnings.js'
+export * from './local-guard.js'
 
 const COOLDOWN_RATE_LIMIT_MS = 60_000
 const COOLDOWN_TRANSIENT_MS = 15_000
@@ -279,6 +290,58 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
 
         const chosen = sel.chosen
         if (!firstChosenProvider) firstChosenProvider = chosen.provider
+
+        // Local-GPU fallback guard. A broken cloud-provider condition (all
+        // preferred cloud peers failing) must not turn into an unbounded hammer
+        // on the local ollama GPU. When the selector falls back to the LOCAL
+        // provider for a BULK/background task *because* the cloud peers are
+        // degraded, rate-limit it. On deny: cool the local candidate down (a
+        // pause the selector honors), drop it from this cascade, and let the
+        // loop surface a VISIBLE cascade_exhausted instead of silently pinning
+        // local GPUs. Never engages when local is the intended primary/only
+        // provider (no failing cloud peer) or for interactive task types.
+        if (
+            localFallbackGuardEnabled() &&
+            isLocalProvider(chosen.provider) &&
+            isBulkTaskType(taskType) &&
+            hasFailingCloudPeer({ workspaceId, taskType, available, settings }) &&
+            !tryConsumeLocalFallback(workspaceId, taskType)
+        ) {
+            const cooldownMs = localFallbackCooldownMs()
+            recordCooldown(
+                { workspaceId, provider: chosen.provider, model: chosen.model, taskType },
+                Date.now() + cooldownMs,
+            )
+            emitLocalFallbackThrottled({
+                event: 'router.local_fallback_throttled',
+                workspaceId,
+                taskType,
+                provider: chosen.provider,
+                model: chosen.model,
+                maxPerMin: localFallbackMaxPerMin(),
+                cooldownMs,
+            })
+            lastError = new Error(
+                `local fallback throttled: ${chosen.provider}/${chosen.model} for ${taskType} — cloud providers degraded and local per-minute cap reached`,
+            )
+            if (sel.modelRouted && modelCandidates) {
+                excludedModels.add(`${chosen.provider}/${chosen.model}`)
+                const moreOnProvider = modelCandidates.some(
+                    c => c.provider === chosen.provider && !excludedModels.has(`${c.provider}/${c.modelId}`),
+                )
+                if (!moreOnProvider) {
+                    skippedProviders.push(chosen.provider)
+                    available = available.filter(a => a.provider !== chosen.provider)
+                }
+            } else {
+                skippedProviders.push(chosen.provider)
+                available = available.filter(a => a.provider !== chosen.provider)
+            }
+            fallbackEngaged = true
+            cascadePos++
+            continue
+        }
+
         const cfg = settings.providers[chosen.provider] as AIProviderConfig
         const t0 = Date.now()
         try {
