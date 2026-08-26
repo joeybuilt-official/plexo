@@ -72,6 +72,16 @@
       console.error('Failed to read saved instance URL:', err);
     }
     showConnect();
+    // Show local bridge status
+    try {
+      const st = await window.plexo.getBridgeStatus();
+      const info = document.getElementById('bridgeInfo');
+      if (info && st) {
+        info.textContent = st.running
+          ? `Local Bridge: ${st.hostname} :${st.port} — ${st.tailscaleHint}`
+          : 'Local Bridge: not running';
+      }
+    } catch {}
   }
 
   form.addEventListener('submit', async (e) => {

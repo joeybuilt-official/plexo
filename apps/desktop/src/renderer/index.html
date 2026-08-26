@@ -44,6 +44,11 @@
         spellcheck="false"
         required
       />
+      <label class="check-row" style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:13px;color:#a1a1aa">
+        <input type="checkbox" id="bridgeCheck" checked />
+        <span>Register this device as a Plexo Node (Tailscale) — lets the agent run files &amp; shell locally</span>
+      </label>
+      <p id="bridgeInfo" class="subtitle" style="font-size:11px;color:#71717a;margin:0 0 8px"></p>
       <p id="error" class="error" role="alert" hidden></p>
       <button type="submit">Connect Instance</button>
     </form>
