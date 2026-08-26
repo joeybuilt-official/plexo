@@ -28,6 +28,7 @@ const SECTIONS: Section[] = [
     { id: 'cli', label: 'CLI', icon: Terminal },
     { id: 'mcp', label: 'MCP', icon: Puzzle },
     { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+    { id: 'nodes', label: 'Local Nodes', icon: Server },
     { id: 'accountability', label: 'Accountability', icon: ShieldCheck },
     { id: 'appearance', label: 'Appearance', icon: Activity },
     { id: 'about', label: 'About', icon: Activity },
@@ -213,6 +214,53 @@ export default function SettingsPage() {
             .then(data => setHealth(data))
             .catch((err) => console.error('[settings] health check failed', err))
     }, [active, API_BASE])
+
+    // Local Nodes state
+    const [nodes, setNodes] = useState<{ nodeId: string; name: string; address: string; port: number; capabilities: string[]; tokenHint?: string | null }[]>([])
+    const [nodesLoading, setNodesLoading] = useState(false)
+    const [bridgeStatus, setBridgeStatus] = useState<{ running: boolean; port: number | null; hostname: string } | null>(null)
+    const loadNodes = useCallback(async () => {
+        if (!WS_ID) return
+        setNodesLoading(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/local-nodes`)
+            if (res.ok) {
+                const data = await res.json() as { items: typeof nodes }
+                setNodes(data.items ?? [])
+            }
+        } catch { /* non-fatal */ } finally { setNodesLoading(false) }
+    }, [API_BASE, WS_ID])
+    useEffect(() => {
+        if (active !== 'nodes') return
+        void loadNodes()
+        // Probe desktop bridge if running inside Electron/Tauri
+        const w = window as unknown as { plexo?: { getBridgeStatus?: () => Promise<{ running: boolean; port: number | null; hostname: string }> } }
+        if (w.plexo?.getBridgeStatus) {
+            w.plexo.getBridgeStatus().then(setBridgeStatus).catch(() => {})
+        }
+    }, [active, loadNodes])
+    async function handleRegisterNode() {
+        if (!WS_ID || !bridgeStatus?.running || !bridgeStatus.port) return
+        // Discover Tailscale IP via the bridge's hostname? For V1, register the Tailscale IP
+        // The desktop knows its Tailscale IP (100.64.0.1) — we ask the user or probe.
+        // Simplest: use the hostname from bridgeStatus + prompt for Tailscale IP.
+        const tailscaleIp = window.prompt('Tailscale IP for this device (e.g. 100.64.0.1). Leave blank to use 127.0.0.1 (local only).', '100.64.0.1')
+        if (tailscaleIp === null) return
+        const address = (tailscaleIp.trim() || '127.0.0.1')
+        // Fetch the token from electron-store via bridge? We don't expose it for security.
+        // For V1, we generate a new token client-side and ask the user to restart desktop?
+        // Instead: ask the desktop to register itself — but we can't get the token.
+        // Workaround: generate a shared token here and tell desktop to use it (next launch).
+        // For now, require manual cURL with the token from @plexo/desktop/plexo-desktop.json
+        alert(`To register, run on your laptop:\n\ncurl -X POST ${API_BASE}/api/v1/workspaces/${WS_ID}/local-nodes \\\n  -H \"Content-Type: application/json\" -H \"Cookie: $(document.cookie)\" \\\n  -d '{\"nodeId\":\"${bridgeStatus.hostname}:${bridgeStatus.port}\",\"name\":\"${bridgeStatus.hostname}\",\"address\":\"${address}\",\"port\":${bridgeStatus.port},\"token\":\"<from @plexo/desktop/plexo-desktop.json plexo_bridge_token>\"}'\n\nThen refresh this page.`)
+    }
+    async function handleRemoveNode(nodeId: string) {
+        if (!await confirmAction({ title: 'Remove node', description: `Remove local node ${nodeId}?`, confirmLabel: 'Remove', variant: 'danger' })) return
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/local-nodes/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
+            if (res.ok) setNodes(prev => prev.filter(n => n.nodeId !== nodeId))
+        } catch { /* non-fatal */ }
+    }
 
     // Instance API Keys State
     const [apiKeys, setApiKeys] = useState<{ id: string; name: string; createdAt: string; token?: string }[]>([])
@@ -974,6 +1022,46 @@ curl -X POST ${API_BASE}/api/v1/webhooks/${WS_ID} \\
                         </div>
                     </div>
                 )}
+                {active === 'nodes' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-medium text-text-primary">Local Nodes</h2>
+                            <p className="mt-0.5 text-sm text-text-muted">Desktops that expose filesystem + shell via the Local Bridge (Tailscale). The agent calls them with the <code className="font-mono text-[11px] bg-surface-2 px-1 py-0.5 rounded">local_bridge</code> tool.</p>
+                        </div>
+                        {bridgeStatus?.running && (
+                            <div className="rounded-sm border border-azure-800/40 bg-azure/10 p-4 flex flex-col gap-2">
+                                <p className="text-sm font-medium text-azure">Desktop bridge detected</p>
+                                <p className="text-xs text-text-muted font-mono">{bridgeStatus.hostname} :{bridgeStatus.port} — reachable via Tailscale when the port is bound to 0.0.0.0</p>
+                                <button type="button" onClick={handleRegisterNode} className="mt-1 w-fit rounded-sm bg-azure px-3 py-1.5 text-xs font-medium text-white hover:bg-azure/90">Register this device</button>
+                            </div>
+                        )}
+                        <div className="rounded-sm border border-border bg-surface-1/40 p-4 flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium text-text-primary">Registered nodes</p>
+                                <button type="button" onClick={() => void loadNodes()} className="text-xs text-azure hover:underline">Refresh</button>
+                            </div>
+                            {nodesLoading ? (
+                                <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-text-muted" /></div>
+                            ) : nodes.length === 0 ? (
+                                <p className="text-sm text-text-muted py-4 text-center">No local nodes registered. Open the Plexo desktop app on your laptop (it auto-starts the bridge) and click Register above.</p>
+                            ) : (
+                                <div className="flex flex-col gap-2">
+                                    {nodes.map(n => (
+                                        <div key={n.nodeId} className="flex items-center gap-3 rounded-sm border border-border bg-canvas/50 p-3">
+                                            <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-azure/20 text-[11px] font-medium text-azure">{n.name.slice(0,1).toUpperCase()}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-text-primary truncate">{n.name} <span className="text-xs text-text-muted font-mono">{n.nodeId}</span></p>
+                                                <p className="text-[11px] font-mono text-text-muted truncate">{n.address}:{n.port} · {n.capabilities.join(', ')} {n.tokenHint ? `· token ${n.tokenHint}` : ''}</p>
+                                            </div>
+                                            <button type="button" onClick={() => void handleRemoveNode(n.nodeId)} className="p-1.5 text-text-muted hover:text-red hover:bg-red-dim rounded-sm" title="Remove node"><Trash2 className="h-4 w-4" /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {active === 'app' && (
                     <div className="flex flex-col gap-6">
                         <div>
