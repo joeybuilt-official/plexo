@@ -317,9 +317,26 @@ chatRouter.post('/message', async (req, res) => {
         const resolvedModel = config.model ?? PROVIDER_DEFAULT_MODELS[providerKey] ?? providerKey
         const resolvedProvider = String(providerKey)
 
+        // Runtime identity (self-awareness): name the provider instance, its
+        // endpoint, and the model so the agent can answer "where are you
+        // running?" truthfully and exactly. Display name is the configured
+        // instance nickname (e.g. "ollama-gpu" on service); baseUrl is
+        // the wire endpoint actually hit for inference.
+        const runtimeInstance =
+            typeof config.displayName === 'string' && config.displayName ? config.displayName : null
+        const runtimeEndpoint = typeof config.baseUrl === 'string' && config.baseUrl ? config.baseUrl : null
+        const runtimeFacts = [
+            `provider "${resolvedProvider}"`,
+            runtimeInstance ? `instance "${runtimeInstance}"` : null,
+            `model "${resolvedModel}"`,
+            runtimeEndpoint ? `endpoint ${runtimeEndpoint}` : null,
+        ]
+            .filter(Boolean)
+            .join(', ')
+
         // Slim identity line — skip full introspection snapshot for conversation mode.
         // The snapshot (9 DB queries, ~10KB JSON) is only loaded lazily for TASK/PROJECT paths.
-        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully.`
+        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". Runtime: ${runtimeFacts}. If asked what model, AI, system, or provider/host you are running on, answer truthfully and specifically using these facts (name the provider instance and endpoint when asked WHERE you run — e.g. local machine vs a server).`
         const personaPrefix = agentPersona ? agentPersona + '\n\n' : ''
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 

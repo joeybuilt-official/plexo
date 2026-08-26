@@ -1690,7 +1690,21 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         })
     }
 
-    const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, answer truthfully using this information.`
+    // Runtime identity (self-awareness): name the provider instance nickname
+    // and wire endpoint alongside provider/model so the agent can answer
+    // "where are you running?" specifically (e.g. local machine vs a server).
+    const runtimeProviderConfig = effectiveSettings.providers?.[resolvedMeta.provider]
+    const runtimeInstance = runtimeProviderConfig?.displayName
+    const runtimeEndpoint = runtimeProviderConfig?.baseUrl
+    const runtimeFacts = [
+        `${resolvedMeta.provider} / ${resolvedMeta.id}`,
+        runtimeInstance ? `instance "${runtimeInstance}"` : null,
+        runtimeEndpoint ? `endpoint ${runtimeEndpoint}` : null,
+    ]
+        .filter(Boolean)
+        .join(', ')
+
+    const identityLine = `Identity: running on ${runtimeFacts}. If asked what model, provider, system, or host you are running on, answer truthfully and specifically using these facts (name the provider instance and endpoint when asked WHERE you run — e.g. local machine vs a server).`
 
     const browsingBlock = `
 WEB TOOLS (read-only access to the public web):
