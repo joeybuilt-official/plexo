@@ -289,10 +289,10 @@ async function startBridge(getStore) {
     }
   });
 
-  // Bind to loopback first. Tailscale reachability is added by also listening
-  // on the Tailscale IP when detected (see startLocalBridge in main.cjs).
+  // Bind on 0.0.0.0 so Tailscale (100.x) can reach it. Every request is
+  // bearer-token gated; Windows Firewall + Tailscale ACLs are the network gate.
   const port = await new Promise((resolve, reject) => {
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(0, '0.0.0.0', () => {
       const addr = server.address();
       if (!addr || typeof addr === 'string') return reject(new Error('failed to bind'));
       resolve(addr.port);
