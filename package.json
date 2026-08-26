@@ -7,6 +7,8 @@
     "onlyBuiltDependencies": [
       "bcrypt",
       "core-js",
+      "electron",
+      "electron-winstaller",
       "isolated-vm",
       "onnxruntime-node",
       "protobufjs",

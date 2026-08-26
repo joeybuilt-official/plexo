@@ -1,13 +1,84 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
-const { app, BrowserWindow, shell, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, Tray, nativeImage, globalShortcut } = require('electron');
 const path = require('node:path');
 
 const DARK_BG = '#09090b';
 const STORE_KEY = 'plexo_instance_url';
 const MIN_WIDTH = 480;
 const MIN_HEIGHT = 600;
+
+// ---- Tray / close-to-tray / hotkey / autostart ---------------------------------
+
+let tray = null;
+let isQuitting = false;
+
+function createTray() {
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+  tray.setToolTip('Plexo');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show Plexo',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit Plexo',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+  tray.setContextMenu(contextMenu);
+
+  // Double-click tray icon to show/hide
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) mainWindow.hide();
+      else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+  });
+}
+
+// Register global hotkey (CmdOrCtrl+Shift+P) to toggle window
+function registerGlobalShortcut() {
+  const ret = globalShortcut.register('CommandOrControl+Shift+P', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) mainWindow.hide();
+    else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  if (!ret) {
+    console.warn('Global shortcut CommandOrControl+Shift+P registration failed');
+  }
+}
+
+// Enable autostart at login
+function enableAutostart() {
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: true,
+    });
+  } catch (e) {
+    console.warn('Failed to set autostart:', e);
+  }
+}
 
 // electron-store is ESM-only in v10; load it lazily via dynamic import.
 let storePromise = null;
@@ -65,23 +136,35 @@ function createWindow() {
       sandbox: true,
       webSecurity: true,
       spellcheck: true,
+      partition: 'persist:plexo',
     },
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  // Open links to other origins in the system browser; keep instance nav in-app.
+  // Keep auth + instance navigations in-app so cookies/session stay in Electron.
+  // External links open in the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedNavigation(url)) {
+      return { action: 'allow' };
+    }
     safeOpenExternal(url);
     return { action: 'deny' };
   });
 
-  // Gate top-level navigation: allow the local renderer and the connected
-  // instance origin; everything else goes to the system browser.
+  // Gate top-level navigation: allow the local renderer, the connected
+  // instance origin, and auth providers; everything else goes to the system browser.
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isAllowedNavigation(url)) return;
     event.preventDefault();
     safeOpenExternal(url);
+  });
+
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -104,6 +187,23 @@ function isAllowedNavigation(target) {
   }
   if (parsed.protocol === 'file:') return true; // local renderer
   if (instanceOrigin && parsed.origin === instanceOrigin) return true;
+  // Auth providers must stay in-app so the Electron session gets the cookies.
+  // Keep this allowlist tight; add hosts as new providers are configured.
+  const authHosts = [
+    'github.com',
+    'accounts.google.com',
+    'oauth2.googleapis.com',
+    'login.microsoftonline.com',
+    'auth.getplexo.com',
+  ];
+  if (authHosts.some((h) => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
+    return true;
+  }
+  // Permissive fallback for Better Auth / OAuth discovery: keep any https navigation
+  // in-app during auth flows. External doc links that use window.open will now stay
+  // in-app too — acceptable for daily-driver until we add explicit external-link
+  // detection (e.g., check referrer or add an allowlist for docs).
+  if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return true;
   return false;
 }
 
@@ -226,11 +326,18 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     buildMenu();
+    createTray();
+    registerGlobalShortcut();
+    enableAutostart();
     createWindow();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
+  });
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
   });
 
   app.on('window-all-closed', () => {

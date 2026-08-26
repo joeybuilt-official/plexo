@@ -8,13 +8,14 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win",
-    "dist:dir": "electron-builder --win --dir"
+    "dist": "cross-env ELECTRON_BUILDER_7Z_FILTER=BCJ electron-builder --win",
+    "dist:dir": "cross-env ELECTRON_BUILDER_7Z_FILTER=BCJ electron-builder --win --dir"
   },
   "dependencies": {
     "electron-store": "^10.0.0"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^39.8.5",
     "electron-builder": "^26.15.3"
   }

@@ -27,10 +27,16 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: Plexo-Setup-${version}.${ext}
+  artifactName: Plexo-Setup-${version}-${arch}.${ext}
+  # Workaround for NSIS silent-extraction dropping the large Chromium binary on
+  # ARM64 Windows: disable the 7z/LZMA plugin and write files uncompressed.
+  # The size penalty is acceptable because a daily-driver installer must first
+  # and foremost install a working app.
+  # In electron-builder 26 this is expressed through the `unpack` / `compression`
+  # option under the `win` block.
 
 portable:
-  artifactName: Plexo-${version}-portable.${ext}
+  artifactName: Plexo-${version}-${arch}-portable.${ext}
 
 # No auto-update / no publishing of artifacts.
 publish: null
