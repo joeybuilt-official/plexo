@@ -218,7 +218,7 @@ export default function SettingsPage() {
     // Local Nodes state
     const [nodes, setNodes] = useState<{ nodeId: string; name: string; address: string; port: number; capabilities: string[]; tokenHint?: string | null }[]>([])
     const [nodesLoading, setNodesLoading] = useState(false)
-    const [bridgeStatus, setBridgeStatus] = useState<{ running: boolean; port: number | null; hostname: string } | null>(null)
+    const [bridgeStatus, setBridgeStatus] = useState<{ running: boolean; port: number | null; hostname: string; tailscaleIp?: string | null; token?: string | null } | null>(null)
     const loadNodes = useCallback(async () => {
         if (!WS_ID) return
         setNodesLoading(true)
@@ -241,18 +241,28 @@ export default function SettingsPage() {
     }, [active, loadNodes])
     async function handleRegisterNode() {
         if (!WS_ID || !bridgeStatus?.running || !bridgeStatus.port) return
-        // Discover Tailscale IP via the bridge's hostname? For V1, register the Tailscale IP
-        // The desktop knows its Tailscale IP (100.64.0.1) — we ask the user or probe.
-        // Simplest: use the hostname from bridgeStatus + prompt for Tailscale IP.
-        const tailscaleIp = window.prompt('Tailscale IP for this device (e.g. 100.64.0.1). Leave blank to use 127.0.0.1 (local only).', '100.64.0.1')
-        if (tailscaleIp === null) return
-        const address = (tailscaleIp.trim() || '127.0.0.1')
-        // Fetch the token from electron-store via bridge? We don't expose it for security.
-        // For V1, we generate a new token client-side and ask the user to restart desktop?
-        // Instead: ask the desktop to register itself — but we can't get the token.
-        // Workaround: generate a shared token here and tell desktop to use it (next launch).
-        // For now, require manual cURL with the token from @plexo/desktop/plexo-desktop.json
-        alert(`To register, run on your laptop:\n\ncurl -X POST ${API_BASE}/api/v1/workspaces/${WS_ID}/local-nodes \\\n  -H \"Content-Type: application/json\" -H \"Cookie: $(document.cookie)\" \\\n  -d '{\"nodeId\":\"${bridgeStatus.hostname}:${bridgeStatus.port}\",\"name\":\"${bridgeStatus.hostname}\",\"address\":\"${address}\",\"port\":${bridgeStatus.port},\"token\":\"<from @plexo/desktop/plexo-desktop.json plexo_bridge_token>\"}'\n\nThen refresh this page.`)
+        const address = (bridgeStatus.tailscaleIp || window.prompt('Tailscale IP for this device (e.g. 100.64.0.1). Leave blank to use 127.0.0.1 (local only).', '100.64.0.1') || '127.0.0.1').trim() || '127.0.0.1'
+        const token = bridgeStatus.token
+        if (!token) {
+            alert('Bridge token not available. Ensure the desktop app is running and try again, or copy it from %APPDATA%\\@plexo\\desktop\\plexo-desktop.json (plexo_bridge_token).')
+            return
+        }
+        const nodeId = `${bridgeStatus.hostname}:${bridgeStatus.port}`
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${WS_ID}/local-nodes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nodeId, name: bridgeStatus.hostname, address, port: bridgeStatus.port, token, capabilities: ['fs', 'shell'] }),
+            })
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+                alert(`Register failed: ${body.error?.message ?? res.statusText}`)
+                return
+            }
+            await loadNodes()
+        } catch (e) {
+            alert(`Register failed: ${e instanceof Error ? e.message : String(e)}`)
+        }
     }
     async function handleRemoveNode(nodeId: string) {
         if (!await confirmAction({ title: 'Remove node', description: `Remove local node ${nodeId}?`, confirmLabel: 'Remove', variant: 'danger' })) return

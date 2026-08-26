@@ -292,11 +292,23 @@ ipcMain.handle('plexo:forget', async () => {
 });
 
 ipcMain.handle('plexo:getBridgeStatus', async () => {
+  let token = null;
+  try {
+    const store = await getStore();
+    token = store.get('plexo_bridge_token') || null;
+  } catch {}
+  let tailscaleIp = null;
+  try {
+    const { execSync } = require('node:child_process');
+    tailscaleIp = execSync('tailscale ip -4', { timeout: 2000, encoding: 'utf8' }).trim().split('\n')[0] || null;
+  } catch {}
   return {
     running: !!bridgeState,
     port: bridgeState?.port ?? null,
     hostname: os.hostname(),
-    tailscaleHint: 'Reachable via Tailscale IP when Tailscale is running (token required).',
+    tailscaleIp,
+    token,
+    tailscaleHint: tailscaleIp ? `Tailscale ${tailscaleIp}:${bridgeState?.port ?? ''}` : 'Reachable via Tailscale IP when Tailscale is running (token required).',
   };
 });
 
