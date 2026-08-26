@@ -9,6 +9,7 @@
 
 import { inngest } from '@plexo/queue/inngest'
 import { embed } from '../store.js'
+import type { WorkspaceAISettings } from '../../providers/registry.js'
 
 export interface EmbedMemoryEventData {
     workspaceId: string
