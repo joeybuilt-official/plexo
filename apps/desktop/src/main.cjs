@@ -3,11 +3,42 @@
 
 const { app, BrowserWindow, shell, Menu, ipcMain, Tray, nativeImage, globalShortcut } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
 
 const DARK_BG = '#09090b';
 const STORE_KEY = 'plexo_instance_url';
 const MIN_WIDTH = 480;
 const MIN_HEIGHT = 600;
+
+// Local Bridge — filesystem + shell exposed to NAS agent via Tailscale.
+// Loaded lazily so the app still boots if the module is missing/broken.
+let bridgeState = null;
+async function startLocalBridge() {
+  try {
+    const { startBridge } = require('./bridge.cjs');
+    bridgeState = await startBridge(getStore);
+    console.log(`[plexo] Local Bridge started on :${bridgeState.port}`);
+    // Persist for diagnostics
+    try {
+      const store = await getStore();
+      store.set('plexo_bridge_last_error', '');
+    } catch {}
+  } catch (e) {
+    console.warn('[plexo] Local Bridge failed to start:', e);
+    try {
+      const store = await getStore();
+      store.set('plexo_bridge_last_error', String(e?.stack ?? e));
+    } catch {}
+  }
+}
+function stopLocalBridge() {
+  if (bridgeState?.close) {
+    try { bridgeState.close(); } catch {}
+    bridgeState = null;
+  }
+}
 
 // ---- Tray / close-to-tray / hotkey / autostart ---------------------------------
 
@@ -260,6 +291,15 @@ ipcMain.handle('plexo:forget', async () => {
   return { ok: true };
 });
 
+ipcMain.handle('plexo:getBridgeStatus', async () => {
+  return {
+    running: !!bridgeState,
+    port: bridgeState?.port ?? null,
+    hostname: os.hostname(),
+    tailscaleHint: 'Reachable via Tailscale IP when Tailscale is running (token required).',
+  };
+});
+
 // ---- Application menu --------------------------------------------------------
 
 function buildMenu() {
@@ -330,6 +370,8 @@ if (!gotLock) {
     registerGlobalShortcut();
     enableAutostart();
     createWindow();
+    // Start local bridge in background — never block window creation.
+    void startLocalBridge();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -337,6 +379,7 @@ if (!gotLock) {
   });
 
   app.on('will-quit', () => {
+    stopLocalBridge();
     globalShortcut.unregisterAll();
   });
 

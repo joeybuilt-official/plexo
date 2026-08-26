@@ -21,4 +21,7 @@ contextBridge.exposeInMainWorld('plexo', {
 
   /** Clear the saved instance and return to the connect screen. @returns {Promise<Result>} */
   forget: () => ipcRenderer.invoke('plexo:forget'),
+
+  /** @returns {Promise<{ running: boolean, port: number|null, hostname: string }>} */
+  getBridgeStatus: () => ipcRenderer.invoke('plexo:getBridgeStatus'),
 });
