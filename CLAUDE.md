@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Plexo is an open-source AI agent platform for autonomous task execution, persistent memory, model routing, and self-extending integrations.
+Plexo is where I go to create, research, dream, build, etc. with AI. It has all the tools and context needed to help me navigate my work, research, etc. Similar to PandaOS, Perplexity Desktop, and Odyssey.
 
 **Core pillars**: safe autonomous execution; durable workspace memory; provider-neutral intelligence; extensible multi-channel interoperability.
 
@@ -37,7 +37,7 @@ apps/api/                 Express API, routes, application, domain, repositories
 apps/web/                 Next.js dashboard and authenticated client
 apps/hub/                 Next.js extension marketplace
 apps/mobile/              Flutter native client
-apps/gmessages/           Go Google Messages sidecar
+
 apps/vision/              Node vision service and routes
 packages/agent/           Agent loop, tools, memory, providers, executor
 packages/db/              Drizzle schema, client, and forward migrations
