@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ### Added
 - **Desktop tray, autostart, global hotkey** — Plexo desktop shell now supports minimize-to-tray, launch-at-login, and `CmdOrCtrl+Shift+P` to toggle window visibility. Fixes NSIS installer silent-extraction failure on ARM64 Windows (electron-builder 26.15 BCJ2 filter regression) via `ELECTRON_BUILDER_7Z_FILTER=BCJ`.
+- **Desktop local bridge** — `apps/desktop/src/bridge.cjs` exposes `GET /health`, `POST /fs/read`, `POST /fs/write`, `POST /fs/list`, `POST /exec` (allowlisted) on `0.0.0.0` with bearer-token auth (`plexo_bridge_token` in electron-store). Reachable from NAS via Tailscale (`http://100.64.0.1:<port>`) — verified `fs/list` and `exec git status` over Tailscale. Preload exposes `window.plexo.getBridgeStatus()`.
 - **Agent self-awareness** — Chat and executor system prompts now include the active provider instance nickname (e.g., `ollama-gpu`), wire endpoint (e.g., `http://ollama:11434`), and model so the agent can truthfully answer "where are you running?" and "what model are you?"
 
 ### Fixed
