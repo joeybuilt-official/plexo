@@ -147,6 +147,7 @@ import { nodeEventsRouter } from './routes/node-events.js'
 import { workspaceAppsRouter } from './routes/workspace-apps.js'
 import { workbenchRouter } from './routes/workbench.js'
 import { toolsRouter } from './routes/tools.js'
+import { localBridgeRouter } from './routes/local-bridge.js'
 import { requireAuth } from './middleware/auth.js'
 import { requireWorkspaceMember } from './middleware/workspace-access.js'
 import { requireSuperAdmin } from './middleware/super-admin.js'
@@ -339,6 +340,7 @@ v1.use('/app-grants', appGrantsRouter) // ADR 0001 §3 — operator per-(app×wo
 v1.use('/conversations/:conversationId/draft-attachments', draftAttachmentsRouter)
 v1.use('/conversations', conversationsRouter) // per-handler workspace check
 v1.use('/workspaces', workspacesRouter) // list + /:id checked per-handler
+v1.use('/workspaces/:workspaceId/local-nodes', requireWorkspaceMember('workspaceId'), localBridgeRouter)
 v1.use('/workspaces/:workspaceId/api-keys', requireWorkspaceMember('workspaceId'), apiKeysRouter)
 v1.use('/workspaces/:id/ai-providers', requireWorkspaceMember('id'), aiProviderCredsRouter)
 v1.use('/workspaces/:id/key-shares', requireWorkspaceMember('id'), keySharesRouter)

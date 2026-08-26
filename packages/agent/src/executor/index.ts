@@ -668,6 +668,52 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             }),
             execute: async (input) => dispatchTool('glob', input as Record<string, unknown>, ctx, worker),
         }),
+        local_bridge: tool({
+            description: 'Call the desktop Local Bridge on the user laptop (filesystem + shell) via Tailscale. Use when the workspace has a registered local node (check plexoNodes in instructions). Operations: read — read a file, write — write a file, list — list directory, exec — run an allowlisted shell command. Requires a registered node; if none, tell the user to open the desktop app and register it.',
+            inputSchema: z.object({
+                operation: z.enum(['read', 'write', 'list', 'exec']).describe('Bridge operation'),
+                path: z.string().optional().describe('File or directory path (for read/write/list). Absolute or home-relative.'),
+                content: z.string().optional().describe('File content to write (for write)'),
+                command: z.string().optional().describe('Command to run (for exec, e.g. "git")'),
+                args: z.array(z.string()).optional().describe('Args for exec'),
+                cwd: z.string().optional().describe('Working directory for exec'),
+                nodeId: z.string().optional().describe('Specific nodeId (default: first registered node)'),
+            }),
+            execute: async (input) => {
+                const { db } = await import('@plexo/db')
+                const { workspaces } = await import('@plexo/db')
+                const { eq } = await import('drizzle-orm')
+                const op = input.operation as string
+                const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ctx.workspaceId)).limit(1)
+                const settings = (ws?.settings ?? {}) as Record<string, unknown>
+                const nodes = Array.isArray(settings.plexoNodes) ? (settings.plexoNodes as any[]) : []
+                if (nodes.length === 0) {
+                    return { error: 'No local bridge nodes registered. Ask the user to open the Plexo desktop app (it auto-registers on Tailscale) and register the workspace.' }
+                }
+                const node = input.nodeId ? nodes.find((n: any) => n.nodeId === input.nodeId) ?? nodes[0] : nodes[0]
+                if (!node) return { error: `Node ${input.nodeId} not found` }
+                const base = `http://${node.address}:${node.port}`
+                const headers: Record<string, string> = {
+                    Authorization: `Bearer ${node.token}`,
+                    'Content-Type': 'application/json',
+                }
+                let url: string
+                let body: unknown = {}
+                if (op === 'read') { url = `${base}/fs/read`; body = { path: input.path ?? '' } }
+                else if (op === 'write') { url = `${base}/fs/write`; body = { path: input.path ?? '', content: input.content ?? '' } }
+                else if (op === 'list') { url = `${base}/fs/list`; body = { path: input.path ?? '.' } }
+                else if (op === 'exec') { url = `${base}/exec`; body = { cmd: input.command ?? '', args: input.args ?? [], cwd: input.cwd } }
+                else return { error: `unknown operation ${op}` }
+                try {
+                    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) })
+                    const data = await res.json() as Record<string, unknown>
+                    if (!res.ok) return { error: `bridge ${res.status}: ${JSON.stringify(data)}` }
+                    return data
+                } catch (e) {
+                    return { error: `bridge fetch failed: ${e instanceof Error ? e.message : String(e)} (node ${node.address}:${node.port})` }
+                }
+            },
+        }),
         task_complete: tool({
             description: 'REQUIRED — call this to finish the task. Every task MUST end with this tool call. For conversational messages, call immediately with your reply in the summary. For multi-step tasks, call after completing all steps. Include works and verificationSteps when applicable.',
             inputSchema: z.object({
