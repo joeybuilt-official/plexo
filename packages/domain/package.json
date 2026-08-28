@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./ai-settings": "./src/ai-settings.ts",
     "./work-kind": "./src/work-kind.ts"
   },
   "main": null,

@@ -64,13 +64,11 @@ vi.mock('../../event-tracker.js', () => ({ trackEvent: vi.fn(), trackError: vi.f
 vi.mock('../../logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }))
 vi.mock('@plexo/agent/memory/store', () => ({ storeMemory: vi.fn(async () => undefined), rememberInstruction: vi.fn(async () => undefined), searchMemory: vi.fn(async () => []) }))
 vi.mock('@plexo/agent/memory/preferences', () => ({ setPreference: vi.fn(async () => undefined) }))
-vi.mock('@plexo/agent/sprint/runner', () => ({ runSprint: vi.fn() }))
 vi.mock('../telegram.js', () => ({ getTelegramToken: () => null, registerTelegramChannel: vi.fn(), telegramRouter: { use: vi.fn(), get: vi.fn(), post: vi.fn() } }))
 vi.mock('@plexo/agent/channels/reaction-manager', () => ({ maybeReact: vi.fn() }))
 vi.mock('@plexo/storage', () => ({ uploadContent: vi.fn(async () => ({ url: 'https://mock/file.png' })) }))
 vi.mock('@plexo/agent/memory/conversation-bridge', () => ({ hasInstructionIntent: () => false, persistInstruction: vi.fn(async () => undefined), extractConversationMemory: vi.fn(async () => undefined) }))
 vi.mock('@plexo/agent/memory/corrections', () => ({ hasCorrectionIntent: () => false, recordCorrection: vi.fn(async () => undefined) }))
-vi.mock('@plexo/agent/introspection', () => ({ buildIntrospectionSnapshot: vi.fn(async () => ({})), toConversationSnapshot: vi.fn(() => ({})) }))
 
 async function getReplyStreamHandler() {
     const mod = (await import('../chat.js')) as any

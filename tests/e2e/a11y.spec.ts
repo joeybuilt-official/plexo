@@ -10,9 +10,9 @@
  * test annotations so accepted AAA debt does not block the harness.
  */
 import { test, expect } from '@playwright/test'
-import { ROUTES } from './_helpers/routes'
+import { GATE_ROUTES } from './_helpers/routes'
 
-for (const route of ROUTES) {
+for (const route of GATE_ROUTES) {
     test(`a11y: ${route.id}`, async ({ page }, testInfo) => {
         await page.goto(route.path)
         if (route.auth && /\/login|\/signin/.test(new URL(page.url()).pathname)) {

@@ -13,9 +13,9 @@
  * Baselines live in tests/e2e/__screenshots__/ and are committed.
  */
 import { test, expect } from '@playwright/test'
-import { ROUTES, VISUAL_MASK_SELECTORS } from './_helpers/routes'
+import { GATE_ROUTES, VISUAL_MASK_SELECTORS } from './_helpers/routes'
 
-for (const route of ROUTES) {
+for (const route of GATE_ROUTES) {
     test(`visual: ${route.id}`, async ({ page }) => {
         await page.goto(route.path)
 

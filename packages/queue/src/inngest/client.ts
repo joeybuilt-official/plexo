@@ -16,7 +16,7 @@
  */
 
 import { Inngest, EventSchemas } from 'inngest'
-import type { WorkspaceAISettings } from '@plexo/agent/providers/registry'
+import type { WorkspaceAISettings } from '@plexo/domain/ai-settings'
 
 /**
  * Event catalogue. Phase 4 + 5 + L will fill these in. Declared up-front so

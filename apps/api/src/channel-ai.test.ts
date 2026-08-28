@@ -111,11 +111,6 @@ vi.mock('@plexo/agent/tools/self-knowledge-tools', async () => ({
     buildCompactCapabilitySummary: vi.fn(async () => 'CURRENT CAPABILITIES: test'),
 }))
 
-vi.mock('@plexo/agent/introspection', async () => ({
-    buildIntrospectionSnapshot: vi.fn(async () => ({})),
-    toConversationSnapshot: vi.fn(() => ({})),
-}))
-
 vi.mock('@plexo/db', async () => ({
     db: {
         select: vi.fn(() => ({

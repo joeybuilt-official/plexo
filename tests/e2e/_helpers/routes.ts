@@ -55,3 +55,13 @@ export const VISUAL_MASK_SELECTORS = [
     '[role="log"]',
     '[role="alert"]',
 ]
+
+/**
+ * The set of routes the CI gate runs. Until VISUAL_MASK_SELECTORS covers
+ * mutable prod-data regions (workflow header note 3 — "treat authed-route
+ * results as informational, gate on public routes"), `E2E_PUBLIC_ONLY=1`
+ * restricts the gate to the public surfaces, whose baselines are stable
+ * against live prod. Authed routes stay in the local matrix via the default.
+ */
+export const GATE_ROUTES: RouteDef[] =
+    process.env.E2E_PUBLIC_ONLY === '1' ? ROUTES.filter(r => !r.auth) : ROUTES

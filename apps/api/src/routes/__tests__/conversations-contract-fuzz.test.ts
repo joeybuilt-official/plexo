@@ -160,9 +160,9 @@ describe('GET /conversations/:id — id validation → 400', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('GET /conversations — sessionId validation → 400', () => {
-    it('sessionId exceeds 64 chars → 400 INVALID_SESSION', async () => {
+    it('sessionId exceeds 128 chars → 400 INVALID_SESSION', async () => {
         await ensureListServer()
-        const longSession = 'c'.repeat(65)
+        const longSession = 'c'.repeat(129)
         const res = await fetch(`${listUrl}/api/v1/conversations?workspaceId=${WS}&sessionId=${longSession}`)
         expect(res.status).toBe(400)
         const body = await res.json() as any
@@ -170,9 +170,9 @@ describe('GET /conversations — sessionId validation → 400', () => {
         expect(body.error.code).toBe('INVALID_SESSION')
     })
 
-    it('sessionId exactly 64 chars → 200 (valid)', async () => {
+    it('sessionId exactly 128 chars → 200 (valid boundary)', async () => {
         await ensureListServer()
-        const validSession = 'd'.repeat(64)
+        const validSession = 'd'.repeat(128)
         const res = await fetch(`${listUrl}/api/v1/conversations?workspaceId=${WS}&sessionId=${validSession}`)
         expect(res.status).toBe(200)
     })
@@ -287,7 +287,7 @@ describe('error response shape: { error: { code: string, message: string } }', (
 
     it('GET /conversations — sessionId too long → structured 400', async () => {
         await ensureListServer()
-        const res = await fetch(`${listUrl}/api/v1/conversations?workspaceId=${WS}&sessionId=${'f'.repeat(65)}`)
+        const res = await fetch(`${listUrl}/api/v1/conversations?workspaceId=${WS}&sessionId=${'f'.repeat(129)}`)
         assertErrorShape(await res.json())
     })
 })

@@ -6,12 +6,12 @@
 #      repo secret E2E_SESSION_COOKIE (extract it the way scripts in
 #      /workspace/_eval/plexo/shot-plexo.mjs do). A short-lived cookie makes the
 #      gate silently drop authed coverage when it lapses.
-#   2. Regenerate baselines ONCE in the matched 1.58.2 container and commit
-#      tests/e2e/__screenshots__/ (any baselines from the 1.60 _eval harness are
+#   2. Regenerate baselines ONCE in the matched 1.61.1 container and commit
+#      tests/e2e/__screenshots__/ (any baselines from a different PW build are
 #      INVALID here — Chromium AA differs across builds):
 #        ssh <server> 'docker run --rm -v /data/appdata/app-stack/workspace/plexo:/w -w /w \
 #          -e E2E_BASE_URL=https://app.getplexo.com -e E2E_SESSION_COOKIE=<TOKEN> \
-#          -e E2E_COOKIE_DOMAIN=app.getplexo.com mcr.microsoft.com/playwright:v1.58.2-noble \
+#          -e E2E_COOKIE_DOMAIN=app.getplexo.com mcr.microsoft.com/playwright:v1.61.1-noble \
 #          sh -lc "corepack enable && pnpm install --frozen-lockfile && \
 #            pnpm playwright test responsive-visual a11y --project=setup \
 #              --project=mobile-390 --project=desktop-1440 --update-snapshots"'
@@ -45,16 +45,19 @@ jobs:
   visual-a11y:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Pin to the EXACT PW client version from pnpm-lock.yaml (1.58.2). Browser
+    # Pin to the EXACT PW client version from pnpm-lock.yaml (1.61.1). Browser
     # binaries are baked into this image; a mismatch = every screenshot drifts.
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
       options: --ipc=host
     env:
       # Read-only authed traffic against prod (no staging env exists today).
       E2E_BASE_URL: https://app.getplexo.com
       E2E_SESSION_COOKIE: ${{ secrets.E2E_SESSION_COOKIE }}
       E2E_COOKIE_DOMAIN: app.getplexo.com
+      # Gate on public routes only (see tests/e2e/_helpers/routes.ts GATE_ROUTES)
+      # until the authed-route masks cover mutable prod-data regions.
+      E2E_PUBLIC_ONLY: '1'
       CI: 'true'
     steps:
       - uses: actions/checkout@v4
@@ -83,8 +86,8 @@ jobs:
           V=$(pnpm playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           echo "playwright client: $V"
           case "$V" in
-            1.58.*) echo "ok" ;;
-            *) echo "::error::PW client $V != image v1.58.2-noble. Bump the container image tag in this workflow to match the lockfile, then regenerate baselines."; exit 1 ;;
+            1.61.*) echo "ok" ;;
+            *) echo "::error::PW client $V != image v1.61.1-noble. Bump the container image tag in this workflow to match the lockfile, then regenerate baselines."; exit 1 ;;
           esac
 
       # setup project injects the cookie into storageState; mobile-390 +

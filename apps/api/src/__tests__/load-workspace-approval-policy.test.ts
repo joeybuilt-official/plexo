@@ -58,7 +58,6 @@ vi.mock('@plexo/agent/tasks/terminal-fail', () => ({ markTaskFailed: vi.fn() }))
 vi.mock('@plexo/agent/tasks/types', () => ({ FailureReason: {} }))
 vi.mock('@plexo/agent/event-bus', () => ({ eventBus: { on: vi.fn(), emit: vi.fn() }, TOPICS: {} }))
 vi.mock('@plexo/agent/behavior/reflect', () => ({ reflectAndPromote: vi.fn() }))
-vi.mock('@plexo/agent/sprint/sprint-ledger', () => ({ logSprintHandoff: vi.fn() }))
 vi.mock('@plexo/agent/one-way-door', () => ({
     requestApproval: vi.fn(), waitForDecision: vi.fn(), getDecision: vi.fn(),
 }))

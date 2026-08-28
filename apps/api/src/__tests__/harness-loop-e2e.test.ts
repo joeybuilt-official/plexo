@@ -42,10 +42,19 @@ const captured = {
 vi.mock('@plexo/db', () => {
     // All DB calls return safe empty/no-op responses so no gate blocks execution.
     const noop = vi.fn(async () => [])
+    // The sprint clone path selects the workspace's github_deploy_key row and
+    // fail-closes without it (agent-loop.ts). Identify that query by its table
+    // shape and return a decryptable credential row.
+    let currentTable: unknown
     const chainable = {
-        from: vi.fn(() => chainable),
+        from: vi.fn((t: unknown) => { currentTable = t; return chainable }),
         where: vi.fn(() => chainable),
-        limit: vi.fn(async () => []),
+        limit: vi.fn(async () => {
+            if (currentTable && (currentTable as Record<string, unknown>).registryId === 'registry_id') {
+                return [{ credentials: { encrypted: 'encrypted-test-deploy-key' } }]
+            }
+            return []
+        }),
         set: vi.fn(() => chainable),
         values: vi.fn(() => chainable),
         returning: vi.fn(async () => [{ id: TASK_ID }]),
@@ -142,10 +151,6 @@ vi.mock('@plexo/agent/one-way-door', () => ({
     elevateOutboundOneWayDoors: vi.fn(() => ({ oneWayDoors: [], addedTools: [] })),
 }))
 
-vi.mock('@plexo/agent/sprint/sprint-ledger', () => ({
-    logSprintHandoff: vi.fn(async () => {}),
-}))
-
 vi.mock('@plexo/agent/github/client', () => ({
     resolveGitHubToken: vi.fn(async () => 'ghp_test_token'),
 }))
@@ -219,11 +224,6 @@ vi.mock('../routes/introspect.js', () => ({
     introspectRouter: { get: vi.fn() },
 }))
 
-vi.mock('@plexo/agent/introspection', () => ({
-    buildIntrospectionSnapshot: vi.fn(async () => ({})),
-    toConversationSnapshot: vi.fn(() => ''),
-}))
-
 vi.mock('../routes/search.js', () => ({
     getDecryptedBraveKey: vi.fn(async () => null),
 }))
@@ -259,6 +259,10 @@ vi.mock('node:fs', async () => {
         mkdirSync: vi.fn(),
         readdirSync: vi.fn(() => []),
         rmSync: vi.fn(),
+        // Clone path writes the decrypted deploy key into the temp work dir;
+        // WORK_DIR is a fixed fake path, so stub the writes.
+        writeFileSync: vi.fn(),
+        chmodSync: vi.fn(),
         promises: {
             ...actual.promises,
             readdir: vi.fn(async () => []),
@@ -266,6 +270,10 @@ vi.mock('node:fs', async () => {
         },
     }
 })
+
+vi.mock('@plexo/agent/connections/crypto-util', () => ({
+    decrypt: vi.fn(() => JSON.stringify({ private_key: 'test-private-key' })),
+}))
 
 vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
     loadSettingsFromInstances: vi.fn(async () => ({

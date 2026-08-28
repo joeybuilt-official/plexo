@@ -193,10 +193,6 @@ vi.mock('@plexo/agent/memory/preferences', () => ({
     setPreference: vi.fn(async () => undefined),
 }))
 
-vi.mock('@plexo/agent/sprint/runner', () => ({
-    runSprint: vi.fn(),
-}))
-
 vi.mock('../telegram.js', () => ({
     getTelegramToken: () => null,
     registerTelegramChannel: vi.fn(),
@@ -220,11 +216,6 @@ vi.mock('@plexo/agent/memory/conversation-bridge', () => ({
 vi.mock('@plexo/agent/memory/corrections', () => ({
     hasCorrectionIntent: () => false,
     recordCorrection: vi.fn(async () => undefined),
-}))
-
-vi.mock('@plexo/agent/introspection', () => ({
-    buildIntrospectionSnapshot: vi.fn(async () => ({})),
-    toConversationSnapshot: vi.fn(() => ({})),
 }))
 
 // DD-3: the inline streaming path loads code tools via buildTools and workspace

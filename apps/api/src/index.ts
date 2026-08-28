@@ -22,6 +22,7 @@ import { handoffRouter } from './routes/handoff.js'
 import { ssoRouter } from './routes/sso.js'
 import { createInngestExpressHandler } from '@plexo/queue/inngest-express'
 import { extractTurnFn } from '@plexo/agent/memory/inngest/extract-turn-fn'
+import { embedMemoryFn } from '@plexo/agent/memory/inngest'
 import { inferenceRouter } from './routes/inference.js'
 import { installGlobalHandlers as installCCHandlers } from './cc-ingest.js'
 installCCHandlers()
@@ -477,7 +478,9 @@ app.use('/api/jex', jsonDefault, makeJexIdentityRouter(drizzleJexRecognitionRepo
 // POSTs back to invoke them when crons fire. ADR-0006: Plexo and Levio
 // share the Inngest substrate.
 // Inngest payloads carry event data + step state per fn invocation.
-app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn]))
+// Agent-owned functions (extractTurnFn, embedMemoryFn) are registered HERE
+// via `extra` — queue cannot import them (agent↔queue cycle, turbo hard-fail).
+app.use('/api/inngest', jsonLarge, createInngestExpressHandler([extractTurnFn, embedMemoryFn]))
 
 // Inference shim — exposes Plexo's per-workspace LLM provider router as an
 // OpenAI-compatible endpoint for the Graphiti Python sidecar (ADR 0011).

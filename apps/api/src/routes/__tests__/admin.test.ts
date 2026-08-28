@@ -242,10 +242,7 @@ describe('GET /admin/tasks', () => {
 
     it('filters by status when status query param provided', async () => {
         const base = await getServer()
-        // The route always creates `let query = db.select(...)` unconditionally,
-        // consuming one queue slot before the status-filtered query runs.
         enqueue(
-            [],  // consumed by the unused `query` variable
             [{ id: 't-1', title: 'Task A', status: 'complete', type: 'task', workspaceId: 'ws-1', createdAt: '2026-01-01T00:00:00Z', completedAt: null }],
         )
 

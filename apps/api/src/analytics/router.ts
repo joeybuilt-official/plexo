@@ -245,8 +245,16 @@ async function resolveAppForIngest(req: import('express').Request): Promise<AppA
         return { ok: false, status: 401, error: 'Malformed Authorization header' }
     }
     const token = authHeader.slice(7)
+    const headerAppId = req.headers['x-app-id'] as string | undefined
+    // Shared PLEXO_SERVICE_KEY callers must name their app (the key is shared
+    // across apps); per-app `psk_` keys self-identify, so the header is optional
+    // for them. Checking here keeps the 400 "missing X-App-Id" contract the
+    // A3 dual-accept refactor would otherwise collapse into a 401.
+    if (!headerAppId && !token.startsWith('psk_')) {
+        return { ok: false, status: 400, error: 'Missing or invalid X-App-Id header' }
+    }
     // A3 dual-accept: shared PLEXO_SERVICE_KEY OR per-app key
-    const resolved = await resolveServiceAuth(token, req.headers['x-app-id'] as string | undefined)
+    const resolved = await resolveServiceAuth(token, headerAppId)
     if (!resolved) {
         return { ok: false, status: 401, error: 'Invalid service key' }
     }

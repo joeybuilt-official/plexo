@@ -114,6 +114,7 @@
     "@plexo/db": "workspace:*",
     "@plexo/domain": "workspace:*",
     "@plexo/queue": "workspace:*",
+    "@plexo/session-fabric": "workspace:*",
     "@joeybuilt/plexo-sdk": "workspace:*",
     "@plexo/storage": "workspace:*",
     "ai": "^6.0.111",

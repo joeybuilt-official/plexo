@@ -324,19 +324,15 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
             lastError = new Error(
                 `local fallback throttled: ${chosen.provider}/${chosen.model} for ${taskType} — cloud providers degraded and local per-minute cap reached`,
             )
-            if (sel.modelRouted && modelCandidates) {
-                excludedModels.add(`${chosen.provider}/${chosen.model}`)
-                const moreOnProvider = modelCandidates.some(
-                    c => c.provider === chosen.provider && !excludedModels.has(`${c.provider}/${c.modelId}`),
-                )
-                if (!moreOnProvider) {
-                    skippedProviders.push(chosen.provider)
-                    available = available.filter(a => a.provider !== chosen.provider)
-                }
-            } else {
-                skippedProviders.push(chosen.provider)
-                available = available.filter(a => a.provider !== chosen.provider)
-            }
+            // Throttle: cool the local candidate down (the selector honors the
+            // cooldown) and drop it from this cascade so we surface a VISIBLE
+            // cascade_exhausted instead of silently pinning local GPUs. A
+            // per-model exclusion was previously keyed off a
+            // `SelectionResult.candidates` field the selector no longer
+            // exposes, so dropping the whole provider is the conservative
+            // equivalent here.
+            skippedProviders.push(chosen.provider)
+            available = available.filter(a => a.provider !== chosen.provider)
             fallbackEngaged = true
             cascadePos++
             continue

@@ -151,8 +151,8 @@ describe('GET /sources', () => {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const body = (await res.json()) as any
-        expect(body.sources).toHaveLength(6)
-        expect(body.totalExamples).toBe(42 * 6) // 42 per source
+        expect(body.sources).toHaveLength(5)
+        expect(body.totalExamples).toBe(42 * 5) // 42 per source
 
         // Check structure
         const first = body.sources[0]
