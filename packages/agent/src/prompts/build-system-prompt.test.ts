@@ -8,6 +8,7 @@ import {
     buildTaskPrompt,
     buildClassifierPrompt,
     buildSystemPrompt,
+    buildParallelismBlock,
 } from './build-system-prompt.js'
 
 describe('buildConversationPrompt', () => {
@@ -130,6 +131,68 @@ describe('buildTaskPrompt', () => {
         expect(withSCL).toContain('WORKSPACE MEMORY (SCL):')
         const noSCL = buildTaskPrompt({ taskType: 'task', taskGoal: 'g', plannedSteps: 1 })
         expect(noSCL).not.toContain('WORKSPACE MEMORY (SCL):')
+    })
+
+    it('renders parallelization map when waves have width >= 2', () => {
+        const out = buildTaskPrompt({
+            taskType: 'task',
+            taskGoal: 'Research three APIs and then write a summary',
+            plannedSteps: 4,
+            waves: [[1, 3], [2], [4]],
+        })
+        expect(out).toContain('PARALLELIZATION MAP')
+        expect(out).toContain('Wave 1: steps 1, 3 ← may run in parallel')
+        expect(out).toContain('Wave 2: step 2')
+        expect(out).toContain('Wave 3: step 4')
+        expect(out).toContain('spawn_subagent')
+    })
+
+    it('omits parallelization map when all waves are width 1 (sequential plan)', () => {
+        const out = buildTaskPrompt({
+            taskType: 'task',
+            taskGoal: 'Sequential refactor',
+            plannedSteps: 3,
+            waves: [[1], [2], [3]],
+        })
+        expect(out).not.toContain('PARALLELIZATION MAP')
+        expect(out).not.toContain('spawn_subagent')
+    })
+
+    it('omits parallelization map when waves is undefined', () => {
+        const out = buildTaskPrompt({
+            taskType: 'task',
+            taskGoal: 'Simple task',
+            plannedSteps: 2,
+        })
+        expect(out).not.toContain('PARALLELIZATION MAP')
+    })
+})
+
+describe('buildParallelismBlock', () => {
+    it('returns empty string for undefined waves', () => {
+        expect(buildParallelismBlock(undefined)).toBe('')
+    })
+
+    it('returns empty string for empty waves', () => {
+        expect(buildParallelismBlock([])).toBe('')
+    })
+
+    it('returns empty string when all waves have width 1', () => {
+        expect(buildParallelismBlock([[1], [2], [3]])).toBe('')
+    })
+
+    it('renders when a wave has width >= 2', () => {
+        const out = buildParallelismBlock([[1, 3], [2], [4]])
+        expect(out).toContain('Wave 1: steps 1, 3 ← may run in parallel')
+        expect(out).toContain('Wave 2: step 2')
+        expect(out).toContain('Wave 3: step 4')
+        expect(out).toContain('spawn_subagent')
+    })
+
+    it('renders when single wave has width >= 2', () => {
+        const out = buildParallelismBlock([[1, 2, 3]])
+        expect(out).toContain('Wave 1: steps 1, 2, 3 ← may run in parallel')
+        expect(out).toContain('spawn_subagent')
     })
 })
 

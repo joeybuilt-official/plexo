@@ -49,6 +49,12 @@ export interface PromptContext {
     taskType2?: string
     taskGoal?: string
     plannedSteps?: number
+    /**
+     * Goal-lattice execution waves from the planner's dependency graph.
+     * Each inner array holds step numbers that can run in parallel.
+     * Only rendered when a wave of width >= 2 exists (real parallelism).
+     */
+    waves?: number[][]
     infrastructureBlock?: string
     mandatoryAssetBlock?: string
     sclContextBlock?: string
@@ -81,6 +87,25 @@ export interface PromptContext {
 function timezoneBlock(tz: string | undefined): string {
     if (!tz) return ''
     return `\n\nUSER TIMEZONE: ${tz}. Interpret relative times ("tomorrow", "3pm") in this timezone. When reporting event, task, or email times back to the user, format them in ${tz} unless they ask otherwise. When calling tools that accept ISO timestamps, include the timezone offset (or convert to UTC) so the correct instant is recorded.`
+}
+
+/**
+ * Render a PARALLELIZATION MAP block from the planner's goal-lattice waves.
+ * Returns '' when no real parallelism exists (single wave or all waves width 1)
+ * so sequential plans produce byte-identical prompts.
+ */
+export function buildParallelismBlock(waves: number[][] | undefined): string {
+    if (!waves || waves.length === 0) return ''
+    const hasParallelism = waves.some((w) => w.length >= 2)
+    if (!hasParallelism) return ''
+
+    const waveLines = waves.map((w, i) => {
+        const nums = w.join(', ')
+        if (w.length >= 2) return `- Wave ${i + 1}: steps ${nums} ← may run in parallel`
+        return `- Wave ${i + 1}: step ${nums}`
+    })
+
+    return `\n\nPARALLELIZATION MAP (plan dependency graph — steps in one wave are independent):\n${waveLines.join('\n')}\nWhen a wave has 2+ independent read-only steps (research, exploration, data gathering), dispatch them as parallel spawn_subagent calls — issue several tool calls in ONE response; they execute concurrently. Sub-agents are read-only by design; keep all writes/edits/shell on your own loop. Synthesize each wave's results before starting the next wave.`
 }
 
 // ── Fragments ───────────────────────────────────────────────────────────────
@@ -381,6 +406,7 @@ export function buildTaskPrompt(ctx: PromptContext): string {
             : `Task goal: ${rawGoal}`)
         : ''
     const stepLine = ctx.plannedSteps != null ? `You have ${ctx.plannedSteps} planned steps. Work through them carefully.` : ''
+    const parallelismBlock = buildParallelismBlock(ctx.waves)
 
     const trailingBlocks = [
         ctx.infrastructureBlock ?? '',
@@ -407,6 +433,7 @@ ${goalLine}
 ${TASK_COMPLETION_RULES}
 
 ${stepLine}
+${parallelismBlock}
 ${TASK_EXECUTION_RULES}${trailingBlocks}`
 }
 

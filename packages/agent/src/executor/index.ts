@@ -1865,6 +1865,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
             taskGoal: plan.goal,
             taskSource: ctx.taskSource,
             plannedSteps: plan.steps.length,
+            waves: plan.waves,
             infrastructureBlock,
             mandatoryAssetBlock,
             sclContextBlock,
