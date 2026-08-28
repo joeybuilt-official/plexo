@@ -9,6 +9,7 @@ import {
     buildClassifierPrompt,
     buildSystemPrompt,
     buildParallelismBlock,
+    buildTaskPromptParts,
 } from './build-system-prompt.js'
 
 describe('buildConversationPrompt', () => {
@@ -193,6 +194,77 @@ describe('buildParallelismBlock', () => {
         const out = buildParallelismBlock([[1, 2, 3]])
         expect(out).toContain('Wave 1: steps 1, 2, 3 ← may run in parallel')
         expect(out).toContain('spawn_subagent')
+    })
+})
+
+describe('buildTaskPromptParts', () => {
+    const parts = buildTaskPromptParts({
+        taskType: 'task',
+        agentName: 'Plexo',
+        identityLine: 'Identity: running on anthropic / claude-4.',
+        workspaceName: 'Personal',
+        workspaceSummary: 'Solo operator workspace.',
+        taskGoal: 'Build a landing page',
+        plannedSteps: 3,
+        waves: [[1], [2], [3]],
+        scopePrimingBlock: '\n\nPRIMED FILE CONTEXT (pre-loaded):\n### src/app/page.tsx\n```\nexport default function Page() {}\n```',
+        sclContextBlock: '\n\nWORKSPACE MEMORY (SCL):\nDomain regions: ops',
+        memoryBlock: '\n\nPRIOR WORK CONTEXT (from memory):\n- built auth module',
+        capabilityBlock: '\n\nCURRENT CAPABILITIES:\n- write_file\n- read_file',
+        browsingBlock: '\nWEB TOOLS:\n- web_search',
+        selfExtensionBlock: '\n\nSELF-EXTENSION CAPABILITY:\n- synthesize',
+        extensionContextBlock: '\n\nEXTENSION CONTEXT:\n- gmail',
+        variantExtra: '\n\n[VARIANT: challenger]',
+    })
+
+    it('keeps fixed rules + identity + workspace header in stable prefix', () => {
+        expect(parts.stable).toContain('Identity: running on anthropic / claude-4.')
+        expect(parts.stable).toContain('Workspace: Personal')
+        expect(parts.stable).toContain('COMPLETION RULE:')
+        expect(parts.stable).toContain('TOOL-USE RULE (CRITICAL):')
+        expect(parts.stable).toContain('CURRENT CAPABILITIES:')
+        expect(parts.stable).toContain('WEB TOOLS:')
+        expect(parts.stable).toContain('SELF-EXTENSION CAPABILITY:')
+    })
+
+    it('keeps per-task content (goal, primed files, memory, variant) in dynamic tail', () => {
+        expect(parts.dynamic).toContain('Task goal: Build a landing page')
+        expect(parts.dynamic).toContain('PRIMED FILE CONTEXT')
+        expect(parts.dynamic).toContain('WORKSPACE MEMORY (SCL):')
+        expect(parts.dynamic).toContain('PRIOR WORK CONTEXT')
+        expect(parts.dynamic).toContain('You have 3 planned steps.')
+        expect(parts.dynamic).toContain('[VARIANT: challenger]')
+    })
+
+    it('does not leak per-task content into stable or rules into dynamic', () => {
+        expect(parts.stable).not.toContain('Task goal:')
+        expect(parts.stable).not.toContain('PRIMED FILE CONTEXT')
+        expect(parts.stable).not.toContain('WORKSPACE MEMORY (SCL):')
+        expect(parts.stable).not.toContain('[VARIANT: challenger]')
+        expect(parts.dynamic).not.toContain('COMPLETION RULE:')
+        expect(parts.dynamic).not.toContain('CURRENT CAPABILITIES:')
+        expect(parts.dynamic).not.toContain('WEB TOOLS:')
+    })
+
+    it('stable + dynamic reassemble to buildTaskPrompt output', () => {
+        const { stable, dynamic } = buildTaskPromptParts({
+            taskType: 'task',
+            agentName: 'Plexo',
+            taskGoal: 'g',
+            plannedSteps: 1,
+            capabilityBlock: '\n\nCAP_BLOCK',
+            memoryBlock: '\n\nMEM_BLOCK',
+        })
+        const joined = [stable, dynamic].filter((s) => s.length > 0).join('\n\n')
+        const full = buildTaskPrompt({
+            taskType: 'task',
+            agentName: 'Plexo',
+            taskGoal: 'g',
+            plannedSteps: 1,
+            capabilityBlock: '\n\nCAP_BLOCK',
+            memoryBlock: '\n\nMEM_BLOCK',
+        })
+        expect(joined).toBe(full)
     })
 })
 

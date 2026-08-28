@@ -385,19 +385,43 @@ The user sent a conversational message. Answer it directly from your own knowled
  * Assembles the per-task header (workspace, repo, sprint goal) plus every
  * prebuilt data block in canonical order.
  */
-export function buildTaskPrompt(ctx: PromptContext): string {
+/** Join non-empty sections with a blank line, trimming each section's edges. */
+function joinSections(sections: Array<string | undefined | null>): string {
+    return sections
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        .map((s) => s.trim())
+        .join('\n\n')
+}
+
+export interface TaskPromptParts {
+    /** Cacheable prefix: persona, identity, workspace header, fixed rules + instructional blocks. */
+    stable: string
+    /** Per-task tail: goal, primed files, step plan, workspace memory, variant text, etc. */
+    dynamic: string
+}
+
+/**
+ * Split the task system prompt into a cacheable stable prefix and a per-task
+ * dynamic tail. The executor marks the stable prefix with an Anthropic
+ * `cache_control: ephemeral` breakpoint so it is cached across steps and tasks
+ * in the same workspace; the dynamic tail is re-sent every turn (it carries the
+ * goal, primed file content, waves, SCL context, memory, and variant text).
+ *
+ * Order intentionally differs from the pre-caching layout: the constant rule and
+ * instructional blocks are hoisted to the top so they form a contiguous stable
+ * prefix, and all task-specific content follows.
+ */
+export function buildTaskPromptParts(ctx: PromptContext): TaskPromptParts {
     const persona = ctx.agentPersona ? ctx.agentPersona + '\n\n' : ''
     const agentName = ctx.agentName ?? 'Plexo'
     const identity = ctx.identityLine ?? ''
 
-    const header = [
-        ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : '',
-        ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : '',
-        ctx.primaryRepo ? `\nDefault GitHub repository: ${ctx.primaryRepo}` : '',
-        ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : '',
-        ctx.sprintCodingBlock ?? '',
-        ctx.scopePrimingBlock ?? '',
-    ].join('')
+    const workspaceHeader = [
+        ctx.workspaceName ? `Workspace: ${ctx.workspaceName}` : '',
+        ctx.workspaceSummary ? `Workspace purpose: ${ctx.workspaceSummary}` : '',
+        ctx.primaryRepo ? `Default GitHub repository: ${ctx.primaryRepo}` : '',
+        ctx.sprintGoal ? `Active project goal: ${ctx.sprintGoal}` : '',
+    ].filter(Boolean).join('\n')
 
     const rawGoal = ctx.taskGoal ?? ''
     const goalLine = rawGoal
@@ -406,35 +430,43 @@ export function buildTaskPrompt(ctx: PromptContext): string {
             : `Task goal: ${rawGoal}`)
         : ''
     const stepLine = ctx.plannedSteps != null ? `You have ${ctx.plannedSteps} planned steps. Work through them carefully.` : ''
-    const parallelismBlock = buildParallelismBlock(ctx.waves)
+    const parallelismText = buildParallelismBlock(ctx.waves)
 
-    const trailingBlocks = [
-        ctx.infrastructureBlock ?? '',
-        ctx.mandatoryAssetBlock ?? '',
-        ctx.sclContextBlock ?? '',
-        ctx.capabilityBlock ?? '',
-        ctx.browsingBlock ?? '',
-        ctx.selfExtensionBlock ?? '',
-        ctx.preferencesBlock ?? '',
-        ctx.extensionPromptsBlock ?? '',
-        ctx.memoryBlock ?? '',
-        ctx.extensionContextBlock ?? '',
+    const stable = joinSections([
+        `${persona}You are ${agentName}, an autonomous AI agent executing a task.`,
+        identity,
+        workspaceHeader,
+        ctx.sprintCodingBlock,
+        TASK_COMPLETION_RULES,
+        TASK_EXECUTION_RULES,
+        ctx.capabilityBlock,
+        ctx.browsingBlock,
+        ctx.selfExtensionBlock,
+        ctx.extensionPromptsBlock,
+        ctx.preferencesBlock,
+        ctx.systemPromptExtra,
         timezoneBlock(ctx.userTimezone),
-        ctx.systemPromptExtra ?? '',
-        ctx.variantExtra ?? '',
-    ].join('')
+    ])
 
-    return `${persona}You are ${agentName}, an autonomous AI agent executing a task.
-${identity}
-${header}
+    const dynamic = joinSections([
+        goalLine,
+        ctx.scopePrimingBlock,
+        stepLine,
+        parallelismText,
+        ctx.infrastructureBlock,
+        ctx.mandatoryAssetBlock,
+        ctx.sclContextBlock,
+        ctx.memoryBlock,
+        ctx.extensionContextBlock,
+        ctx.variantExtra,
+    ])
 
-${goalLine}
+    return { stable, dynamic }
+}
 
-${TASK_COMPLETION_RULES}
-
-${stepLine}
-${parallelismBlock}
-${TASK_EXECUTION_RULES}${trailingBlocks}`
+export function buildTaskPrompt(ctx: PromptContext): string {
+    const { stable, dynamic } = buildTaskPromptParts(ctx)
+    return [stable, dynamic].filter((s) => s.length > 0).join('\n\n')
 }
 
 /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { generateText, tool, type ModelMessage } from 'ai'
+import { generateText, tool, type ModelMessage, type SystemModelMessage } from 'ai'
 import { z } from 'zod'
 import { sql, eq, and } from 'drizzle-orm'
 import { db } from '@plexo/db'
@@ -46,6 +46,24 @@ function stripNullBytes<T>(value: T): T {
     return value
 }
 
+/**
+ * Build a two-part system message array for Anthropic prompt caching (B1).
+ * The first part carries the stable prefix with a `cache_control: ephemeral`
+ * breakpoint; the second carries the per-task dynamic tail (goal, primed files,
+ * SCL context, memory). Non-Anthropic providers ignore the namespaced
+ * providerOptions and render the concatenated system as before.
+ */
+function buildCacheAwareSystemParts(parts: { stable: string; dynamic: string }): SystemModelMessage[] {
+    return [
+        {
+            role: 'system',
+            content: parts.stable,
+            providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+        },
+        { role: 'system', content: parts.dynamic },
+    ]
+}
+
 import pino from 'pino'
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -53,7 +71,7 @@ import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
 import { classifyCapabilityGap } from '../tasks/classify-capability-gap.js'
 import { buildWebTools } from '../tools/web-tools.js'
-import { buildConversationalTaskPrompt, buildTaskPrompt } from '../prompts/build-system-prompt.js'
+import { buildConversationalTaskPrompt, buildTaskPrompt, buildTaskPromptParts } from '../prompts/build-system-prompt.js'
 import { resolveUserTimezone } from '../user-timezone-port.js'
 import { getFilesystemPort } from './filesystem-port.js'
 
@@ -1838,6 +1856,36 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     // no-op when no resolver is wired or no timezone is available.
     const userTimezone = (await resolveUserTimezone(ctx.workspaceId)) ?? undefined
 
+    const taskPromptArgs = {
+        taskType: 'task' as const,
+        agentName,
+        agentPersona: personaPrefix ? personaPrefix.replace(/\n\n$/, '') : undefined,
+        identityLine,
+        workspaceName: ctx.workspaceName,
+        workspaceSummary: ctx.workspaceSummary,
+        primaryRepo: ctx.primaryRepo,
+        sprintGoal: ctx.sprintGoal,
+        sprintCodingBlock,
+        scopePrimingBlock,
+        taskGoal: plan.goal,
+        taskSource: ctx.taskSource,
+        plannedSteps: plan.steps.length,
+        waves: plan.waves,
+        infrastructureBlock,
+        mandatoryAssetBlock,
+        sclContextBlock,
+        capabilityBlock,
+        browsingBlock,
+        selfExtensionBlock,
+        preferencesBlock,
+        extensionPromptsBlock,
+        memoryBlock,
+        extensionContextBlock,
+        systemPromptExtra,
+        variantExtra,
+        userTimezone,
+    }
+
     const systemPrompt = isConversational
         ? buildConversationalTaskPrompt({
             taskType: 'conversational-task',
@@ -1851,35 +1899,17 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
             systemPromptExtra,
             userTimezone,
         })
-        : buildTaskPrompt({
-            taskType: 'task',
-            agentName,
-            agentPersona: personaPrefix ? personaPrefix.replace(/\n\n$/, '') : undefined,
-            identityLine,
-            workspaceName: ctx.workspaceName,
-            workspaceSummary: ctx.workspaceSummary,
-            primaryRepo: ctx.primaryRepo,
-            sprintGoal: ctx.sprintGoal,
-            sprintCodingBlock,
-            scopePrimingBlock,
-            taskGoal: plan.goal,
-            taskSource: ctx.taskSource,
-            plannedSteps: plan.steps.length,
-            waves: plan.waves,
-            infrastructureBlock,
-            mandatoryAssetBlock,
-            sclContextBlock,
-            capabilityBlock,
-            browsingBlock,
-            selfExtensionBlock,
-            preferencesBlock,
-            extensionPromptsBlock,
-            memoryBlock,
-            extensionContextBlock,
-            systemPromptExtra,
-            variantExtra,
-            userTimezone,
-        })
+        : buildTaskPrompt(taskPromptArgs)
+
+    // B1: cache-aware system prompt. For non-conversational tasks, split the
+    // system into a stable prefix + dynamic tail and mark the stable prefix
+    // with an Anthropic `cache_control: ephemeral` breakpoint so the constant
+    // persona/rules/instruction block is prompt-cached across steps and tasks.
+    // The providerOptions key is namespaced — every non-Anthropic provider
+    // ignores it and just renders the two-part system unchanged.
+    const systemPromptParts: SystemModelMessage[] | undefined = isConversational
+        ? undefined
+        : buildCacheAwareSystemParts(buildTaskPromptParts(taskPromptArgs))
 
     // ── Checkpoint-aware execution loop ─────────────────────────────────
     // Check if we're resuming from a previous checkpoint.
@@ -2061,6 +2091,20 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                 ? ctx.tokenBudget
                 : resolveOutputCeiling(resolvedMeta.provider, resolvedMeta.id)
 
+            // B1: Anthropic prompt-cache the accumulated conversation. Mark the
+            // last message with a cache_control breakpoint so every prior
+            // message (plus system) is served from cache on subsequent steps.
+            // Done on a transient copy — the persisted `messages` array (and the
+            // checkpointed responseMessages) never carry the provider marker.
+            const lastMsgIdx = messages.length - 1
+            const messagesForModel = lastMsgIdx >= 0
+                ? messages.map((m, i) =>
+                      i === lastMsgIdx
+                          ? { ...m, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+                          : m,
+                  )
+                : messages
+
             // Step-level retry for transient model timeouts. A single
             // AbortSignal timeout (180s default) shouldn't permanently block
             // the task — retry once with backoff before letting it propagate
@@ -2094,8 +2138,8 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             doCall: async (model) => {
                                 const stepResult = await generateText({
                                     model,
-                                    system: systemPrompt,
-                                    messages,
+                                    system: systemPromptParts ?? systemPrompt,
+                                    messages: messagesForModel,
                                     tools: stepTools,
                                     maxOutputTokens: resolvedCeiling,
                                     // stopWhen defaults to stepCountIs(1) — one tool call per outer iteration.
