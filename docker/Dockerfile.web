@@ -25,6 +25,9 @@ RUN SC="${SOURCE_COMMIT}"; \
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+# pnpm.patchedDependencies in the root package.json resolves patch files
+# relative to the workspace root, so they must exist before install runs.
+COPY patches ./patches
 COPY apps/web/package.json apps/web/
 COPY apps/api/package.json apps/api/
 COPY packages/ui/package.json packages/ui/
