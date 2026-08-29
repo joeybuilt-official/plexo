@@ -98,13 +98,17 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
     for (const [weekKey, memories] of byWeek) {
         if (memories.length < 2) continue // Don't consolidate singletons
 
-        // Build summary from the memories in this week
-        const summaryLines = memories.slice(0, MAX_MEMORIES_PER_CONSOLIDATED).map(m =>
-            m.content.slice(0, 200)
-        )
-        const summaryContent = `[Consolidated ${memories.length} task memories from week ${weekKey}]\n\n${summaryLines.join('\n---\n')}`
+        // Fold at most MAX_MEMORIES_PER_CONSOLIDATED per summary, and delete
+        // exactly what was folded. Deleting the whole week while summarizing
+        // only the first N destroys the content of the rest: the count would
+        // still be recorded, but the text would be gone. Anything left over
+        // stays queued and is consolidated on a later pass.
+        const batch = memories.slice(0, MAX_MEMORIES_PER_CONSOLIDATED)
 
-        const idsToDelete = memories.map(m => m.id)
+        const summaryLines = batch.map(m => m.content.slice(0, 200))
+        const summaryContent = `[Consolidated ${batch.length} task memories from week ${weekKey}]\n\n${summaryLines.join('\n---\n')}`
+
+        const idsToDelete = batch.map(m => m.id)
 
         // Atomic: insert consolidated entry + delete individuals
         try {
@@ -115,16 +119,16 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
                         ${workspaceId}::uuid,
                         'task',
                         ${summaryContent},
-                        ${JSON.stringify({ consolidated: true, sourceCount: memories.length, weekOf: weekKey })}::jsonb,
-                        ${(memories[0]!.createdAt instanceof Date ? memories[0]!.createdAt : new Date(memories[0]!.createdAt as string)).toISOString()}::timestamp
+                        ${JSON.stringify({ consolidated: true, sourceCount: batch.length, weekOf: weekKey })}::jsonb,
+                        ${(batch[0]!.createdAt instanceof Date ? batch[0]!.createdAt : new Date(batch[0]!.createdAt as string)).toISOString()}::timestamp
                     )
                     RETURNING id
                 )
                 DELETE FROM memory_entries
-                WHERE id = ANY(${idsToDelete}::uuid[])
+                WHERE id = ANY(ARRAY[${sql.join(idsToDelete.map(id => sql`${id}`), sql`, `)}]::uuid[])
             `)
-            totalConsolidated += memories.length
-            logger.info({ workspaceId, weekKey, count: memories.length }, 'Consolidated week memories')
+            totalConsolidated += batch.length
+            logger.info({ workspaceId, weekKey, count: batch.length, weekTotal: memories.length }, 'Consolidated week memories')
         } catch (err) {
             logger.warn({ err, workspaceId, weekKey }, 'Failed to consolidate week — skipping')
         }
