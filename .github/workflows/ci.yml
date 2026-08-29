@@ -80,6 +80,37 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @plexo/db db:check-drift
 
+  docker-build:
+    # PR #139 shipped a main that no image could build: pnpm.patchedDependencies
+    # was added to the root package.json without copying patches/ into either
+    # Dockerfile's deps stage, so `pnpm install --frozen-lockfile` failed with
+    # ENOENT /app/patches/sharp@0.35.0.patch and BOTH images were undeployable.
+    # Every other gate was green, because no job here ever built an image. This
+    # is that job. It builds only — publishing is a separate, credentialed step.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Report both images. Without this a web failure would mask an api one,
+      # which is exactly the case #139 was.
+      fail-fast: false
+      matrix:
+        image: [web, api]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.${{ matrix.image }}
+          push: false
+          # Both Dockerfiles derive the build id from SOURCE_COMMIT, falling back
+          # to reading .git. Pass it explicitly so the build does not depend on
+          # checkout depth.
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
