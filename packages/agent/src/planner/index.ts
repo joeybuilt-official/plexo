@@ -180,6 +180,18 @@ function computeWaves(steps: PlanStep[], _sprintIdForCypher?: string, _workspace
     return buildExecutionWaves(nodes).map((wave) => wave.map(Number))
 }
 
+export type TriageTier = 'inline' | 'standard' | 'deep'
+
+/** Pure triage helper (B10): maps plan shape to orchestrator tier. */
+export function computeTriageTier(steps: PlanStep[], waves?: number[][]): TriageTier {
+    if (steps.length === 1 && steps[0] && !steps[0].isOneWayDoor) {
+        const tools = steps[0].toolsRequired ?? []
+        if (tools.length <= 1) return 'inline'
+    }
+    if (waves?.some((w) => w.length >= 2) || steps.length >= 6) return 'deep'
+    return 'standard'
+}
+
 function defaultSettings(): WorkspaceAISettings {
     return {
         primaryProvider: 'anthropic',
@@ -314,6 +326,8 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
 
     const planSteps = raw.object.steps as PlanStep[]
     const planPhases = (raw.object.phases ?? []).map((p, i) => ({ index: i, label: p.label, description: p.description ?? undefined }))
+    const waves = computeWaves(planSteps, ctx.taskId, ctx.workspaceId)
+    const triageTier = computeTriageTier(planSteps, waves)
     const plan: ExecutionPlan = {
         taskId: ctx.taskId,
         goal: raw.object.goal,
@@ -322,7 +336,8 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
         estimatedDurationMs: raw.object.estimatedDurationMs ?? 0,
         confidenceScore: Math.min(1, Math.max(0, raw.object.confidenceScore ?? 0.5)),
         risks: raw.object.risks ?? [],
-        waves: computeWaves(planSteps, ctx.taskId, ctx.workspaceId),
+        waves,
+        triageTier,
         phases: planPhases.length > 0 ? planPhases : undefined,
     }
 

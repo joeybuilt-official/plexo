@@ -93,6 +93,8 @@ export interface ExecutionPlan {
     waves?: number[][]
     /** Structured phases for progress transparency. Planner may or may not produce them. */
     phases?: Array<{ index: number; label: string; description?: string }>
+    /** Orchestrator routing tier (B10): inline = single-step, standard = sequential, deep = parallel/subagent-worthy. */
+    triageTier?: 'inline' | 'standard' | 'deep'
 }
 
 // ── Capability-aware planner output (Phase D) ─────────────────
