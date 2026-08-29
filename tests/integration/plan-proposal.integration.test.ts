@@ -28,12 +28,11 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { randomUUID, randomBytes } from 'node:crypto'
 import {
     db,
-    sql,
-    eq,
     tasks,
     plexoOpsTaskEvents,
     workspaces,
 } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
 import { emitPlanProposal } from '../../apps/api/src/agent-loop.js'
 import { onAgentEvent, type AgentEvent } from '../../apps/api/src/sse-emitter.js'
 import { requestApproval } from '../../packages/agent/src/one-way-door.js'
@@ -47,7 +46,7 @@ async function createUser(): Promise<string> {
     const id = randomUUID()
     const email = `phase-f1-${id}@example.test`
     await db.execute(sql`
-        INSERT INTO users (id, email, role, created_at)
+        INSERT INTO users (id, email, role, "createdAt")
         VALUES (${id}::uuid, ${email}, 'member'::user_role, NOW())
     `)
     createdUserIds.push(id)

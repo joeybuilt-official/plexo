@@ -15,7 +15,8 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import express, { type Express } from 'express'
 import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
-import { db, sql, eq, tasks, plexoOpsTaskEvents, workspaces } from '@plexo/db'
+import { db, tasks, plexoOpsTaskEvents, workspaces } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
 import { claim as queueClaim, requeueForRetry } from '@plexo/queue'
 import { adminTasksRouter } from '../../apps/api/src/routes/admin/tasks.js'
 import { requireServiceKey } from '../../apps/api/src/middleware/service-key-auth.js'
@@ -36,7 +37,7 @@ async function createUser(): Promise<string> {
     // The live users table is uuid+timestamp-without-tz (drift vs schema.ts);
     // use raw SQL with column names that match the live DB.
     await db.execute(sql`
-        INSERT INTO users (id, email, role, created_at)
+        INSERT INTO users (id, email, role, "createdAt")
         VALUES (${id}::uuid, ${email}, 'member'::user_role, NOW())
     `)
     createdUserIds.push(id)

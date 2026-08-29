@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { push } from '../../packages/queue/src/index.js'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces, tasks, conversations, behaviorRules } from '@plexo/db'
 
 let userA: string
@@ -29,8 +30,8 @@ beforeAll(async () => {
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
         VALUES
-          (${userA}, 'User A', ${`ws-iso-a-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user'),
-          (${userB}, 'User B', ${`ws-iso-b-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+          (${userA}, 'User A', ${`ws-iso-a-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member'),
+          (${userB}, 'User B', ${`ws-iso-b-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { /* foreign-table writes pass through FDW; ignore if not configured in test env */ })
 

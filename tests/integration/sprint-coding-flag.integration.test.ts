@@ -21,7 +21,8 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from
 import express, { type Express, type Request, type Response, type NextFunction } from 'express'
 import type { AddressInfo } from 'node:net'
 import { randomUUID, randomBytes } from 'node:crypto'
-import { db, sql, eq, sprints, sprintLogs, workspaces } from '@plexo/db'
+import { db, sprints, sprintLogs, workspaces } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
 import { sprintsRouter } from '../../apps/api/src/routes/sprints.js'
 import { sprintRunnerRouter } from '../../apps/api/src/routes/sprint-runner.js'
 import { runSprint } from '../../packages/agent/src/sprint/runner.js'
@@ -40,7 +41,7 @@ async function createUser(): Promise<string> {
     // The live users table is uuid; mirror Phase C/D's raw-cast workaround
     // for the schema.ts text/uuid drift on users.id.
     await db.execute(sql`
-        INSERT INTO users (id, email, role, created_at)
+        INSERT INTO users (id, email, role, "createdAt")
         VALUES (${id}::uuid, ${email}, 'member'::user_role, NOW())
     `)
     createdUserIds.push(id)

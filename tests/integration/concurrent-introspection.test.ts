@@ -9,7 +9,8 @@
  * a separate cache layer.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces } from '@plexo/db'
 import { buildIntrospectionSnapshot } from '../../packages/agent/src/introspection/index.js'
 
@@ -25,7 +26,7 @@ beforeAll(async () => {
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
         VALUES (${userId}, 'Introspection Concurrency User', ${`introspect-concur-${ts}@plexo.test`},
-                true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+                true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { })
 

@@ -25,13 +25,12 @@ import type { AddressInfo } from 'node:net'
 import { randomUUID, randomBytes } from 'node:crypto'
 import {
     db,
-    sql,
-    eq,
     tasks,
     plexoOpsTaskEvents,
     workspaces,
     taskSteps,
 } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
 import { tasksRouter } from '../../apps/api/src/routes/tasks.js'
 import { requestApproval } from '../../packages/agent/src/one-way-door.js'
 
@@ -46,7 +45,7 @@ async function createUser(): Promise<string> {
     const id = randomUUID()
     const email = `phase-f2-${id}@example.test`
     await db.execute(sql`
-        INSERT INTO users (id, email, role, created_at)
+        INSERT INTO users (id, email, role, "createdAt")
         VALUES (${id}::uuid, ${email}, 'member'::user_role, NOW())
     `)
     createdUserIds.push(id)

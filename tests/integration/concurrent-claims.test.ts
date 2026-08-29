@@ -5,7 +5,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { push, claim, list } from '../../packages/queue/src/index.js'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces, tasks } from '@plexo/db'
 
 let workspaceId: string
@@ -20,7 +21,7 @@ beforeAll(async () => {
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
         VALUES (${userId}, 'Concurrent Claims Test User', ${`concurrent-claims-${ts}@plexo.test`},
-                true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+                true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { /* FDW may not be configured */ })
 

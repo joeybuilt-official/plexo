@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { push, complete, block, cancel, list } from '../../packages/queue/src/index.js'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces, tasks } from '@plexo/db'
 
 // Test workspace created once, cleaned up after all tests
@@ -23,7 +24,7 @@ beforeAll(async () => {
     const nowIso = new Date().toISOString()
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
-        VALUES (${userId}, 'Queue Integration Test User', ${`queue-test-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+        VALUES (${userId}, 'Queue Integration Test User', ${`queue-test-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { /* FDW may not be configured in test env */ })
 

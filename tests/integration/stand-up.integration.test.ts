@@ -29,7 +29,8 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { db, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { sql } from 'drizzle-orm'
 
 const REPO_ROOT = path.resolve(__dirname, '../..')
 

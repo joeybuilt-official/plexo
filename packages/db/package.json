@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:apply-orphaned": "tsx scripts/apply-orphaned-sql.ts",
     "db:studio": "drizzle-kit studio",
     "db:rollback": "tsx src/rollback.ts",
     "db:check-drift": "tsx scripts/check-drift.ts"

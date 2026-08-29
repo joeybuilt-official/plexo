@@ -25,13 +25,12 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { createClient, type RedisClientType } from '../../apps/api/node_modules/redis/dist/index.js'
 import {
     db,
-    sql,
-    eq,
     tasks,
     plexoOpsTaskEvents,
     workspaces,
     standingApprovals,
 } from '@plexo/db'
+import { sql, eq } from 'drizzle-orm'
 import {
     requestApproval,
     waitForDecision,
@@ -70,7 +69,7 @@ async function createUser(): Promise<string> {
     const id = randomUUID()
     const email = `phase-d-${id}@example.test`
     await db.execute(sql`
-        INSERT INTO users (id, email, role, created_at)
+        INSERT INTO users (id, email, role, "createdAt")
         VALUES (${id}::uuid, ${email}, 'member'::user_role, NOW())
     `)
     createdUserIds.push(id)

@@ -12,7 +12,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { push } from '../../packages/queue/src/index.js'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces, tasks, taskSteps } from '@plexo/db'
 
 let workspaceId: string
@@ -26,7 +27,7 @@ beforeAll(async () => {
     const nowIso = new Date().toISOString()
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
-        VALUES (${userId}, 'Agent Regression Test User', ${`agent-reg-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+        VALUES (${userId}, 'Agent Regression Test User', ${`agent-reg-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { /* FDW may not be configured in test env */ })
 

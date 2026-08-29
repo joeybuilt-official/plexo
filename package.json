@@ -155,6 +155,7 @@
     "lint": "turbo lint",
     "db:generate": "pnpm --filter @plexo/db db:generate",
     "db:migrate": "pnpm --filter @plexo/db db:migrate",
+    "db:apply-orphaned": "pnpm --filter @plexo/db db:apply-orphaned",
     "db:rollback": "pnpm --filter @plexo/db db:rollback",
     "db:studio": "pnpm --filter @plexo/db db:studio",
     "format": "prettier --write .",

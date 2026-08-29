@@ -18,6 +18,11 @@ export default defineConfig({
             // Bare specifiers for integration tests that import directly from
             // apps/api source. The packages aren't hoisted to the repo root,
             // so pin them to the api workspace's node_modules.
+            // ADR-0045 Phase 2 stopped re-exporting drizzle operators (eq, sql, …)
+            // from the @plexo/db barrel, so tests import them from 'drizzle-orm'
+            // directly. It is not hoisted to the repo root — pin it to the db
+            // workspace, which owns the ORM.
+            { find: /^drizzle-orm$/, replacement: resolve('./packages/db/node_modules/drizzle-orm/index.js') },
             { find: /^express$/, replacement: resolve('./apps/api/node_modules/express/index.js') },
             { find: /^pg$/, replacement: resolve('./apps/api/node_modules/pg/lib/index.js') },
             { find: /^better-auth$/, replacement: resolve('./apps/api/node_modules/better-auth/dist/index.mjs') },

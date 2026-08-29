@@ -7,7 +7,8 @@
  * the full pipeline path including vector search.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
-import { db, eq, sql } from '@plexo/db'
+import { db } from '@plexo/db'
+import { eq, sql } from 'drizzle-orm'
 import { workspaces, memoryEntries } from '@plexo/db'
 
 // ── Mock LLM (shorthand) + embedding before importing store ────────────────
@@ -70,7 +71,7 @@ beforeAll(async () => {
     const nowIso = new Date().toISOString()
     await db.execute(sql`
         INSERT INTO users (id, name, email, "emailVerified", "createdAt", "updatedAt", role)
-        VALUES (${userId}, 'Memory Pipeline Test User', ${`memory-test-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'user')
+        VALUES (${userId}, 'Memory Pipeline Test User', ${`memory-test-${ts}@plexo.test`}, true, ${nowIso}::timestamptz, ${nowIso}::timestamptz, 'member')
         ON CONFLICT (id) DO NOTHING
     `).catch(() => { /* FDW may not be configured in test env */ })
 
