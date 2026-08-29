@@ -6,6 +6,7 @@ import {
     CHEAP_MODEL_BY_PROVIDER,
     MECHANICAL_TASK_TYPES,
     resolveEffectiveModelId,
+    resolveWeakDelegateModelId,
     type AIProviderConfig,
     type TaskType,
     type WorkspaceAISettings,
@@ -84,5 +85,44 @@ describe('CHEAP_MODEL_BY_PROVIDER', () => {
         expect(CHEAP_MODEL_BY_PROVIDER.google).toBe('gemini-2.5-flash')
         expect(CHEAP_MODEL_BY_PROVIDER.groq).toBe('llama-3.1-8b-instant')
         expect(CHEAP_MODEL_BY_PROVIDER.deepseek).toBe('deepseek-chat')
+    })
+})
+
+describe('resolveWeakDelegateModelId (B17)', () => {
+    it('is off by default — an untouched workspace routes exactly as before', () => {
+        expect(resolveWeakDelegateModelId(settings())).toBeUndefined()
+        expect(resolveWeakDelegateModelId(settings({ weakDelegateModel: false }))).toBeUndefined()
+    })
+
+    it('returns the active provider cheap model as a provider/model override when enabled', () => {
+        const out = resolveWeakDelegateModelId(settings({ weakDelegateModel: true }))
+        expect(out).toBe(`anthropic/${CHEAP_MODEL_BY_PROVIDER.anthropic}`)
+    })
+
+    it('follows primaryProvider rather than assuming anthropic', () => {
+        const out = resolveWeakDelegateModelId(settings({
+            weakDelegateModel: true,
+            primaryProvider: 'openai',
+            providers: { openai: { provider: 'openai' } },
+        }))
+        expect(out).toBe(`openai/${CHEAP_MODEL_BY_PROVIDER.openai}`)
+    })
+
+    it('stays silent when the active provider has no cheap model mapped', () => {
+        const exotic = { weakDelegateModel: true, primaryProvider: 'nope' } as unknown as WorkspaceAISettings
+        expect(resolveWeakDelegateModelId({ ...settings(), ...exotic })).toBeUndefined()
+    })
+
+    it('does not leak into resolveEffectiveModelId — the parent loop keeps the strong model', () => {
+        // The parent executor loop and spawn_subagent both route at
+        // 'codeGeneration'. The split is a call-site override precisely BECAUSE
+        // a task-type-keyed rule could not tell them apart, so enabling the flag
+        // must not change what resolveEffectiveModelId returns for that type.
+        const withFlag = settings({ weakDelegateModel: true })
+        const without = settings()
+        for (const t of ['codeGeneration', 'planning'] as TaskType[]) {
+            expect(resolveEffectiveModelId('anthropic', config(), t, withFlag))
+                .toBe(resolveEffectiveModelId('anthropic', config(), t, without))
+        }
     })
 })

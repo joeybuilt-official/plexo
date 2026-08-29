@@ -578,6 +578,9 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         const dissentThreshold = wsSettings.dissentThreshold != null ? Number(wsSettings.dissentThreshold) : undefined
         if (ensembleSize != null && !isNaN(ensembleSize)) aiSettings.ensembleSize = ensembleSize
         if (dissentThreshold != null && !isNaN(dissentThreshold)) aiSettings.dissentThreshold = dissentThreshold
+        // B17 weak/strong split — only ever true when the workspace explicitly
+        // set it, so an untouched workspace keeps routing sub-agents strong.
+        if (wsSettings.weakDelegateModel === true) aiSettings.weakDelegateModel = true
     }
 
     // Extract workspace context

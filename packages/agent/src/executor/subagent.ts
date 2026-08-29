@@ -23,6 +23,7 @@
 
 import { generateText, stepCountIs } from 'ai'
 import { routeAndCall } from '../providers/router-v2/index.js'
+import { resolveWeakDelegateModelId } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import type { ExecutionContext } from '../types.js'
 import pino from 'pino'
@@ -143,6 +144,11 @@ export async function runSubagent(args: {
             taskId: subTaskId,
             taskType: 'codeGeneration',
             settings,
+            // B17: opt-in weak/strong split. Undefined unless the workspace set
+            // `weakDelegateModel`, in which case this delegated call is served
+            // by the provider's cheap model while the parent loop — which routes
+            // at this same taskType — keeps the strong one.
+            modelIdOverride: resolveWeakDelegateModelId(settings),
             doCall: async (model) => {
                 return generateText({
                     model,

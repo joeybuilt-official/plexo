@@ -80,6 +80,19 @@ export interface WorkspaceAISettings {
      * other modes.
      */
     inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
+    /**
+     * Weak/strong split (B17). When true, work the parent DELEGATES to a
+     * read-only sub-agent (`spawn_subagent`) is served by the provider's cheap
+     * model while the parent's own loop keeps the strong one. Opt-in and
+     * default-off, exactly like `inferenceMode: 'auto-economy'` (B5) — a
+     * workspace that never sets it renders identical routing to before.
+     *
+     * This is a call-site override rather than a `resolveEffectiveModelId`
+     * entry on purpose: the parent loop and `spawn_subagent` BOTH route at
+     * `taskType: 'codeGeneration'`, so a task-type-keyed rule cannot separate
+     * them — it would downgrade the parent too.
+     */
+    weakDelegateModel?: boolean
     /** Max judges recruited from Ollama ensemble (1–5). Default 3. */
     ensembleSize?: number
     /** Score deviation from mean that triggers cloud arbitration (0–1). Default 0.25. */
