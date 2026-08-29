@@ -17,14 +17,27 @@
 import { generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
-import { sql, desc, eq } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { workLedger, tasks } from '@plexo/db'
+import { DrizzleImprovementLogStore, DrizzleWorkLedgerSampleStore } from '../memory.repository.js'
+import type { ImprovementLogStore, WorkLedgerSampleStore, ImprovementLogEntry } from '../memory.ports.js'
 import { resolveModelFromEnv } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'self-improvement' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let improvementLogStore: ImprovementLogStore = new DrizzleImprovementLogStore()
+let workLedgerSampleStore: WorkLedgerSampleStore = new DrizzleWorkLedgerSampleStore()
+
+/** Swap the improvement log store (e.g. an in-memory fake in unit tests). */
+export function setImprovementLogStore(next: ImprovementLogStore): void {
+    improvementLogStore = next
+}
+
+/** Swap the work-ledger sample store (e.g. an in-memory fake in unit tests). */
+export function setWorkLedgerSampleStore(next: WorkLedgerSampleStore): void {
+    workLedgerSampleStore = next
+}
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -67,21 +80,7 @@ export async function runSelfImprovementCycle(params: {
 
     logger.info({ workspaceId, lookbackDays }, 'Self-improvement cycle started')
 
-    const rawLedger = await db.select({
-        taskId: workLedger.taskId,
-        type: workLedger.type,
-        qualityScore: workLedger.qualityScore,
-        confidenceScore: workLedger.confidenceScore,
-        calibration: workLedger.calibration,
-        tokensIn: workLedger.tokensIn,
-        tokensOut: workLedger.tokensOut,
-        deliverables: workLedger.deliverables,
-        wallClockMs: workLedger.wallClockMs,
-        completedAt: workLedger.completedAt,
-    }).from(workLedger)
-        .where(eq(workLedger.workspaceId, workspaceId))
-        .orderBy(desc(workLedger.completedAt))
-        .limit(200)
+    const rawLedger = await workLedgerSampleStore.selectOutcomeSamples(workspaceId, 200)
 
     let ledgerRows: LedgerRow[] = rawLedger
 
@@ -90,19 +89,7 @@ export async function runSelfImprovementCycle(params: {
     if (rawLedger.length < 3) {
         logger.info({ workspaceId, ledgerCount: rawLedger.length }, 'work_ledger sparse — supplementing from completed tasks')
 
-        const completedTasks = await db.select({
-            id: tasks.id,
-            type: tasks.type,
-            qualityScore: tasks.qualityScore,
-            confidenceScore: tasks.confidenceScore,
-            tokensIn: tasks.tokensIn,
-            tokensOut: tasks.tokensOut,
-            outcomeSummary: tasks.outcomeSummary,
-            completedAt: tasks.completedAt,
-        }).from(tasks)
-            .where(eq(tasks.workspaceId, workspaceId))
-            .orderBy(desc(tasks.completedAt))
-            .limit(50)
+        const completedTasks = await workLedgerSampleStore.selectTaskOutcomeSamples(workspaceId, 50)
 
         const syntheticRows: LedgerRow[] = completedTasks.map((t) => ({
             taskId: t.id,
@@ -172,18 +159,12 @@ export async function runSelfImprovementCycle(params: {
             let applied = 0
             for (const p of heuristicProposals) {
                 try {
-                    await db.execute(sql`
-                        INSERT INTO agent_improvement_log
-                          (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
-                        VALUES (
-                          ${workspaceId}::uuid,
-                          ${p.pattern_type},
-                          ${p.description},
-                          ${JSON.stringify(p.evidence ?? [])}::jsonb,
-                          ${p.proposed_change ?? null},
-                          now()
-                        )
-                    `)
+                    await improvementLogStore.appendProposals(workspaceId, [{
+                        patternType: p.pattern_type,
+                        description: p.description,
+                        evidence: p.evidence ?? [],
+                        proposedChange: p.proposed_change ?? null,
+                    }])
                 } catch (err) {
                     logger.error({ err, proposal: p }, 'Failed to store cold-start heuristic proposal')
                 }
@@ -259,18 +240,12 @@ ${JSON.stringify(ledgerSummary, null, 2)}`
     let applied = 0
     for (const proposal of proposals.slice(0, 5)) {
         try {
-            await db.execute(sql`
-        INSERT INTO agent_improvement_log
-          (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
-        VALUES (
-          ${workspaceId}::uuid,
-          ${proposal.pattern_type},
-          ${proposal.description},
-          ${JSON.stringify(proposal.evidence ?? [])}::jsonb,
-          ${proposal.proposed_change ?? null},
-          now()
-        )
-      `)
+            await improvementLogStore.appendProposals(workspaceId, [{
+                patternType: proposal.pattern_type,
+                description: proposal.description,
+                evidence: proposal.evidence ?? [],
+                proposedChange: proposal.proposed_change ?? null,
+            }])
 
             // Auto-apply tool_preference patterns only above a meaningful confidence floor.
             if (proposal.pattern_type === 'tool_preference' && proposal.proposed_change) {
@@ -293,20 +268,6 @@ ${JSON.stringify(ledgerSummary, null, 2)}`
 
 // ── Retrieve log ──────────────────────────────────────────────────────────────
 
-export async function getImprovementLog(workspaceId: string, limit = 20) {
-    return db.execute<{
-        id: string
-        pattern_type: string
-        description: string
-        evidence: unknown
-        proposed_change: string | null
-        applied: boolean
-        created_at: Date
-    }>(sql`
-    SELECT id, pattern_type, description, evidence, proposed_change, applied, created_at
-    FROM agent_improvement_log
-    WHERE workspace_id = ${workspaceId}::uuid
-    ORDER BY created_at DESC
-    LIMIT ${limit}
-  `)
+export async function getImprovementLog(workspaceId: string, limit = 20): Promise<ImprovementLogEntry[]> {
+    return improvementLogStore.listRecent(workspaceId, limit)
 }

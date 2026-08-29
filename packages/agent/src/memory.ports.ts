@@ -2,14 +2,14 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Memory persistence port — batches 1-2 of the memory-port extraction
+ * Memory persistence port — batches 1-3 of the memory-port extraction
  * (docs/claude/platform/memory-port-extraction/plan.md).
  *
  * `corrections.ts`, `conversation-bridge.ts`, `extract-worker.ts`,
- * `preferences.ts`, and `ab-variants.ts` depend on these abstractions; the
- * drizzle adapters in `memory.repository.ts` are the only place that touch
- * the ORM. Records are plain, fully-resolved shapes — no drizzle types
- * cross here.
+ * `preferences.ts`, `ab-variants.ts`, `prompt-improvement.ts`, and
+ * `self-improvement.ts` depend on these abstractions; the drizzle adapters
+ * in `memory.repository.ts` are the only place that touch the ORM. Records
+ * are plain, fully-resolved shapes — no drizzle types cross here.
  */
 
 export interface BehaviorRuleInput {
@@ -98,6 +98,28 @@ export interface VariantOutcome {
     qualityScore: number
 }
 
+export interface ImprovementProposalInput {
+    patternType: string
+    description: string
+    evidence: unknown
+    proposedChange: string | null
+}
+
+export interface ImprovementLogProposal {
+    proposedChange: string
+    applied: boolean
+}
+
+export interface ImprovementLogEntry {
+    id: string
+    patternType: string
+    description: string
+    evidence: unknown
+    proposedChange: string | null
+    applied: boolean
+    createdAt: Date
+}
+
 export interface ImprovementLogStore {
     /** Most recent unapplied, non-discarded challenger of the given pattern type. */
     selectPendingChallenger(workspaceId: string, patternType: string): Promise<ImprovementLogChallenger | null>
@@ -111,4 +133,55 @@ export interface ImprovementLogStore {
     getProposedChange(id: string): Promise<string | null>
     /** Mark a challenger applied via auto-promotion (applied = true, metadata.auto_promoted = true). */
     markAutoPromoted(id: string): Promise<void>
+    /** Insert one or more improvement proposals in a single multi-row statement. */
+    appendProposals(workspaceId: string, proposals: ImprovementProposalInput[]): Promise<void>
+    /** A log entry's proposed_change + applied flag, scoped to a workspace. */
+    getProposalForWorkspace(workspaceId: string, id: string): Promise<ImprovementLogProposal | null>
+    /** Mark a log entry applied (applied = true), with no metadata change. */
+    markApplied(id: string): Promise<void>
+    /** Most recent log entries for a workspace, newest first. */
+    listRecent(workspaceId: string, limit: number): Promise<ImprovementLogEntry[]>
+}
+
+export interface WorkLedgerPromptSample {
+    taskId: string | null
+    type: string
+    qualityScore: number | null
+    calibration: string | null
+    tokensIn: number | null
+    deliverables: unknown
+    wallClockMs: number | null
+}
+
+export interface WorkLedgerOutcomeSample {
+    taskId: string | null
+    type: string
+    qualityScore: number | null
+    confidenceScore: number | null
+    calibration: string | null
+    tokensIn: number | null
+    tokensOut: number | null
+    deliverables: unknown
+    wallClockMs: number | null
+    completedAt: Date | null
+}
+
+export interface TaskOutcomeSample {
+    id: string
+    type: string
+    qualityScore: number | null
+    confidenceScore: number | null
+    tokensIn: number | null
+    tokensOut: number | null
+    outcomeSummary: string | null
+    completedAt: Date | null
+}
+
+export interface WorkLedgerSampleStore {
+    /** Most recent work-ledger rows for prompt-improvement analysis, newest first. */
+    selectPromptSamples(workspaceId: string, limit: number): Promise<WorkLedgerPromptSample[]>
+    /** Most recent work-ledger rows for self-improvement analysis, newest first. */
+    selectOutcomeSamples(workspaceId: string, limit: number): Promise<WorkLedgerOutcomeSample[]>
+    /** Fallback: completed tasks used when work-ledger history is sparse. */
+    selectTaskOutcomeSamples(workspaceId: string, limit: number): Promise<TaskOutcomeSample[]>
 }

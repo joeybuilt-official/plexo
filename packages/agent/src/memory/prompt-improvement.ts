@@ -23,13 +23,26 @@
 import { generateText } from 'ai'
 import { z } from 'zod'
 import pino from 'pino'
-import { sql, desc, eq } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { workLedger } from '@plexo/db'
+import { DrizzleImprovementLogStore, DrizzleWorkLedgerSampleStore } from '../memory.repository.js'
+import type { ImprovementLogStore, WorkLedgerSampleStore } from '../memory.ports.js'
 import { resolveWorkspaceModel } from '../providers/registry.js'
 import { getPreference, learnPreference } from './preferences.js'
 
 const logger = pino({ name: 'prompt-improvement' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let improvementLogStore: ImprovementLogStore = new DrizzleImprovementLogStore()
+let workLedgerSampleStore: WorkLedgerSampleStore = new DrizzleWorkLedgerSampleStore()
+
+/** Swap the improvement log store (e.g. an in-memory fake in unit tests). */
+export function setImprovementLogStore(next: ImprovementLogStore): void {
+    improvementLogStore = next
+}
+
+/** Swap the work-ledger sample store (e.g. an in-memory fake in unit tests). */
+export function setWorkLedgerSampleStore(next: WorkLedgerSampleStore): void {
+    workLedgerSampleStore = next
+}
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -71,18 +84,7 @@ export async function proposePromptImprovements(params: {
     const since = new Date()
     since.setDate(since.getDate() - lookbackDays)
 
-    const rawSamples = await db.select({
-        taskId: workLedger.taskId,
-        type: workLedger.type,
-        qualityScore: workLedger.qualityScore,
-        calibration: workLedger.calibration,
-        tokensIn: workLedger.tokensIn,
-        deliverables: workLedger.deliverables,
-        wallClockMs: workLedger.wallClockMs,
-    }).from(workLedger)
-        .where(eq(workLedger.workspaceId, workspaceId))
-        .orderBy(desc(workLedger.completedAt))
-        .limit(200)
+    const rawSamples = await workLedgerSampleStore.selectPromptSamples(workspaceId, 200)
 
     if (rawSamples.length < minSamples) {
         logger.info({ workspaceId, samples: rawSamples.length, minSamples }, 'Not enough samples for prompt analysis')
@@ -147,19 +149,12 @@ Respond with ONLY valid JSON: { "patches": [{ "section": "tool_selection"|"error
 
     const patchSlice = patches.slice(0, 3)
     if (patchSlice.length > 0) {
-        const valueClauses = patchSlice.map(patch => sql`(
-            ${workspaceId}::uuid,
-            'prompt_patch',
-            ${`[${patch.section}] ${patch.rationale}`},
-            ${JSON.stringify(patch.supportingTaskIds ?? [])}::jsonb,
-            ${JSON.stringify({ section: patch.section, original: patch.original, proposed: patch.proposed })}::text,
-            now()
-        )`)
-        await db.execute(sql`
-            INSERT INTO agent_improvement_log
-                (workspace_id, pattern_type, description, evidence, proposed_change, created_at)
-            VALUES ${sql.join(valueClauses, sql`, `)}
-        `)
+        await improvementLogStore.appendProposals(workspaceId, patchSlice.map((patch) => ({
+            patternType: 'prompt_patch',
+            description: `[${patch.section}] ${patch.rationale}`,
+            evidence: patch.supportingTaskIds ?? [],
+            proposedChange: JSON.stringify({ section: patch.section, original: patch.original, proposed: patch.proposed }),
+        })))
     }
 
     logger.info({ workspaceId, patches: patches.length }, 'Prompt improvement proposals stored')
@@ -174,17 +169,11 @@ export async function applyPromptPatch(params: {
 }): Promise<void> {
     const { workspaceId, improvementLogId } = params
 
-    const rows = await db.execute<{ proposed_change: string; applied: boolean }>(sql`
-    SELECT proposed_change, applied FROM agent_improvement_log
-    WHERE id = ${improvementLogId}::uuid AND workspace_id = ${workspaceId}::uuid
-    LIMIT 1
-  `)
+    const proposal = await improvementLogStore.getProposalForWorkspace(workspaceId, improvementLogId)
+    if (!proposal) throw new Error(`Improvement log entry ${improvementLogId} not found`)
+    if (proposal.applied) throw new Error('Patch already applied')
 
-    const row = rows[0]
-    if (!row) throw new Error(`Improvement log entry ${improvementLogId} not found`)
-    if (row.applied) throw new Error('Patch already applied')
-
-    const patch = JSON.parse(row.proposed_change) as { section: string; proposed: string }
+    const patch = JSON.parse(proposal.proposedChange) as { section: string; proposed: string }
 
     const current = (await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null ?? {}
     const updated = { ...current, [patch.section]: patch.proposed }
@@ -197,10 +186,7 @@ export async function applyPromptPatch(params: {
     })
 
     // Mark applied
-    await db.execute(sql`
-    UPDATE agent_improvement_log SET applied = true
-    WHERE id = ${improvementLogId}::uuid
-  `)
+    await improvementLogStore.markApplied(improvementLogId)
 
     logger.info({ workspaceId, improvementLogId, section: patch.section }, 'Prompt patch applied')
 }
