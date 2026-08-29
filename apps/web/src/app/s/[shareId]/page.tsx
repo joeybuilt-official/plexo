@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ShareContent } from './ShareContent'
 
@@ -84,9 +85,9 @@ export default async function SharePage(
         <div className="min-h-screen bg-canvas">
             <header className="border-b border-border px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <a href="/" className="font-display text-lg font-bold text-text-primary tracking-tight">
+                    <Link href="/" className="font-display text-lg font-bold text-text-primary tracking-tight">
                         Plexo
-                    </a>
+                    </Link>
                     <span className="text-text-muted text-sm">Shared Work</span>
                 </div>
                 <a
@@ -111,7 +112,7 @@ export default async function SharePage(
                     <span>{share.viewCount} {share.viewCount === 1 ? 'view' : 'views'}</span>
                 </div>
 
-                <div className="mt-6 border border-border rounded p-6 bg-surface overflow-auto">
+                <div className="mt-6 border border-border rounded p-6 bg-surface-1 overflow-auto">
                     <ShareContent
                         content={artifact.content}
                         filename={artifact.filename}
@@ -123,7 +124,7 @@ export default async function SharePage(
 
             <footer className="text-center py-8 text-text-muted text-sm">
                 Made with{' '}
-                <a href="/" className="text-azure hover:underline">Plexo</a>
+                <Link href="/" className="text-azure hover:underline">Plexo</Link>
                 {' '}&mdash; AI Agent Platform
             </footer>
         </div>

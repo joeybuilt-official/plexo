@@ -97,7 +97,7 @@ export function TerminalPanel({ lines, filterLabel, className = '' }: TerminalPa
             <button
                 type="button"
                 onClick={handleCopy}
-                className="absolute top-2 right-2 text-xs text-text-muted hover:text-text-primary font-sans px-2 py-1 rounded bg-surface border border-border transition-colors"
+                className="absolute top-2 right-2 text-xs text-text-secondary hover:text-text-primary font-sans px-2 py-1 rounded bg-surface-1 border border-border transition-colors"
                 aria-label="Copy terminal output"
             >
                 Copy output

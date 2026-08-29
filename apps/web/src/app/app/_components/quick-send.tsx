@@ -35,9 +35,13 @@ export function QuickSend() {
     const workspaceId = ctxWorkspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
     const WS_ID = workspaceId || ''
 
-    // Stable ref so the voice callback always calls the latest handleSubmit
+    // Stable ref so the voice callback always calls the latest handleSubmit.
+    // Written after commit, never during render — the only reader is the
+    // voice callback's setTimeout, which always fires post-commit.
     const handleSubmitRef = useRef(handleSubmit)
-    handleSubmitRef.current = handleSubmit
+    useEffect(() => {
+        handleSubmitRef.current = handleSubmit
+    })
 
     const handleVoiceResult = useCallback((transcript: string) => {
         setText(transcript)
