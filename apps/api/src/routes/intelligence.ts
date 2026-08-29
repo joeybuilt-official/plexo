@@ -46,7 +46,7 @@ const router: import('express').Router = Router({ mergeParams: true })
 
 router.use('/:workspaceId', requireWorkspaceMember('workspaceId'))
 
-const INFERENCE_MODES = new Set(['auto', 'byok', 'proxy', 'override'])
+const INFERENCE_MODES = new Set(['auto', 'byok', 'proxy', 'override', 'auto-economy'])
 const COST_MODES = new Set(['soft_warn', 'hard_block', 'off'])
 
 function getWorkspaceId(req: any): string | null {

@@ -317,6 +317,85 @@ export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     fal: 'fal-ai/flux/schnell',
 }
 
+// ── B5: auto-economy (cheap-model routing for mechanical subtasks) ─────────
+
+/**
+ * Task types that are mechanical/cheap-suitable. Under `inferenceMode:
+ * 'auto-economy'` these resolve to `CHEAP_MODEL_BY_PROVIDER[provider]` unless
+ * the workspace pins an explicit `modelOverrides[taskType]` or provider
+ * `config.model`. High-stakes types (planning, codeGeneration, verification,
+ * judging) and conversation are deliberately excluded — quality/correctness
+ * trumps cost there.
+ */
+export const MECHANICAL_TASK_TYPES: ReadonlySet<TaskType> = new Set<TaskType>([
+    'classification',
+    'extraction',
+    'summarization',
+    'logAnalysis',
+])
+
+/**
+ * Per-provider cheap model for auto-economy routing. Mirrors the "smallest,
+ * cheapest, widely-accessible chat model" rule used by `DEFAULT_TEST_MODELS`;
+ * kept as a separate, reviewable table because the two can drift (a provider's
+ * smoke-test model is not necessarily its best cheap routing model). Providers
+ * absent here fall through to `PROVIDER_DEFAULT_MODELS` under auto-economy.
+ */
+export const CHEAP_MODEL_BY_PROVIDER: Partial<Record<ProviderKey, string>> = {
+    openrouter: 'deepseek/deepseek-chat-v3-0324:free',
+    anthropic: 'claude-haiku-4-5',
+    anthropic_subscription: 'claude-haiku-4-5',
+    openai: 'gpt-4o-mini',
+    google: 'gemini-2.5-flash',
+    mistral: 'mistral-small-latest',
+    groq: 'llama-3.1-8b-instant',
+    xai: 'grok-3-mini',
+    deepseek: 'deepseek-chat',
+    together: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+    fireworks: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+    perplexity: 'sonar',
+    cerebras: 'gpt-oss-120b',
+    sambanova: 'Meta-Llama-3.1-8B-Instruct',
+    cohere: 'command-r',
+    cloudflare: '@cf/meta/llama-3.1-8b-instruct',
+    ollama: 'llama3.2',
+    ollama_cloud: 'gpt-oss:20b-cloud',
+}
+
+function validModelId(id: string | undefined): string | undefined {
+    return id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
+}
+
+/**
+ * Resolve the concrete model ID a provider should serve for a task type —
+ * the single source of truth shared by `buildModel` and the selector's
+ * `resolveModelId` (the two must agree or the selector scores one model while
+ * `buildModel` builds another).
+ *
+ * Precedence:
+ *   1. workspace `modelOverrides[taskType]`        — explicit operator pin
+ *   2. provider `config.model`                     — provider-level selected model (UI)
+ *   3. CHEAP_MODEL_BY_PROVIDER[provider]           — B5 auto-economy, mechanical task only
+ *   4. PROVIDER_DEFAULT_MODELS[provider]           — provider-appropriate fallback
+ *   5. DEFAULT_MODEL_ROUTING[taskType]             — last resort (may be wrong family)
+ */
+export function resolveEffectiveModelId(
+    providerKey: ProviderKey,
+    config: AIProviderConfig,
+    taskType: TaskType,
+    settings: WorkspaceAISettings,
+): string {
+    const override = validModelId(settings.modelOverrides?.[taskType])
+    if (override) return override
+    const providerModel = validModelId(config.model)
+    if (providerModel) return providerModel
+    if (settings.inferenceMode === 'auto-economy' && MECHANICAL_TASK_TYPES.has(taskType)) {
+        const cheap = CHEAP_MODEL_BY_PROVIDER[providerKey]
+        if (cheap) return cheap
+    }
+    return validModelId(PROVIDER_DEFAULT_MODELS[providerKey]) ?? DEFAULT_MODEL_ROUTING[taskType]
+}
+
 /**
  * Hosts that speak plaintext HTTP by design — never auto-upgrade these to
  * https. Covers loopback, single-label Docker service names, RFC1918 LAN
@@ -357,15 +436,9 @@ export function buildModel(
     modelIdOverride?: string,
 ): AnyLanguageModel {
     // Resolve model ID — never let a Claude ID land on a non-Anthropic provider
-    const validModel = (id: string | undefined) =>
-        id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
-
     let modelId =
-        validModel(modelIdOverride) ??
-        validModel(settings.modelOverrides?.[taskType]) ??
-        validModel(config.model) ??
-        PROVIDER_DEFAULT_MODELS[providerKey] ??
-        DEFAULT_MODEL_ROUTING[taskType]
+        validModelId(modelIdOverride) ??
+        resolveEffectiveModelId(providerKey, config, taskType, settings)
 
     // Reasoning models (e.g. deepseek-reasoner) burn 15-90s of hidden
     // chain-of-thought tokens before producing output. They are NEVER the

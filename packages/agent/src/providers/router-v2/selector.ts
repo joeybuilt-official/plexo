@@ -28,8 +28,7 @@ import {
 import { getStats } from './stats.js'
 import { RECOMMENDED_PRIOR } from './quality-warnings.js'
 import {
-    DEFAULT_MODEL_ROUTING,
-    PROVIDER_DEFAULT_MODELS,
+    resolveEffectiveModelId,
     type AIProviderConfig,
     type ProviderKey,
     type TaskType,
@@ -101,14 +100,7 @@ export function resolveModelId(
     taskType: TaskType,
     settings: WorkspaceAISettings,
 ): string {
-    const validModel = (id: string | undefined) =>
-        id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
-    return (
-        validModel(settings.modelOverrides?.[taskType]) ??
-        validModel(config.model) ??
-        PROVIDER_DEFAULT_MODELS[provider] ??
-        DEFAULT_MODEL_ROUTING[taskType]
-    )
+    return resolveEffectiveModelId(provider, config, taskType, settings)
 }
 
 interface Scored {

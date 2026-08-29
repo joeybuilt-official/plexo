@@ -9,7 +9,7 @@ import { buildModel } from './registry.js'
 import { resolveChain, type ChainEntry, type ChainTaskType } from './chain-resolver.js'
 import * as crypto from 'crypto'
 
-export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override'
+export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
 
 /**
  * Phase 2b — set of TaskType values that have a chain table entry. The

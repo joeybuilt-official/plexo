@@ -54,7 +54,7 @@ type ArbiterEntry = {
 type ProviderEntry = VaultEntry & ArbiterEntry & { [key: string]: unknown }
 
 type AIProvidersBlob = {
-    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
     primary?: string
     primaryProvider?: string
     fallbackOrder?: string[]
@@ -66,7 +66,7 @@ type AIProvidersBlob = {
 type VaultBlob = Record<string, VaultEntry>
 
 type ArbiterBlob = {
-    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
     primaryProvider?: string
     fallbackChain?: string[]
     providers?: Record<string, ArbiterEntry>

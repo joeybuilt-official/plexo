@@ -17,7 +17,7 @@
  */
 
 export type IntelligenceSettings = {
-    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
     costCeilingUsd?: number
     costCeilingMode?: 'soft_warn' | 'hard_block' | 'off'
     scl?: {
