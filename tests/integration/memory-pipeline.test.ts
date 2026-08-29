@@ -10,18 +10,20 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { db } from '@plexo/db'
 import { eq, sql } from 'drizzle-orm'
 import { workspaces, memoryEntries } from '@plexo/db'
+import { type WorkspaceAISettings } from '../../packages/domain/src/ai-settings.js'
 
 // ── Mock LLM (shorthand) + embedding before importing store ────────────────
 
-// Deterministic fake embedding: hash string into a 1536-dim unit vector.
+// Deterministic fake embedding: hash string into a 384-dim unit vector.
+// memory_entries.embedding is vector(384) (retyped from 1536 in migration 0065).
 function fakeEmbedding(text: string): number[] {
-    const vec = new Array(1536).fill(0)
+    const vec = new Array(384).fill(0)
     let h = 0
     for (let i = 0; i < text.length; i++) {
         h = ((h << 5) - h + text.charCodeAt(i)) | 0
     }
     // Spread energy across dimensions based on hash
-    for (let i = 0; i < 1536; i++) {
+    for (let i = 0; i < 384; i++) {
         h = ((h << 5) - h + i) | 0
         vec[i] = Math.sin(h)
     }
@@ -46,13 +48,17 @@ vi.mock('ai', () => ({
     }),
 }))
 
-// Mock the provider registry so it doesn't try to resolve real API keys
-vi.mock('../../packages/agent/src/providers/registry.js', () => ({
-    resolveModelFromEnv: vi.fn().mockReturnValue('mock-model'),
-    withFallback: vi.fn().mockImplementation(
-        async (_settings: unknown, _task: unknown, fn: (model: string) => Promise<string>) => fn('mock-model'),
-    ),
+// Mock the router — summarizeMemory calls routeAndCall(...).doCall(model),
+// which invokes the mocked `generateText` above. Bypasses provider selection
+// and model construction entirely (same pattern as store.test.ts).
+vi.mock('../../packages/agent/src/providers/router-v2/index.js', () => ({
+    routeAndCall: vi.fn(async (input: { doCall: (model: string) => Promise<string> }) =>
+        input.doCall('mock-model')),
 }))
+
+// Empty mock — store.ts only type-imports registry.js. This stays to satisfy
+// any registry imports that linger via dynamic require (matches store.test.ts).
+vi.mock('../../packages/agent/src/providers/registry.js', () => ({}))
 
 // Now import the functions under test (after mocks are registered)
 const { storeMemory, searchMemory } = await import('../../packages/agent/src/memory/store.js')
@@ -62,6 +68,15 @@ const { storeMemory, searchMemory } = await import('../../packages/agent/src/mem
 let workspaceId: string
 let userId: string
 let storedMemoryId: string
+
+// Non-empty aiSettings is required for summarizeMemory to attempt LLM
+// shorthand generation at all (store.ts skips it entirely when absent).
+// routeAndCall is mocked above, so provider/model resolution never runs.
+const aiSettings: WorkspaceAISettings = {
+    primaryProvider: 'openai',
+    fallbackChain: [],
+    providers: {},
+}
 
 beforeAll(async () => {
     const ts = Date.now().toString(16).padEnd(8, '0')
@@ -92,10 +107,14 @@ afterAll(async () => {
 
 describe('memory pipeline — integration', () => {
     it('storeMemory inserts a row and returns a UUID', async () => {
+        // type: 'pattern' is the only MemoryType that awaits its embedding
+        // synchronously in storeMemory — 'session' enqueues a fire-and-forget
+        // Inngest job that never runs in this test process.
         storedMemoryId = await storeMemory({
             workspaceId,
-            type: 'session',
+            type: 'pattern',
             content: 'User is a bishop in the LDS church living in Utah near Utah Valley Hospital',
+            aiSettings,
         })
 
         expect(storedMemoryId).toMatch(
@@ -112,7 +131,7 @@ describe('memory pipeline — integration', () => {
         expect(rows).toHaveLength(1)
         expect(rows[0].content).toContain('bishop')
         expect(rows[0].content).toContain('Utah Valley Hospital')
-        expect(rows[0].type).toBe('session')
+        expect(rows[0].type).toBe('pattern')
         expect(rows[0].workspaceId).toBe(workspaceId)
         expect(rows[0].tier).toBe('active')
     })
@@ -131,9 +150,8 @@ describe('memory pipeline — integration', () => {
     })
 
     it('embedding was generated (vector column populated)', async () => {
-        // Small delay — embedding write is fire-and-forget in storeMemory
-        await new Promise((r) => setTimeout(r, 500))
-
+        // No delay needed — type: 'pattern' awaits the embedding write
+        // synchronously inside storeMemory before it returns.
         const rows = await db.execute<{ has_embedding: boolean }>(
             sql`SELECT embedding IS NOT NULL AS has_embedding FROM memory_entries WHERE id = ${storedMemoryId}::uuid`,
         )
@@ -173,7 +191,7 @@ describe('memory pipeline — integration', () => {
         const results = await searchMemory({
             workspaceId,
             query: 'church',
-            type: 'task', // wrong type — should not find our 'session' entry
+            type: 'task', // wrong type — should not find our 'pattern' entry
             useCache: false,
         })
 

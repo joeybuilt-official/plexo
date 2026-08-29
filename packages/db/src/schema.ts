@@ -704,7 +704,7 @@ export const memoryEntries = pgTable('memory_entries', {
      */
     shorthand: text('shorthand'),
     // pgvector column — raw SQL needed until drizzle-orm has native vector support
-    // embedding: vector(1536) — added via custom migration SQL
+    // embedding: vector(384) — added via custom migration SQL, retyped 1536→384 in 0065
     metadata: jsonb('metadata').default('{}').notNull(),
     /**
      * Memory Gradient tier. Controls retrieval priority and eviction.
