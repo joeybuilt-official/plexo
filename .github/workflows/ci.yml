@@ -24,6 +24,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
 
+  lint:
+    # `pnpm lint` was silently broken for months (an unbounded brace-expansion
+    # override resolved minimatch@3's dependency to an incompatible major), and
+    # because nothing ran it in CI, apps/web quietly accumulated 36 errors —
+    # 17 of them React Compiler correctness bugs. Both are fixed; this job is
+    # what stops it happening again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
   arch:
     # Clean Architecture boundary gate (ADR 0001). `--ignore-known` holds a
     # baseline of violations that already existed when the gate was wired; it is
