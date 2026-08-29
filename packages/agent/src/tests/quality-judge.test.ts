@@ -198,7 +198,7 @@ describe('judgeQuality', () => {
         return await import('../executor/quality-judge.js')
     }
 
-    it('falls back to self-score when generateObject throws in single-judge path', async () => {
+    it('falls back to unverified when generateObject throws in single-judge path', async () => {
         const { generateObject } = await import('ai')
         ;(generateObject as any).mockRejectedValue(new Error('boom'))
 
@@ -211,8 +211,8 @@ describe('judgeQuality', () => {
             selfScore: 0.77,
             userRequest: 'Say hi',
         })
-        expect(result.score).toBe(0.77)
-        expect(result.meta.mode).toBe('fallback')
+        expect(result.score).toBe(0.3)
+        expect(result.meta.mode).toBe('unverified')
         expect(result.meta.selfScore).toBe(0.77)
     })
 
@@ -288,11 +288,11 @@ describe('judgeQuality', () => {
         expect(result.score).toBeGreaterThan(0)
     })
 
-    it('returns fallback when generateObject throws NoObjectGeneratedError (CALL_MODEL_PARSE)', async () => {
+    it('returns unverified when generateObject throws NoObjectGeneratedError (CALL_MODEL_PARSE)', async () => {
         // Phase 4: the SDK's generateObject handles parse + retry and
         // surfaces a NoObjectGeneratedError on persistent failure. The
         // outer judgeQuality catch converts any thrown error into the
-        // fallback self-score path.
+        // unverified fallback (B6 fail-closed: never the agent's selfScore).
         const { generateObject } = await import('ai')
         ;(generateObject as any).mockRejectedValue(new FakeNoObjectGeneratedError('could not parse object'))
 
@@ -304,8 +304,8 @@ describe('judgeQuality', () => {
             toolsUsed: [],
             selfScore: 0.42,
         })
-        expect(result.meta.mode).toBe('fallback')
-        expect(result.score).toBe(0.42)
+        expect(result.meta.mode).toBe('unverified')
+        expect(result.score).toBe(0.3)
     })
 
     it('runs ensemble when ollama provider configured and models discoverable', async () => {

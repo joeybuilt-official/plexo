@@ -80,7 +80,10 @@ const JudgmentSchema = z.object({
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
-export type JudgeMode = 'ensemble' | 'ensemble+arbitration' | 'single' | 'fallback'
+export type JudgeMode = 'ensemble' | 'ensemble+arbitration' | 'single' | 'fallback' | 'unverified'
+
+/** Capped score returned when no judge tier can verify the deliverable (fail-closed, B6). */
+export const UNVERIFIED_SCORE = 0.3
 
 export interface JudgeMeta {
     mode: JudgeMode
@@ -445,8 +448,8 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     }
 
     const fallback: JudgeResult = {
-        score: capScore(selfScore),
-        meta: { mode: 'fallback', selfScore, judgeCount: 0, dissenters: [], models: [] },
+        score: Math.min(capScore(UNVERIFIED_SCORE), UNVERIFIED_SCORE),
+        meta: { mode: 'unverified', selfScore, judgeCount: 0, dissenters: [], models: [] },
     }
 
     // Single-model policy w/ recommended-judge fallback.
@@ -486,7 +489,7 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
             if (PIN_SKIPPABLE_ERROR.test(msg)) {
                 logger.warn({ candidate: `${provider}/${model}`, reason: msg.slice(0, 200) }, 'Pinned judge skipped — trying router-v2 cascade')
             } else {
-                logger.warn({ err }, 'Quality judge failed — self-score passthrough')
+                logger.warn({ err }, 'Quality judge failed — unverified fallback')
                 return fallback
             }
         }
@@ -527,9 +530,9 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
         )
         return { score, meta: { mode: 'single', selfScore, judgeCount: 1, dissenters: [], models: ['env'] } }
     } catch (err) {
-        logger.warn({ err }, 'Quality judge env fallback failed — self-score passthrough')
+        logger.warn({ err }, 'Quality judge env fallback failed — unverified fallback')
     }
 
-    logger.debug('Quality judge: all tiers exhausted — self-score passthrough')
+    logger.debug('Quality judge: all tiers exhausted — unverified fallback')
     return fallback
 }

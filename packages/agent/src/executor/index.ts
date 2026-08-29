@@ -2806,17 +2806,62 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         durationMs: stepDurationMs,
     })
 
+    const toolsUsed = stepResults.flatMap((s) => s.toolCalls.map((t) => t.tool))
+    const filesWritten = stepResults.flatMap((s) =>
+        s.toolCalls
+            .filter((t) => t.tool === 'write_file' || t.tool === 'create_file')
+            .map((t) => String((t.input as Record<string, unknown>)?.path ?? ''))
+            .filter(Boolean),
+    )
+
+    // ── B6 fail-closed: for coding tasks, structural + side-effect gaps flip ok ─
+    let verifyFailedReason: string | null = null
+    const isCodingTask = ctx.taskType === 'coding' || !!ctx.sprintWorkDir
+    if (isCodingTask) {
+        try {
+            const { detectSideEffectGap } = await import('./side-effect-check.js')
+            const gap = detectSideEffectGap(plan.goal ?? '', finalSummary, toolsUsed)
+            if (gap.penalised) verifyFailedReason = gap.reason ?? 'Side-effect gap: expected tool not invoked'
+        } catch {}
+        if (!verifyFailedReason && ctx.sprintWorkDir && filesWritten.length > 0) {
+            try {
+                const { verifyStructure } = await import('./structural-proof.js')
+                const workDir = ctx.sprintWorkDir!
+                const fsPort = getFilesystemPort()
+                const absPaths = filesWritten.map((p) => fsPort.isAbsolute(p) ? p : fsPort.resolve(workDir, p))
+                const proof = await verifyStructure(absPaths).catch(() => null)
+                if (proof && !proof.passed) {
+                    verifyFailedReason = `Structural proof failed: ${proof.violations.length} syntax violation(s) in ${proof.filesChecked} file(s)`
+                    const pinoMod = await import('pino')
+                    pinoMod.default({ name: 'executor.proof' }).warn(
+                        { violations: proof.violations.length, filesChecked: proof.filesChecked },
+                        'structural-proof: syntax violations detected post-execution',
+                    )
+                }
+            } catch (err) {
+                console.warn('[executor] structural-proof import/run failed (non-fatal)', err instanceof Error ? err.message : String(err))
+            }
+        }
+        if (verifyFailedReason) {
+            const pinoMod = await import('pino')
+            pinoMod.default({ name: 'executor' }).warn({ reason: verifyFailedReason, taskId: ctx.taskId }, 'fail-closed verification tripped')
+        }
+    }
+
     // Phase M (ADR 0002): build the result with qualityScore=null (pending) and
     // return it WITHOUT waiting on the quality judge. The judge is an LLM
     // ensemble call; running it inline delayed user-visible completion. It now
     // runs in a tracked detached promise that patches the real score onto the
     // task row. completeTask (agent-loop) persists status=complete with a null
     // score and will not clobber the judge's patched value (see queue complete()).
+    // B6: coding tasks with a verify gap are fail-closed (ok:false) before return.
     const executionResult: ExecutionResult = {
         taskId: ctx.taskId,
-        ok: true,
+        ok: verifyFailedReason ? false : true,
+        error: verifyFailedReason ?? undefined,
+        errorCode: verifyFailedReason ? 'VERIFY_FAILED' : undefined,
         steps: stepResults,
-        outcomeSummary: finalSummary,
+        outcomeSummary: verifyFailedReason ? `${finalSummary}\n\n[VERIFY FAILED] ${verifyFailedReason}` : finalSummary,
         qualityScore: null,
         totalTokensIn,
         totalTokensOut,
@@ -2827,33 +2872,6 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
 
     // NOTE: api_cost_tracking is written ONLY by agent-loop.ts after completeTask().
     // Do NOT write it here — doing so would double-count every task's spend.
-
-    const toolsUsed = stepResults.flatMap((s) => s.toolCalls.map((t) => t.tool))
-    const filesWritten = stepResults.flatMap((s) =>
-        s.toolCalls
-            .filter((t) => t.tool === 'write_file' || t.tool === 'create_file')
-            .map((t) => String((t.input as Record<string, unknown>)?.path ?? ''))
-            .filter(Boolean),
-    )
-
-    // ── Structural Proof: syntax-check written files (coding tasks only) ──────
-    // Independent of the judge; stays a plain fire-and-forget (non-fatal: a
-    // proof failure is logged but does not change ok:true — the work shipped).
-    if (ctx.sprintWorkDir && filesWritten.length > 0) {
-        void import('./structural-proof.js').then(async ({ verifyStructure }) => {
-            const workDir = ctx.sprintWorkDir!
-            const fsPort = getFilesystemPort()
-            const absPaths = filesWritten.map((p) => fsPort.isAbsolute(p) ? p : fsPort.resolve(workDir, p))
-            const proof = await verifyStructure(absPaths).catch(() => null)
-            if (proof && !proof.passed) {
-                const pinoMod = await import('pino')
-                pinoMod.default({ name: 'executor.proof' }).warn(
-                    { violations: proof.violations.length, filesChecked: proof.filesChecked },
-                    'structural-proof: syntax violations detected post-execution',
-                )
-            }
-        }).catch((err) => console.warn('[executor] structural-proof import/run failed (non-fatal)', err instanceof Error ? err.message : String(err)))
-    }
 
     // Clean up tool worker thread — independent of the judge; do it before return.
     if (toolWorker) {
@@ -2879,8 +2897,8 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
             aiSettings,
             userRequest: plan.goal,
         }).catch((err) => {
-            console.warn('[executor] quality judge failed, falling back to self-score', err instanceof Error ? err.message : String(err))
-            return { score: finalQuality, meta: { mode: 'fallback' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }
+            console.warn('[executor] quality judge failed — unverified fallback', err instanceof Error ? err.message : String(err))
+            return { score: 0.3, meta: { mode: 'unverified' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }
         })
 
         const verifiedQuality = judgeResult.score
