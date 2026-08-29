@@ -690,7 +690,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             execute: async (input) => dispatchTool('read_file', input as Record<string, unknown>, ctx, worker),
         }),
         write_file: tool({
-            description: 'Write content to a file on disk. For CODE tasks (git repos) only. For user-facing deliverables (reports, docs, scripts, HTML), use write_asset instead — write_file outputs are NOT visible in the dashboard.',
+            description: 'Write full file content to disk for CODE tasks (git repos). For user-facing deliverables use write_asset instead — write_file output is NOT visible in the dashboard.',
             inputSchema: z.object({
                 path: z.string().describe('Path to write to'),
                 content: z.string().describe('Full file content to write'),
@@ -706,7 +706,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             execute: async (input) => dispatchTool('shell', input as Record<string, unknown>, ctx, worker),
         }),
         edit_file: tool({
-            description: 'Apply a unified-diff patch to an existing file. The patch must include @@ hunk headers with context lines that match the file exactly. Rejected (no partial write) on context mismatch or missing file. Use this for surgical edits instead of rewriting the whole file with write_file.',
+            description: 'Apply a unified-diff patch to an existing file — @@ hunk headers with context lines that must match exactly (rejected, no partial write, on any mismatch). Use for surgical edits instead of rewriting the whole file with write_file.',
             inputSchema: z.object({
                 path: z.string().describe('Path to the file to edit'),
                 patch: z.string().describe('Unified-diff patch with @@ -a,b +c,d @@ hunk headers and context lines'),
@@ -715,7 +715,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             execute: async (input) => dispatchTool('edit_file', input as Record<string, unknown>, ctx, worker),
         }),
         grep: tool({
-            description: 'Search file contents under a directory. Returns `file:line: match` rows. Supports regex or literal patterns, optional glob filter, ignore-case, and max-results. Skips node_modules/.git/binary files.',
+            description: 'Search file contents under a directory. Returns `file:line: match` rows; supports regex or literal patterns, optional glob filter, ignore-case, and max-results; skips node_modules/.git/binary files.',
             inputSchema: z.object({
                 pattern: z.string().describe('String or JavaScript regex pattern to match'),
                 path: z.string().optional().describe('Search root (default: working directory)'),
@@ -726,7 +726,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             execute: async (input) => dispatchTool('grep', input as Record<string, unknown>, ctx, worker),
         }),
         glob: tool({
-            description: 'Find files by picomatch-style pattern under a directory. Supports *, **, ?, {a,b}. Returns matched relative paths. Skips node_modules/.git.',
+            description: 'Find files by picomatch-style glob (*, **, ?, {a,b}) under a directory. Returns matched relative paths; skips node_modules/.git.',
             inputSchema: z.object({
                 pattern: z.string().describe('Picomatch-style pattern, e.g. "src/**/*.ts" or "**/*.{json,yaml}"'),
                 path: z.string().optional().describe('Search root (default: working directory)'),
@@ -735,7 +735,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             execute: async (input) => dispatchTool('glob', input as Record<string, unknown>, ctx, worker),
         }),
         local_bridge: tool({
-            description: 'Call the desktop Local Bridge on the user laptop (filesystem + shell) via Tailscale. Use when the workspace has a registered local node (check plexoNodes in instructions). Operations: read — read a file, write — write a file, list — list directory, exec — run an allowlisted shell command. Requires a registered node; if none, tell the user to open the desktop app and register it.',
+            description: 'Call the desktop Local Bridge on the user\'s laptop (read/write/list/exec) via Tailscale. Requires a registered local node — if none exists, tell the user to open the desktop app and register it.',
             inputSchema: z.object({
                 operation: z.enum(['read', 'write', 'list', 'exec']).describe('Bridge operation'),
                 path: z.string().optional().describe('File or directory path (for read/write/list). Absolute or home-relative.'),
@@ -781,7 +781,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             },
         }),
         task_complete: tool({
-            description: 'REQUIRED — call this to finish the task. Every task MUST end with this tool call. For conversational messages, call immediately with your reply in the summary. For multi-step tasks, call after completing all steps. Include works and verificationSteps when applicable.',
+            description: 'REQUIRED — every task MUST end with a task_complete call. For conversational messages call it immediately with your reply in the summary; for multi-step tasks call it after completing all steps (include works and verificationSteps when applicable).',
             inputSchema: z.object({
                 summary: z.string().min(1, 'Summary cannot be empty').describe('What was accomplished'),
                 qualityScore: z.number().min(0).max(1).describe('0.0–1.0 self-assessment score'),
@@ -802,27 +802,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
         // Phase 2: `kind` + `meta` let the agent declare how the work should render.
         // If `kind` is missing, it is inferred from filename + content.
         write_asset: tool({
-            description: `Save a completed deliverable (document, script, HTML, email copy, etc.) as a named asset file. Use this for any output the user should receive.
-
-Declare a "kind" so the user gets the right renderer:
-  - instructions: step-by-step guide (links auto-linkified)
-  - code:         source code (set meta.language, e.g. "typescript")
-  - html:         HTML fragment with live preview
-  - mockup:       full-page visual UI design
-  - json / yaml:  structured data (collapsible tree)
-  - table:        tabular data (DataTable)
-  - checklist:    interactive to-do list (persistent state)
-  - config:       config file (apply/download actions)
-  - diagram:      mermaid / plantuml / etc.
-  - image:        raster image
-  - link-list:    curated list of external/internal links
-  - markdown:     generic formatted text (default)
-  - file:         opaque/binary fallback
-
-"meta" is a free-form object for renderer hints. Examples:
-  { language: "typescript" }         // code/config
-  { previewMode: "preview" }         // html
-  { columns: ["name", "status"] }    // table`,
+            description: `Save a completed deliverable (document, script, HTML, email copy, etc.) as a named asset the user can view/download — use this for any final output, not write_file. Declare "kind" for the renderer (instructions | code | html | mockup | json/yaml | table | checklist | config | diagram | image | link-list | markdown | file) and "meta" for hints (e.g. { language: "typescript" }).`,
             inputSchema: z.object({
                 filename: z.string().describe('Filename with extension, e.g. email-sequence.md'),
                 content: z.string().describe('Full file content'),
@@ -956,7 +936,7 @@ Declare a "kind" so the user gets the right renderer:
             braveApiKey: ctx.braveSearchApiKey ?? process.env.BRAVE_SEARCH_API_KEY ?? null,
         }),
         update_connection: tool({
-            description: 'Update the API credentials for an existing installed connection. Use this when the user provides a new API key or token for a service that is already connected (e.g. "here is my new Deepgram key"). Takes the registryId (e.g. "deepgram", "openai") and the new credentials.',
+            description: 'Update API credentials for an existing installed connection (registryId + new key/token).',
             inputSchema: z.object({
                 registryId: z.string().describe('The registry ID of the connection to update (e.g. "deepgram", "openai", "github")'),
                 apiKey: z.string().describe('The new API key or token'),
@@ -996,7 +976,7 @@ Declare a "kind" so the user gets the right renderer:
             },
         }),
         delegate_to_agent: tool({
-            description: 'Delegate a sub-task to a specialist agent. Creates a child task that runs in the queue with parentId set to this task. Use when part of the work requires a different capability, agent, or persona. Waits up to 5 minutes for the child to complete and returns its output.',
+            description: 'Delegate a sub-task to a specialist agent — creates a child queue task (parentId=this) and waits up to 5 minutes for its output. Use when part of the work needs a different capability, agent, or persona.',
             inputSchema: z.object({
                 instructions: z.string().min(1).describe('What the sub-agent should do'),
                 agentId: z.string().optional().describe('Specific agent extension ID (omit for default agent)'),
@@ -1037,7 +1017,7 @@ Declare a "kind" so the user gets the right renderer:
             },
         }),
         spawn_subagent: tool({
-            description: 'Dispatch a forked sub-agent that runs a nested agent loop with a scoped brief + a read-only tool subset, then returns its final text result. Use for parallel or decomposed work. The sub-agent CANNOT spawn further sub-agents (max depth 1). Default tools: read_file, grep, glob, web_search, web_read_page, web_fetch. Whitelist `tools` to grant more (e.g. write_file, shell), but spawn_subagent/task_complete are always excluded.',
+            description: 'Dispatch a nested sub-agent with a scoped brief + a read-only tool subset that returns its final text result — good for parallel or decomposed work. Whitelist `tools` to grant more, but spawn_subagent/task_complete are always excluded and sub-agents cannot spawn further sub-agents.',
             inputSchema: z.object({
                 brief: z.string().min(1).describe('The self-contained task brief the sub-agent executes'),
                 goal: z.string().optional().describe('Optional explicit goal line appended to the brief'),

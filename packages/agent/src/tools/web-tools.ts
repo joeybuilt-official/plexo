@@ -403,9 +403,7 @@ export function buildWebTools(deps: WebToolDeps = {}) {
     return {
         web_search: tool({
             description:
-                'Search the web for current information. Returns real results with titles, URLs, and snippets. '
-                + 'Automatically uses the best available provider (Tavily > Brave > DuckDuckGo). '
-                + 'Use for factual lookups, current events, documentation URLs, entity research, and any query needing live data.',
+                'Search the web for current information. Returns real results with titles, URLs, and snippets via the best available provider (Tavily > Brave > DuckDuckGo). Use for factual lookups, current events, documentation URLs, entity research, or any query needing live data.',
             inputSchema: z.object({
                 query: z.string().describe('The search query'),
                 maxResults: z.number().int().min(1).max(10).optional().default(5).describe('How many results to return (1-10, default 5)'),
@@ -418,9 +416,7 @@ export function buildWebTools(deps: WebToolDeps = {}) {
 
         web_fetch: tool({
             description:
-                'Fetch a public URL and return the raw response body. Use for downloading JSON APIs, raw files, or when you need the unmodified HTTP response. '
-                + 'For readable article/documentation content, prefer web_read_page which strips HTML and returns clean text. '
-                + 'Internal/private IPs are blocked.',
+                'Fetch a public URL and return the raw HTTP response body — use for JSON APIs and raw files. Prefer web_read_page for readable article/documentation content. Internal/private IPs are blocked.',
             inputSchema: z.object({
                 url: z.string().url().describe('The URL to fetch (public only)'),
                 method: z.enum(['GET', 'POST']).optional().default('GET').describe('HTTP method'),
@@ -437,9 +433,7 @@ export function buildWebTools(deps: WebToolDeps = {}) {
 
         web_read_page: tool({
             description:
-                'Fetch a web page and extract its main readable text content (HTML stripped, nav/scripts/styles removed). '
-                + 'Use this when you need to read an article, blog post, documentation page, or any human-readable web content. '
-                + 'Returns clean text, not HTML. Internal/private IPs are blocked.',
+                'Fetch a web page and return its main readable text content — HTML stripped, nav/scripts/styles removed. Use for articles, docs, and any human-readable web content. Internal/private IPs are blocked.',
             inputSchema: z.object({
                 url: z.string().url().describe('The URL of the page to read'),
             }),
