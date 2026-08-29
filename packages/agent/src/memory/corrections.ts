@@ -15,13 +15,21 @@
  */
 
 import pino from 'pino'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
+import { DrizzleBehaviorRuleStore } from '../memory.repository.js'
+import type { BehaviorRuleStore } from '../memory.ports.js'
 import { learnPreference } from './preferences.js'
 import { recordTaskMemory } from './store.js'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 
 const logger = pino({ name: 'corrections' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let behaviorRuleStore: BehaviorRuleStore = new DrizzleBehaviorRuleStore()
+
+/** Swap the behavior rule store (e.g. an in-memory fake in unit tests). */
+export function setBehaviorRuleStore(next: BehaviorRuleStore): void {
+    behaviorRuleStore = next
+}
 
 export type CorrectionType = 'explicit_rejection' | 'output_edit' | 'instruction_override'
 
@@ -83,21 +91,16 @@ export async function recordCorrection(record: CorrectionRecord): Promise<void> 
         if (correctedOutput && correctedOutput.length > 20) {
             const ruleContent = `When asked to ${userMessage?.slice(0, 100) ?? 'perform this type of task'}, the user prefers: ${correctedOutput.slice(0, 300)}`
             try {
-                await db.execute(sql`
-                    INSERT INTO behavior_rules
-                        (id, workspace_id, type, key, label, description, value, source, tags)
-                    VALUES
-                        (gen_random_uuid(), ${workspaceId}::uuid,
-                         'domain_knowledge',
-                         ${'correction.' + Date.now().toString(36)},
-                         ${'User correction: ' + (userMessage?.slice(0, 50) ?? correctionType)},
-                         '',
-                         ${JSON.stringify({ type: 'text_block', value: ruleContent })}::jsonb,
-                         'correction',
-                         ARRAY['auto', 'correction']::text[])
-                    ON CONFLICT (workspace_id, key) WHERE deleted_at IS NULL
-                    DO NOTHING
-                `)
+                await behaviorRuleStore.insertIfAbsent({
+                    workspaceId,
+                    type: 'domain_knowledge',
+                    key: 'correction.' + Date.now().toString(36),
+                    label: 'User correction: ' + (userMessage?.slice(0, 50) ?? correctionType),
+                    description: '',
+                    value: { type: 'text_block', value: ruleContent },
+                    source: 'correction',
+                    tags: ['auto', 'correction'],
+                })
             } catch (err) {
                 logger.warn({ err, workspaceId }, 'Failed to create behavior rule from correction')
             }

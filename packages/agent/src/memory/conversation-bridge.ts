@@ -20,8 +20,8 @@
  */
 
 import pino from 'pino'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
+import { DrizzleBehaviorRuleStore } from '../memory.repository.js'
+import type { BehaviorRuleStore } from '../memory.ports.js'
 import {
     isSafetyBypass,
     extractRevocationTrigger,
@@ -33,6 +33,14 @@ import { emitMemoryUserWrite } from '../analytics/memory-events.js'
 export { hasInstructionIntent, hasRevocationCondition } from './instruction-detect.js'
 
 const logger = pino({ name: 'conversation-bridge' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let behaviorRuleStore: BehaviorRuleStore = new DrizzleBehaviorRuleStore()
+
+/** Swap the behavior rule store (e.g. an in-memory fake in unit tests). */
+export function setBehaviorRuleStore(next: BehaviorRuleStore): void {
+    behaviorRuleStore = next
+}
 
 // ── Exfil-pattern detection ─────────────────────────────────────────────────
 
@@ -97,22 +105,16 @@ export async function persistInstruction(params: {
     }
 
     try {
-        await db.execute(sql`
-            INSERT INTO behavior_rules
-                (id, workspace_id, type, key, label, description, value, source, tags)
-            VALUES
-                (gen_random_uuid(), ${workspaceId}::uuid,
-                 ${ruleType}, ${ruleKey},
-                 ${userMessage.slice(0, 100)},
-                 '',
-                 ${JSON.stringify(ruleValue)}::jsonb,
-                 'conversation',
-                 ARRAY['auto', 'conversation']::text[])
-            ON CONFLICT (workspace_id, key) WHERE deleted_at IS NULL
-            DO UPDATE SET
-                value = EXCLUDED.value,
-                updated_at = now()
-        `)
+        await behaviorRuleStore.upsert({
+            workspaceId,
+            type: ruleType,
+            key: ruleKey,
+            label: userMessage.slice(0, 100),
+            description: '',
+            value: ruleValue,
+            source: 'conversation',
+            tags: ['auto', 'conversation'],
+        })
 
         logger.info({
             workspaceId,

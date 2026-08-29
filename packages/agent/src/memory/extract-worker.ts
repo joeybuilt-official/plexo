@@ -14,12 +14,19 @@
 
 import pino from 'pino'
 import { z } from 'zod'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { memoryEntries } from '@plexo/db'
+import { DrizzleMemoryEntryStore } from '../memory.repository.js'
+import type { MemoryEntryStore } from '../memory.ports.js'
 import { emitMemoryExtraction, emitMemoryEmbedded } from '../analytics/memory-events.js'
 
 const logger = pino({ name: 'extract-worker' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let memoryEntryStore: MemoryEntryStore = new DrizzleMemoryEntryStore()
+
+/** Swap the memory entry store (e.g. an in-memory fake in unit tests). */
+export function setMemoryEntryStore(next: MemoryEntryStore): void {
+    memoryEntryStore = next
+}
 
 // ADR 0004: keep this schema minimal so small models (gpt-oss-120b on
 // groq/cerebras/ollama) reliably satisfy strict structured-output validation.
@@ -131,7 +138,7 @@ export async function extractTurn(params: {
             const content = `${fact.subject} ${fact.predicate} ${fact.object}`
             const id = crypto.randomUUID()
 
-            await db.insert(memoryEntries).values({
+            await memoryEntryStore.insert({
                 id,
                 workspaceId,
                 type: 'pattern',
@@ -155,10 +162,7 @@ export async function extractTurn(params: {
             const embedStart = Date.now()
             const vector = await embed(content, workspaceId, aiSettings ?? undefined).catch(() => null)
             if (vector) {
-                const vecStr = `[${vector.join(',')}]`
-                await db.execute(
-                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-                )
+                await memoryEntryStore.setEmbedding(id, vector)
                 emitMemoryEmbedded({ workspaceId, factId: id, dimensions: vector.length, latencyMs: Date.now() - embedStart })
             }
             factsWritten++
