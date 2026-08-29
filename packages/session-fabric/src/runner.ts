@@ -86,9 +86,18 @@ export async function runPlanVerify(
     const claimed = await claimLease(deps, { sessionId, runnerId, ttlMs: RUN_LEASE_TTL_MS })
     if (!claimed.ok) return err('NO_LEASE', `runner ${runnerId} could not lease session ${sessionId}`)
 
-    const steps = await backend.plan(input.goal)
-    // plan() is a model call that can outlast the TTL; refresh the lease before
-    // persisting. Fails only if another runner stole the (expired) lease.
+    // plan() is a model call; a throw here would escape with the lease still
+    // held, leaving the session unusable until the TTL expired. Release first,
+    // then rethrow — the caller still sees the failure, but the session is free.
+    let steps: Step[]
+    try {
+        steps = await backend.plan(input.goal)
+    } catch (e) {
+        await releaseLease(deps, { sessionId, runnerId })
+        throw e
+    }
+    // plan() can also outlast the TTL; refresh the lease before persisting.
+    // Fails only if another runner stole the (expired) lease.
     const refreshed = await claimLease(deps, { sessionId, runnerId, ttlMs: RUN_LEASE_TTL_MS })
     if (!refreshed.ok) return err('NO_LEASE', `runner ${runnerId} lost session ${sessionId} lease during planning`)
 
@@ -98,6 +107,53 @@ export async function runPlanVerify(
     if (!planned.ok) return planned
 
     return driveFrom(deps, backend, { sessionId, runnerId, tier: input.tier, rules: input.rules }, steps, 0, [])
+}
+
+/**
+ * How many times a single step is dispatched to the backend before its failure
+ * becomes a step result. One initial attempt plus one re-dispatch.
+ */
+const STEP_DISPATCH_ATTEMPTS = 2
+
+/**
+ * Dispatch one step, re-dispatching exactly once if the backend *throws*.
+ *
+ * A throw out of `executeStep` is a transport-level failure, not a verdict on
+ * the step. Before this guard it escaped `driveFrom` entirely: no `tool_result`
+ * was ever appended and no lease was ever released, so the session sat leased
+ * until its TTL expired and the run vanished with no record of why — one flaky
+ * dispatch killed the session.
+ *
+ * Idempotent per step, per ADR 0051: the caller appends exactly one `tool_call`
+ * before this and exactly one `tool_result` after it no matter which attempt
+ * produced the result, so the event log keeps its gap-free
+ * plan/tool_call/tool_result shape and a replay reconstructs the same run.
+ *
+ * A second failure is converted into a failed `StepResult` rather than rethrown,
+ * so the run finishes down its normal path — `tool_result` → `verify` → `outcome`
+ * → lease released — and `verify` sees the failure and scores it.
+ */
+async function dispatchStep(
+    backend: RunnerBackend,
+    step: Step,
+): Promise<{ result: StepResult; attempts: number; error?: string }> {
+    let lastError = ''
+    for (let attempt = 1; attempt <= STEP_DISPATCH_ATTEMPTS; attempt += 1) {
+        try {
+            return { result: await backend.executeStep(step), attempts: attempt }
+        } catch (e) {
+            lastError = e instanceof Error ? e.message : String(e)
+        }
+    }
+    return {
+        result: {
+            stepId: step.id,
+            ok: false,
+            output: `ERROR: step dispatch threw on all ${STEP_DISPATCH_ATTEMPTS} attempts: ${lastError}`,
+        },
+        attempts: STEP_DISPATCH_ATTEMPTS,
+        error: lastError,
+    }
 }
 
 /**
@@ -162,12 +218,21 @@ export async function driveFrom(
         })
         if (!call.ok) return call
 
-        const r = await backend.executeStep(step)
+        const dispatched = await dispatchStep(backend, step)
+        const r = dispatched.result
         results.push(r)
 
+        // `attempts`/`error` are omitted on the (overwhelmingly common) first-try
+        // path, so a healthy run's payload is byte-identical to before B15.
         const resEv = await appendEvent(deps, {
             sessionId, runnerId, kind: 'tool_result', actorType: 'runner', actorId: runnerId,
-            payload: { stepId: step.id, ok: r.ok, output: r.output },
+            payload: {
+                stepId: step.id,
+                ok: r.ok,
+                output: r.output,
+                ...(dispatched.attempts > 1 && { attempts: dispatched.attempts }),
+                ...(dispatched.error !== undefined && { error: dispatched.error }),
+            },
         })
         if (!resEv.ok) return resEv
 
@@ -176,7 +241,14 @@ export async function driveFrom(
 
     let verdict: VerifyVerdict | undefined
     if (status === 'completed') {
-        verdict = await backend.verify(steps, results)
+        // Same lease-safety guard as plan(): an escaping verify() throw would
+        // strand the lease with every step already executed and recorded.
+        try {
+            verdict = await backend.verify(steps, results)
+        } catch (e) {
+            await releaseLease(deps, { sessionId, runnerId })
+            throw e
+        }
         // verify() is a model call too; refresh the lease before the outcome append.
         const reclaimed = await claimLease(deps, { sessionId, runnerId, ttlMs: RUN_LEASE_TTL_MS })
         if (!reclaimed.ok) return err('NO_LEASE', `runner ${runnerId} lost session ${sessionId} lease during verify`)

@@ -332,6 +332,114 @@ describe('runPlanVerify', () => {
         expect(out.error.code).toBe('NO_LEASE')
         expect(await repo.listEvents(session.id, 0)).toHaveLength(0) // nothing persisted after the steal
     })
+
+    // ── B15: re-dispatch once on a throwing backend ──────────────
+
+    it('(g) executeStep throws once → re-dispatched once, run completes, one tool_call/tool_result pair', async () => {
+        let throws = 1
+        const executed: string[] = []
+        const backend: RunnerBackend = {
+            async plan() { return STEPS },
+            async executeStep(step) {
+                executed.push(step.id)
+                if (step.id === 's0' && throws > 0) { throws -= 1; throw new Error('transient dispatch failure') }
+                return { stepId: step.id, ok: true, output: `ran ${step.id}` }
+            },
+            async verify() { return { outcomeKind: 'test', reward: 1, rewardSource: 't@v1' } },
+        }
+
+        const out = await runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('completed')
+        expect(out.value.executedStepIds).toEqual(['s0', 's1'])
+        // s0 was dispatched twice; the log still shows it exactly once.
+        expect(executed).toEqual(['s0', 's0', 's1'])
+
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.map((e) => e.kind)).toEqual([
+            'plan', 'tool_call', 'tool_result', 'tool_call', 'tool_result', 'outcome',
+        ])
+        expect(evs.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6])
+
+        const s0Result = evs[2]!.payload as { stepId: string; ok: boolean; attempts?: number }
+        expect(s0Result).toMatchObject({ stepId: 's0', ok: true, attempts: 2 })
+        // The healthy step carries no retry metadata at all.
+        expect(evs[4]!.payload).not.toHaveProperty('attempts')
+        expect(await repo.getLease(session.id)).toBeNull()
+    })
+
+    it('(h) executeStep throws on both attempts → failed step result, run completes, lease released', async () => {
+        const executed: string[] = []
+        let verifiedWith: StepResult[] = []
+        const backend: RunnerBackend = {
+            async plan() { return STEPS },
+            async executeStep(step) {
+                executed.push(step.id)
+                if (step.id === 's0') throw new Error('backend is down')
+                return { stepId: step.id, ok: true, output: `ran ${step.id}` }
+            },
+            async verify(_steps, results) {
+                verifiedWith = results
+                return { outcomeKind: 'test', reward: 0, rewardSource: 't@v1' }
+            },
+        }
+
+        const out = await runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })
+        // The throw does NOT escape and does NOT kill the session.
+        expect(out.ok).toBe(true)
+        if (!out.ok) return
+        expect(out.value.status).toBe('completed')
+        expect(executed).toEqual(['s0', 's0', 's1']) // exactly two attempts, no more
+        expect(out.value.verdict?.reward).toBe(0)
+
+        // verify() sees the failure rather than a silently-missing step.
+        expect(verifiedWith[0]).toMatchObject({ stepId: 's0', ok: false })
+        expect(verifiedWith[0]?.output).toContain('backend is down')
+
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.map((e) => e.kind)).toEqual([
+            'plan', 'tool_call', 'tool_result', 'tool_call', 'tool_result', 'outcome',
+        ])
+        const s0Result = evs[2]!.payload as { ok: boolean; attempts?: number; error?: string }
+        expect(s0Result).toMatchObject({ ok: false, attempts: 2, error: 'backend is down' })
+        expect(await repo.getLease(session.id)).toBeNull()
+    })
+
+    it('(i) plan() throws → lease released before the error propagates', async () => {
+        const backend: RunnerBackend = {
+            async plan() { throw new Error('planner exploded') },
+            async executeStep(step) { return { stepId: step.id, ok: true } },
+            async verify() { return { outcomeKind: 'test', reward: 1, rewardSource: 't@v1' } },
+        }
+        await expect(runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })).rejects.toThrow('planner exploded')
+        // Without the guard the session stays leased until the 120s TTL expires.
+        expect(await repo.getLease(session.id)).toBeNull()
+        expect(await repo.listEvents(session.id, 0)).toHaveLength(0)
+    })
+
+    it('(j) verify() throws → lease released before the error propagates', async () => {
+        const backend: RunnerBackend = {
+            async plan() { return STEPS },
+            async executeStep(step) { return { stepId: step.id, ok: true } },
+            async verify() { throw new Error('verifier exploded') },
+        }
+        await expect(runPlanVerify(deps, backend, {
+            sessionId: session.id, runnerId: 'runA', goal: 'g', tier: 'drive', rules: [ALLOW_ALL],
+        })).rejects.toThrow('verifier exploded')
+        expect(await repo.getLease(session.id)).toBeNull()
+        // Every step is still recorded — only the outcome is missing.
+        const evs = await repo.listEvents(session.id, 0)
+        expect(evs.map((e) => e.kind)).toEqual([
+            'plan', 'tool_call', 'tool_result', 'tool_call', 'tool_result',
+        ])
+    })
 })
 
 // ── resumeRun (approval resume) ─────────────────────────────────
