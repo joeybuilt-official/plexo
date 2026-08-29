@@ -211,6 +211,14 @@ const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell', 'edit
 /** Tracks consecutive PatchError per file to trigger diff-failure fallback (B8). Key: `${taskId}:${absPath}` */
 const editFailureCounts = new Map<string, number>()
 
+/** Uniform tool-output cap (B9). Only web_read_page capped before; everything else was unbounded. */
+export const MAX_TOOL_OUTPUT_CHARS = 30_000
+export function truncateToolOutput(output: unknown): string {
+    const str = typeof output === 'string' ? output : (() => { try { return JSON.stringify(output) } catch { return String(output) } })()
+    if (str.length <= MAX_TOOL_OUTPUT_CHARS) return str
+    return str.slice(0, MAX_TOOL_OUTPUT_CHARS) + '\n\n[Output truncated at 30k chars — showing first 30k; narrow scope or read fewer files]'
+}
+
 /**
  * Promote write_file outputs to works (DB + /tmp/plexo-assets).
  *
@@ -673,7 +681,7 @@ async function dispatchTool(
 // Tool.inputSchema replaces "parameters" from earlier SDK versions.
 
 export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
-    return {
+    const tools = {
         read_file: tool({
             description: 'Read the contents of a file at the given path.',
             inputSchema: z.object({
@@ -1054,6 +1062,21 @@ Declare a "kind" so the user gets the right renderer:
             },
         }),
     }
+    // B9 uniform truncation: wrap every tool so the model never receives an unbounded output.
+    for (const tool of Object.values(tools as Record<string, { execute?: (input: unknown) => Promise<unknown> }>)) {
+        const orig = tool.execute
+        if (typeof orig !== 'function') continue
+        tool.execute = async (input: unknown) => {
+            const out = await (orig as (input: unknown) => Promise<unknown>)(input)
+            if (typeof out === 'string') return truncateToolOutput(out)
+            try {
+                return truncateToolOutput(JSON.stringify(out))
+            } catch {
+                return truncateToolOutput(String(out))
+            }
+        }
+    }
+    return tools
 }
 
 // ── Default workspace AI settings (legacy / no-config mode) ─────────────────
