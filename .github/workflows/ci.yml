@@ -52,3 +52,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      # Root suites live outside the turbo graph, so `pnpm test` never reached
+      # them and they rotted unnoticed. `test:integration` still needs Postgres
+      # + Redis service containers and is wired up separately.
+      - run: pnpm test:unit
