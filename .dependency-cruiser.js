@@ -109,6 +109,17 @@ module.exports = {
         doNotFollow: ['node_modules'],
         tsPreCompilationDeps: true,
         tsConfig: { fileName: 'tsconfig.arch.json' },
+        // Workspace packages expose subpath exports (@plexo/domain/ai-settings,
+        // @plexo/queue/inngest, @plexo/agent/memory/inngest) whose targets are .ts
+        // sources. Without these the resolver never reads "exports" maps, reports
+        // each such import as not-unresolvable, and — worse — stops following the
+        // module, hiding every violation reachable through it.
+        enhancedResolveOptions: {
+            exportsFields: ['exports'],
+            conditionNames: ['types', 'import', 'require', 'node', 'default'],
+            mainFields: ['types', 'module', 'main'],
+            extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+        },
         exclude: {
             dynamic: true,
         },
