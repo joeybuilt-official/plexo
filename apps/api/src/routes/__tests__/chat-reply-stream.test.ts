@@ -70,12 +70,21 @@ vi.mock('@plexo/storage', () => ({ uploadContent: vi.fn(async () => ({ url: 'htt
 vi.mock('@plexo/agent/memory/conversation-bridge', () => ({ hasInstructionIntent: () => false, persistInstruction: vi.fn(async () => undefined), extractConversationMemory: vi.fn(async () => undefined) }))
 vi.mock('@plexo/agent/memory/corrections', () => ({ hasCorrectionIntent: () => false, recordCorrection: vi.fn(async () => undefined) }))
 
-async function getReplyStreamHandler() {
+// Resolved ONCE at module scope, not per test. `../chat.js` is a large route
+// module behind ~14 mocks; importing it inside a test charged the transform
+// cost to that test's 15s budget, and under a full parallel `pnpm test` the
+// first test in this file would blow it (~15010ms) while passing in isolation.
+// Loading here bills it to collection, where setup work belongs.
+const replyStreamHandler: any = await (async () => {
     const mod = (await import('../chat.js')) as any
     const layer = mod.chatRouter.stack.find(
         (l: any) => l.route?.path === '/reply-stream/:taskId' && l.route.methods.get,
     )
     return layer.route.stack[0].handle
+})()
+
+async function getReplyStreamHandler() {
+    return replyStreamHandler
 }
 
 interface FakeRes {
