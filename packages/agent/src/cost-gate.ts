@@ -276,6 +276,28 @@ export function decideAgentCost(
     return { state: 'ok', usagePct, ceilingUsd, spend }
 }
 
+// ── B11: per-task downgrade at 80% ─────────────────────────────────────────
+
+/** Share of an explicit per-task ceiling at which the executor downgrades to a cheap model. */
+export const TASK_DOWNGRADE_THRESHOLD = 0.8
+
+export interface TaskDowngradeDecision {
+    engaged: boolean
+    usagePct: number
+}
+
+/**
+ * Decide whether a task should switch to a cheap model based on its own spend
+ * against its explicit ceiling. Pure + exported for tests.
+ */
+export function decideTaskDowngrade(spentUsd: number, ceilingUsd: number | null): TaskDowngradeDecision {
+    if (!ceilingUsd || ceilingUsd <= 0 || spentUsd <= 0) {
+        return { engaged: false, usagePct: 0 }
+    }
+    const usagePct = spentUsd / ceilingUsd
+    return { engaged: usagePct >= TASK_DOWNGRADE_THRESHOLD && usagePct < 1, usagePct }
+}
+
 const WARNED = new Map<string, number>()
 const WARN_DEDUPE_MS = 60 * 60 * 1000
 

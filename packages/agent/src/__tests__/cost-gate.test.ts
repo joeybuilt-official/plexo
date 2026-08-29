@@ -15,6 +15,7 @@
 import { describe, it, expect } from 'vitest'
 import {
     decideAgentCost,
+    decideTaskDowngrade,
     CostCeilingExceededError,
     type AgentSpendSnapshot,
 } from '../cost-gate.js'
@@ -76,5 +77,35 @@ describe('CostCeilingExceededError', () => {
         expect(err.ceilingUsd).toBe(100)
         expect(err.spentUsd).toBe(110)
         expect(err.message).toContain('110%')
+    })
+})
+
+describe('decideTaskDowngrade (B11)', () => {
+    it('not engaged when no ceiling', () => {
+        expect(decideTaskDowngrade(50, null).engaged).toBe(false)
+        expect(decideTaskDowngrade(50, 0).engaged).toBe(false)
+        expect(decideTaskDowngrade(50, -1).engaged).toBe(false)
+    })
+
+    it('not engaged below 80%', () => {
+        expect(decideTaskDowngrade(0.79, 1).engaged).toBe(false)
+        expect(decideTaskDowngrade(0, 10).usagePct).toBe(0)
+    })
+
+    it('engaged at/between 80% and 100%', () => {
+        const at = decideTaskDowngrade(0.8, 1)
+        expect(at.engaged).toBe(true)
+        expect(at.usagePct).toBeCloseTo(0.8, 5)
+        const mid = decideTaskDowngrade(0.95, 1)
+        expect(mid.engaged).toBe(true)
+        expect(mid.usagePct).toBeCloseTo(0.95, 5)
+    })
+
+    it('not engaged at/above 100% (the hard block owns that zone)', () => {
+        const at = decideTaskDowngrade(1, 1)
+        expect(at.engaged).toBe(false)
+        const over = decideTaskDowngrade(1.2, 1)
+        expect(over.engaged).toBe(false)
+        expect(over.usagePct).toBeGreaterThan(1)
     })
 })

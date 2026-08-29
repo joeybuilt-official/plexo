@@ -8,11 +8,11 @@ import { db } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, installedConnections } from '@plexo/db'
 import { WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/domain'
 import { ulid } from 'ulid'
-import { buildModel, PROVIDER_DEFAULT_MODELS } from '../providers/registry.js'
+import { buildModel, PROVIDER_DEFAULT_MODELS, CHEAP_MODEL_BY_PROVIDER } from '../providers/registry.js'
 import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/router-v2/index.js'
 import type { ResolvedModelMeta } from '../providers/router.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
-import { assertAgentCostCeilingOk, CostCeilingExceededError } from '../cost-gate.js'
+import { assertAgentCostCeilingOk, CostCeilingExceededError, decideTaskDowngrade } from '../cost-gate.js'
 import { toMicro, addMicro, cmpMicro, fmtMicroUsd } from '../money.js'
 import { ensureArtifactShareUrl } from '../tasks/artifact-share.js'
 import { getResumeStep, buildResumeMessages, hasTaskComplete } from './step-builder.js'
@@ -2078,6 +2078,10 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         let lastToolCallSignature: ToolCallSignature | null = null
         let pendingTruncationHint: string | null = null
 
+        // B11: per-task economy downgrade. Once the task's own spend crosses
+        // 80% of an explicit ceiling, subsequent steps route to a cheap model.
+        let economyEngaged = false
+
         // Synthetic termination summary — set when loop detection bails out.
         // Propagated out via the IIFE return so the post-loop finalSummary
         // assignment prefers it over genResult.text.
@@ -2190,6 +2194,37 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                   )
                 : messages
 
+            // B11: per-task economy downgrade. When the task's own spend has
+            // crossed 80% of an explicit ceiling but not hit it, force the next
+            // step onto the active provider's cheap model so the tail finishes
+            // under budget. The mid-run check below still hard-stops at 100%.
+            let economyOverride: string | undefined
+            if (ctx.taskCostCeilingUsd != null) {
+                const spentUsd = Number(totalCostMicro) / 1_000_000
+                const downgrade = decideTaskDowngrade(spentUsd, ctx.taskCostCeilingUsd)
+                if (downgrade.engaged) {
+                    const cheap = CHEAP_MODEL_BY_PROVIDER[resolvedMeta.provider]
+                    if (cheap) {
+                        economyOverride = `${resolvedMeta.provider}/${cheap}`
+                        if (!economyEngaged) {
+                            economyEngaged = true
+                            logger.warn(
+                                { taskId: ctx.taskId, spentUsd: spentUsd.toFixed(4), ceilingUsd: ctx.taskCostCeilingUsd, usagePct: (downgrade.usagePct * 100).toFixed(0), override: economyOverride },
+                                'task cost at 80% of ceiling — downgrading to cheap model for the remainder',
+                            )
+                            ctx.emitStepEvent?.({
+                                type: 'cost_ceiling_warn',
+                                taskId: ctx.taskId,
+                                workspaceId: ctx.workspaceId,
+                                ts: Date.now(),
+                                usagePct: downgrade.usagePct,
+                                action: 'downgrade',
+                            })
+                        }
+                    }
+                }
+            }
+
             // Step-level retry for transient model timeouts. A single
             // AbortSignal timeout (180s default) shouldn't permanently block
             // the task — retry once with backoff before letting it propagate
@@ -2220,6 +2255,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
                             taskId: ctx.taskId,
                             taskType: taskTier,
                             settings: effectiveSettings,
+                            modelIdOverride: economyOverride,
                             doCall: async (model) => {
                                 const stepResult = await generateText({
                                     model,
