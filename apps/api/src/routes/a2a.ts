@@ -145,7 +145,7 @@ async function authenticateA2A(req: import('express').Request, res: import('expr
     // per-app key (psk_…). Either way the caller must name the workspace in the body.
     const headerAppId = req.headers['x-app-id'] as string | undefined
     const resolved = await resolveServiceAuth(token, headerAppId)
-    if (resolved) {
+    if (resolved.ok) {
         if (!bodyWorkspaceId) {
             res.status(400).json({ error: { code: 'MISSING_FIELD', message: 'workspaceId required when using service key auth' } })
             return null

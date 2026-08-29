@@ -255,8 +255,10 @@ async function resolveAppForIngest(req: import('express').Request): Promise<AppA
     }
     // A3 dual-accept: shared PLEXO_SERVICE_KEY OR per-app key
     const resolved = await resolveServiceAuth(token, headerAppId)
-    if (!resolved) {
-        return { ok: false, status: 401, error: 'Invalid service key' }
+    if (!resolved.ok) {
+        return resolved.reason === 'missing_app_id'
+            ? { ok: false, status: 400, error: 'Missing or invalid X-App-Id header' }
+            : { ok: false, status: 401, error: 'Invalid service key' }
     }
     const appId = resolved.appId
     if (!APP_ID_RE.test(appId)) {

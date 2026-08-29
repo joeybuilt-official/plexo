@@ -28,21 +28,36 @@ export interface ServiceContext {
 }
 
 /**
+ * Outcome of {@link resolveServiceAuth}. Transport-free by design: the reason is
+ * a domain-level discriminant, and mapping it to an HTTP status belongs to the
+ * adapter that called in (see `.claude/rules/error-handling.md`).
+ *
+ *   - `invalid_key`    — the token matched no shared or per-app key.
+ *   - `missing_app_id` — the token IS the valid shared PLEXO_SERVICE_KEY, but no
+ *                        X-App-Id header named the calling app. Authentication
+ *                        succeeded; the request is under-specified.
+ */
+export type ServiceAuthResult =
+    | { ok: true; appId: string; viaSharedKey: boolean }
+    | { ok: false; reason: 'invalid_key' | 'missing_app_id' }
+
+/**
  * A3 dual-accept core. Validates an incoming Bearer token as EITHER the legacy
  * shared PLEXO_SERVICE_KEY (X-App-Id required to name the caller) OR a per-app
  * key (`psk_…` from app_service_keys; the key itself identifies the app, so
  * X-App-Id is optional but must match if supplied). Constant-time throughout.
- * Returns the resolved appId, or null when the token is not valid.
+ * Returns the resolved appId, or a failure carrying WHY it failed — a valid
+ * shared key with no X-App-Id is `missing_app_id`, never `invalid_key`.
  */
 export async function resolveServiceAuth(
     token: string,
     headerAppId: string | undefined,
-): Promise<{ appId: string; viaSharedKey: boolean } | null> {
+): Promise<ServiceAuthResult> {
     // Legacy shared key path
     const serviceKey = process.env.PLEXO_SERVICE_KEY
     if (serviceKey && timingSafeEqual(token, serviceKey)) {
-        if (!headerAppId) return null
-        return { appId: headerAppId, viaSharedKey: true }
+        if (!headerAppId) return { ok: false, reason: 'missing_app_id' }
+        return { ok: true, appId: headerAppId, viaSharedKey: true }
     }
     // Per-app key path (A3). Only psk_-prefixed tokens hit the DB.
     if (token.startsWith('psk_')) {
@@ -54,17 +69,17 @@ export async function resolveServiceAuth(
                 const hash = createHash('sha256').update(token + k.tokenSalt).digest('hex')
                 if (hash.length === k.tokenHash.length
                     && cryptoTimingSafeEqual(Buffer.from(hash, 'utf-8'), Buffer.from(k.tokenHash, 'utf-8'))) {
-                    if (headerAppId && headerAppId !== k.appId) return null
+                    if (headerAppId && headerAppId !== k.appId) return { ok: false, reason: 'invalid_key' }
                     void touchLastUsed(k.id).catch((err: unknown) =>
                         logger.warn({ err }, 'app-service-key touchLastUsed failed'))
-                    return { appId: k.appId, viaSharedKey: false }
+                    return { ok: true, appId: k.appId, viaSharedKey: false }
                 }
             }
         } catch (err) {
             logger.error({ err }, 'per-app service key validation failed')
         }
     }
-    return null
+    return { ok: false, reason: 'invalid_key' }
 }
 
 // Extend Express Request
@@ -77,8 +92,11 @@ declare global {
 }
 
 /**
- * Validates the PLEXO_SERVICE_KEY and extracts app identity.
- * Returns 401 if key is missing/invalid, 400 if X-App-Id is missing.
+ * Validates the service key and extracts app identity.
+ * Returns 401 (INVALID_KEY) if the Bearer token is missing or matches no key,
+ * and 400 (MISSING_APP_ID) when the token IS the valid shared PLEXO_SERVICE_KEY
+ * but no X-App-Id header names the caller. A per-app `psk_…` key self-identifies,
+ * so X-App-Id stays optional on that path.
  */
 export async function requireServiceKey(req: Request, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization
@@ -92,7 +110,11 @@ export async function requireServiceKey(req: Request, res: Response, next: NextF
 
     // A3 dual-accept: shared PLEXO_SERVICE_KEY OR a per-app key
     const resolved = await resolveServiceAuth(token, headerAppId)
-    if (!resolved) {
+    if (!resolved.ok) {
+        if (resolved.reason === 'missing_app_id') {
+            res.status(400).json({ error: { code: 'MISSING_APP_ID', message: 'X-App-Id header required' } })
+            return
+        }
         res.status(401).json({ error: { code: 'INVALID_KEY', message: 'Invalid service key' } })
         return
     }
@@ -135,7 +157,7 @@ export async function requireMeshServiceKey(req: Request, res: Response, next: N
 
     // Per-app key (A3) — self-identifying, X-App-Id optional.
     const resolved = await resolveServiceAuth(token, headerAppId)
-    if (resolved) {
+    if (resolved.ok) {
         req.serviceContext = { appId: resolved.appId, viaSharedKey: resolved.viaSharedKey }
         next()
         return

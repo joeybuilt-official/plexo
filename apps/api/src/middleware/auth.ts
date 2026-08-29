@@ -96,8 +96,10 @@ async function tryAppServiceKeyAuth(req: Request): Promise<boolean> {
     const xAppId = req.headers['x-app-id'] as string | undefined
 
     // A3 dual-accept: shared PLEXO_SERVICE_KEY (X-App-Id required) OR a per-app key
+    // Any failure — bad key OR shared key without X-App-Id — falls through to the
+    // next auth provider here; this dispatcher never terminates the response.
     const resolved = await resolveServiceAuth(rawToken, xAppId)
-    if (!resolved) return false
+    if (!resolved.ok) return false
 
     const userId = req.headers['x-user-id'] as string | undefined
     req.serviceContext = {
