@@ -115,6 +115,79 @@ export function buildParallelismBlock(waves: number[][] | undefined): string {
     return `\n\nPARALLELIZATION MAP (plan dependency graph — steps in one wave are independent):\n${waveLines.join('\n')}\nWhen a wave has 2+ independent read-only steps (research, exploration, data gathering), dispatch them as parallel spawn_subagent calls — issue several tool calls in ONE response; they execute concurrently. Sub-agents are read-only by design; keep all writes/edits/shell on your own loop. Synthesize each wave's results before starting the next wave.`
 }
 
+/**
+ * Execution Priming budget (B16).
+ *
+ * `scopeFiles` contents render into the DYNAMIC tail of the task prompt, and —
+ * unlike the B1-cached stable prefix — the dynamic tail is re-sent in full on
+ * every turn of the executor loop. An unbounded priming block therefore re-bills
+ * whole file bodies once per step, which is the single largest uncapped
+ * per-turn cost left in the prompt.
+ *
+ * So: cap it, and name the overflow instead of dropping it. A path the model can
+ * `read_file` on demand costs one bounded tool result once (B13 dedupes the
+ * repeats), where a primed file costs its whole body every turn. B4's repo map
+ * already supplies global symbol awareness from the cached prefix, so the model
+ * is not flying blind about what exists.
+ *
+ * A scope that fits the budget renders byte-identically to the pre-B16 block.
+ */
+export const SCOPE_PRIMING_BUDGET_CHARS = 24_000
+
+/** Per-file ceiling, so one huge file cannot consume the whole budget. */
+export const SCOPE_PRIMING_PER_FILE_CHARS = 8_000
+
+/**
+ * Render the PRIMED FILE CONTEXT block from `ExecutionContext.scopeFiles`,
+ * bounded by the budget above. Files that do not fit are listed by path under
+ * an explicit "not pre-loaded" heading — never silently dropped, because a
+ * silently-missing file reads to the model as a file that does not exist.
+ */
+export function buildScopePrimingBlock(
+    files: ReadonlyArray<{ path: string; content: string }> | undefined,
+): string {
+    if (!files || files.length === 0) return ''
+
+    const primed: string[] = []
+    const deferred: string[] = []
+    let spent = 0
+
+    for (const f of files) {
+        const room = SCOPE_PRIMING_BUDGET_CHARS - spent
+        if (room <= 0) {
+            deferred.push(f.path)
+            continue
+        }
+
+        const limit = Math.min(SCOPE_PRIMING_PER_FILE_CHARS, room)
+        if (f.content.length <= limit) {
+            primed.push(`### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+            spent += f.content.length
+            continue
+        }
+
+        // A truncated file stays primed — the head carries imports and the
+        // declarations a goal usually names — but says so, so the model knows
+        // to read_file rather than assume it has seen the whole thing.
+        primed.push(
+            `### ${f.path} (truncated to the first ${limit} characters — read_file for the rest)\n\`\`\`\n${f.content.slice(0, limit)}\n\`\`\``,
+        )
+        spent += limit
+    }
+
+    const deferredList = deferred.map((path) => `- ${path}`).join('\n')
+
+    if (primed.length === 0) {
+        return `\n\nSCOPE FILES (in scope but NOT pre-loaded — read_file them as needed):\n${deferredList}`
+    }
+
+    const deferredBlock = deferred.length > 0
+        ? `\n\nAlso in scope but NOT pre-loaded (read_file them if you need them):\n${deferredList}`
+        : ''
+
+    return `\n\nPRIMED FILE CONTEXT (pre-loaded — no need to re-read these):\n${primed.join('\n\n')}${deferredBlock}`
+}
+
 // ── Fragments ───────────────────────────────────────────────────────────────
 
 const TELEGRAM_RULES = `
