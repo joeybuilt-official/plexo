@@ -114,14 +114,22 @@ export function tooltipFor(status: ScanStatus | undefined, signature?: string): 
 
 // ── Icon picker (component-only; not part of pure-helper surface) ────────────
 
-function iconFor(status: ScanStatus | undefined) {
+/**
+ * Renders the icon for a scan status. Declared at module scope: the previous
+ * shape returned a component *type* from the badge's render body, which the
+ * React Compiler flags because a type created during render is a fresh
+ * identity each time. These icons are stateless, so nothing was actually
+ * resetting — but returning an element from module scope is the shape the
+ * rule wants, and it keeps the identity stable.
+ */
+function ScanStatusIcon({ status, className }: { status: ScanStatus | undefined; className: string }) {
     switch (status) {
-        case 'scanning': return Loader2
-        case 'clean':    return ShieldCheck
-        case 'infected': return ShieldX
-        case 'error':    return ShieldAlert
+        case 'scanning': return <Loader2 aria-hidden="true" className={className} />
+        case 'clean':    return <ShieldCheck aria-hidden="true" className={className} />
+        case 'infected': return <ShieldX aria-hidden="true" className={className} />
+        case 'error':    return <ShieldAlert aria-hidden="true" className={className} />
         case 'unscanned':
-        default:         return Shield
+        default:         return <Shield aria-hidden="true" className={className} />
     }
 }
 
@@ -129,7 +137,6 @@ function iconFor(status: ScanStatus | undefined) {
 
 export function AttachmentScanBadge({ scanStatus, signature }: AttachmentScanBadgeProps) {
     const cfg = badgeConfigFor(scanStatus)
-    const Icon = iconFor(scanStatus)
     const tip = tooltipFor(scanStatus, signature)
 
     return (
@@ -138,8 +145,8 @@ export function AttachmentScanBadge({ scanStatus, signature }: AttachmentScanBad
             aria-label={`Attachment scan status: ${cfg.label}`}
             className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium border ${cfg.containerClass}`}
         >
-            <Icon
-                aria-hidden="true"
+            <ScanStatusIcon
+                status={scanStatus}
                 className={`h-3 w-3 ${cfg.iconClass} ${cfg.spin ? 'animate-spin' : ''}`}
             />
             {cfg.label}

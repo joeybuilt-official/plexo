@@ -329,7 +329,7 @@ function AgentsContent() {
             <div>
                 <h1 className="text-2xl font-medium tracking-tight text-text-primary">Your Agent</h1>
                 <p className="mt-0.5 text-sm text-text-muted">
-                    Configure your workspace's primary AI agent — personality, behavior, model, and limits.
+                    Configure your workspace&apos;s primary AI agent — personality, behavior, model, and limits.
                 </p>
             </div>
 
@@ -769,7 +769,7 @@ function AdditionalAgentsSection({ workspaceId }: { workspaceId: string }) {
                         <h2 className="text-sm font-medium uppercase tracking-wider text-text-secondary">Agent Extensions</h2>
                     </div>
                     <p className="mt-1 text-sm text-text-muted">
-                        Agent extensions add specialized expertise to your primary agent. They don't run independently — they enhance what your agent can do. Install from the Hub.
+                        Agent extensions add specialized expertise to your primary agent. They don&apos;t run independently — they enhance what your agent can do. Install from the Hub.
                     </p>
                 </div>
                 <button
@@ -788,8 +788,8 @@ function AdditionalAgentsSection({ workspaceId }: { workspaceId: string }) {
                 <div>
                     <p className="text-xs font-medium text-azure mb-0.5">How Agent Extensions Work</p>
                     <p className="text-xs text-azure/70">
-                        Agent extensions add specialized personas and domain expertise to your primary agent. They don't
-                        create separate, independent agents — they enhance your primary agent's capabilities for specific
+                        Agent extensions add specialized personas and domain expertise to your primary agent. They don&apos;t
+                        create separate, independent agents — they enhance your primary agent&apos;s capabilities for specific
                         domains. Skills, tools, channels, and connectors are managed on the <a href="/app/extensions" className="underline hover:text-azure">Extensions page</a>.
                     </p>
                 </div>

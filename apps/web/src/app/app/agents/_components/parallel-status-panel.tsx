@@ -22,11 +22,15 @@ export function ParallelStatusPanel() {
     const [status, setStatus] = useState<ParallelStatus | null>(null)
     const [claiming, setClaiming] = useState(false)
     const [clearing, setClearing] = useState(false)
+    const [now, setNow] = useState(0)
 
     const fetchStatus = async () => {
         try {
             const res = await fetch(`${API}/api/v1/parallel/status?workspaceId=${workspaceId}`)
-            if (res.ok) setStatus(await res.json())
+            if (res.ok) {
+                setStatus(await res.json())
+                setNow(Date.now())
+            }
         } catch (e) {
             console.error('Failed to fetch parallel status', e)
         }
@@ -87,7 +91,7 @@ export function ParallelStatusPanel() {
                     </div>
                 ) : (
                     status.slots.map((slot) => {
-                        const remaining = Math.max(0, Math.floor(slot.expiresAt - Date.now() / 1000))
+                        const remaining = Math.max(0, Math.floor(slot.expiresAt - now / 1000))
                         return (
                             <div key={slot.taskId} className="flex items-center justify-between p-3 rounded-sm border border-border/50 bg-surface-2/20">
                                 <div className="flex items-center gap-3">

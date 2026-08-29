@@ -54,6 +54,41 @@ const LARGE_TEXT_THRESHOLD = 1000
 // doesn't re-fetch the providers list on every chat page mount/tab-switch.
 const providerModelsCache = new Map<string, ProviderModelOption[]>()
 
+// Resolves the session this page instance is bound to, reading the URL and the
+// persisted id. Lives outside the component (and runs from a lazy state
+// initializer) so the storage reads/writes and the `Date.now()` id mint happen
+// once per mount instead of during render.
+function resolveInitialSession(): { id: string, startedAsNew: boolean } {
+    if (typeof window === 'undefined') {
+        return { id: `session-${Date.now()}`, startedAsNew: false }
+    }
+    const STORAGE_KEY = 'plexo-chat-session'
+    const params = new URLSearchParams(window.location.search)
+    const fromUrl = params.get('sessionId')
+    const isNewChat = params.has('new')
+    // Precedence order (fixes the "QuickSend hydrates unrelated chat"
+    // bug): new=1 + URL sessionId → explicit fresh session; URL
+    // sessionId alone → load that specific session; otherwise fall
+    // back to persisted stored id.
+    if (isNewChat) {
+        const fresh = fromUrl || `session-${Date.now()}`
+        localStorage.setItem(STORAGE_KEY, fresh)
+        return { id: fresh, startedAsNew: true }
+    }
+    if (fromUrl) {
+        localStorage.setItem(STORAGE_KEY, fromUrl)
+        return { id: fromUrl, startedAsNew: false }
+    }
+    const stored = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
+    if (stored) {
+        localStorage.setItem(STORAGE_KEY, stored)
+        return { id: stored, startedAsNew: false }
+    }
+    const fresh = `session-${Date.now()}`
+    localStorage.setItem(STORAGE_KEY, fresh)
+    return { id: fresh, startedAsNew: false }
+}
+
 export default function ChatPage() {
     return (
         <Suspense fallback={
@@ -95,12 +130,23 @@ function ChatContent() {
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const sessionId = useRef<string>(null as unknown as string)
+    // The session id is read during render (the session chip below), so it is
+    // state rather than a ref. `resolveInitialSession` runs once per mount via
+    // the lazy initializer instead of during render.
+    const [initialSession] = useState(resolveInitialSession)
+    const [sessionId, setSessionId] = useState(initialSession.id)
+    // `sessionId` is state so the header can re-render with it, but every
+    // network call below reads it AFTER an await (attachment pre-flight,
+    // action dispatch). The state const is captured at render, so a session
+    // switch resolving mid-await would post the turn into the abandoned
+    // session. The ref always holds the latest committed id.
+    const sessionIdRef = useRef(initialSession.id)
+    useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
     // Track whether the very first message of this page instance was sent
     // into a brand-new session — used to tell the API to bypass the
     // universal session resolver for that first turn.
     const hasSentFirstMessageRef = useRef(false)
-    const startedAsNewRef = useRef(false)
+    const startedAsNewRef = useRef(initialSession.startedAsNew)
     const sseRetryCountRef = useRef(0)
     // Per-turn abort handle so a new send (or unmount) cancels the in-flight
     // request without surfacing the cancellation as an error.
@@ -119,39 +165,6 @@ function ChatContent() {
             window.removeEventListener('offline', sync)
         }
     }, [])
-    if (!sessionId.current) {
-        if (typeof window === 'undefined') {
-            sessionId.current = `session-${Date.now()}`
-        } else {
-            const STORAGE_KEY = 'plexo-chat-session'
-            const params = new URLSearchParams(window.location.search)
-            const fromUrl = params.get('sessionId')
-            const isNewChat = params.has('new')
-            // Precedence order (fixes the "QuickSend hydrates unrelated chat"
-            // bug): new=1 + URL sessionId → explicit fresh session; URL
-            // sessionId alone → load that specific session; otherwise fall
-            // back to persisted stored id.
-            if (isNewChat) {
-                const fresh = fromUrl || `session-${Date.now()}`
-                localStorage.setItem(STORAGE_KEY, fresh)
-                sessionId.current = fresh
-                startedAsNewRef.current = true
-            } else if (fromUrl) {
-                localStorage.setItem(STORAGE_KEY, fromUrl)
-                sessionId.current = fromUrl
-            } else {
-                const stored = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
-                if (stored) {
-                    localStorage.setItem(STORAGE_KEY, stored)
-                    sessionId.current = stored
-                } else {
-                    const fresh = `session-${Date.now()}`
-                    localStorage.setItem(STORAGE_KEY, fresh)
-                    sessionId.current = fresh
-                }
-            }
-        }
-    }
     const [isDraggingOver, setIsDraggingOver] = useState(false)
     const dragCounterRef = useRef(0)
     const taskIdAttached = useRef(false)
@@ -173,7 +186,7 @@ function ChatContent() {
         const fromUrl = searchParams.get('sessionId')
         const fresh = fromUrl || `session-${Date.now()}`
         localStorage.setItem('plexo-chat-session', fresh)
-        sessionId.current = fresh
+        setSessionId(fresh)
         startedAsNewRef.current = true
         hasSentFirstMessageRef.current = false
         setMessages([])
@@ -240,6 +253,26 @@ function ChatContent() {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    // Single source of truth for populating `msg.assets` from the tasks
+    // assets endpoint. Every path that produces an agent message with a
+    // taskId (SSE terminal, inline-complete, history loaders, confirm-action)
+    // should call this. Idempotent; silent on failure so it never blocks the
+    // UI. Invariant: given (msgId, taskId) where taskId is set and the task
+    // has reached a terminal state, `msg.assets` will reflect the current
+    // `/tasks/:id/assets` payload after this resolves.
+    const hydrateAssets = useCallback(async (msgId: string, taskId: string | undefined | null) => {
+        if (!taskId) return
+        try {
+            const r = await fetch(`${API}/api/v1/tasks/${taskId}/assets`)
+            if (!r.ok) return
+            const data = await r.json() as { items?: TaskAsset[] }
+            if (!data.items || data.items.length === 0) return
+            setMessages(prev => prev.map(m =>
+                m.id === msgId ? { ...m, assets: data.items } : m
+            ))
+        } catch { /* swallow — chip stays absent, same as prior behaviour */ }
+    }, [])
 
     useEffect(() => {
         if (!WS_ID || messages.length > 0) return
@@ -376,7 +409,7 @@ function ChatContent() {
                         }
                     }
                     if (loaded.length > 0) setMessages(loaded)
-                    sessionId.current = sessionIdParam
+                    setSessionId(sessionIdParam)
                     sessionStorage.setItem('plexo-chat-session', sessionIdParam)
                     // DD-5: track the latest conversation row id for override PATCHes.
                     if (turns.length > 0) latestConversationIdRef.current = turns[turns.length - 1]!.id
@@ -432,7 +465,7 @@ function ChatContent() {
                     }
                     if (loaded.length > 0) setMessages(loaded)
                     if (data.sessionId) {
-                        sessionId.current = data.sessionId
+                        setSessionId(data.sessionId)
                         sessionStorage.setItem('plexo-chat-session', data.sessionId)
                     }
                 }
@@ -445,8 +478,8 @@ function ChatContent() {
         }
         void loadContext()
         // hydrateAssets is intentionally omitted — it's a stable useCallback
-        // and pulling it in would force a forward reference (TDZ) since it's
-        // defined further down in this component.
+        // with no dependencies, so listing it would never change when this
+        // effect re-runs.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [WS_ID, sessionIdParam, contextIdParam, prefillParamForLoad])
 
@@ -489,178 +522,164 @@ function ChatContent() {
         }
     }, [isLiveMode, sending, isListening, tts.speaking, voice])
 
-    // Single source of truth for populating `msg.assets` from the tasks
-    // assets endpoint. Every path that produces an agent message with a
-    // taskId (SSE terminal, inline-complete, history loaders, confirm-action)
-    // should call this. Idempotent; silent on failure so it never blocks the
-    // UI. Invariant: given (msgId, taskId) where taskId is set and the task
-    // has reached a terminal state, `msg.assets` will reflect the current
-    // `/tasks/:id/assets` payload after this resolves.
-    const hydrateAssets = useCallback(async (msgId: string, taskId: string | undefined | null) => {
-        if (!taskId) return
-        try {
-            const r = await fetch(`${API}/api/v1/tasks/${taskId}/assets`)
-            if (!r.ok) return
-            const data = await r.json() as { items?: TaskAsset[] }
-            if (!data.items || data.items.length === 0) return
-            setMessages(prev => prev.map(m =>
-                m.id === msgId ? { ...m, assets: data.items } : m
-            ))
-        } catch { /* swallow — chip stays absent, same as prior behaviour */ }
-    }, [])
-
+    // The retry paths re-enter through the hoisted inner `poll` declaration
+    // rather than the outer `pollReply` binding, which is not initialised yet
+    // while this callback is being created.
     const pollReply = useCallback(async (taskId: string, msgId: string): Promise<void> => {
-        return new Promise((resolve) => {
-            const url = `${API}/api/v1/chat/reply-stream/${taskId}`
-            const es = new EventSource(url)
+        function poll(taskId: string, msgId: string): Promise<void> {
+            return new Promise((resolve) => {
+                const url = `${API}/api/v1/chat/reply-stream/${taskId}`
+                const es = new EventSource(url)
 
-            let closed = false
-            let stuckTimer: ReturnType<typeof setTimeout> | null = null
-            // Inactivity watchdog: the server ticks every ~3s. If the connection
-            // stays open but goes silent for INACTIVITY_MS, it's a stalled stream
-            // (proxy/tunnel half-open) — force a reconnect instead of waiting out
-            // the 5-min stuck timer. Distinct from onerror (explicit drop).
-            const INACTIVITY_MS = 90_000
-            let inactivityTimer: ReturnType<typeof setTimeout> | null = null
-            const cleanup = () => {
-                closed = true
-                if (stuckTimer) clearTimeout(stuckTimer)
-                if (inactivityTimer) clearTimeout(inactivityTimer)
-                es.close()
-            }
-            const onInactive = () => {
-                if (closed) return
-                if (sseRetryCountRef.current < 1) {
-                    sseRetryCountRef.current++
-                    cleanup()
-                    setTimeout(() => { void pollReply(taskId, msgId).then(resolve) }, 1000)
+                let closed = false
+                let stuckTimer: ReturnType<typeof setTimeout> | null = null
+                // Inactivity watchdog: the server ticks every ~3s. If the connection
+                // stays open but goes silent for INACTIVITY_MS, it's a stalled stream
+                // (proxy/tunnel half-open) — force a reconnect instead of waiting out
+                // the 5-min stuck timer. Distinct from onerror (explicit drop).
+                const INACTIVITY_MS = 90_000
+                let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+                const cleanup = () => {
+                    closed = true
+                    if (stuckTimer) clearTimeout(stuckTimer)
+                    if (inactivityTimer) clearTimeout(inactivityTimer)
+                    es.close()
                 }
-                // else: leave the stuck timer / onerror path to terminate.
-            }
-            const bumpActivity = () => {
-                if (closed) return
-                if (inactivityTimer) clearTimeout(inactivityTimer)
-                inactivityTimer = setTimeout(onInactive, INACTIVITY_MS)
-            }
-            bumpActivity()
-
-            es.addEventListener('tick', (ev) => {
+                const onInactive = () => {
+                    if (closed) return
+                    if (sseRetryCountRef.current < 1) {
+                        sseRetryCountRef.current++
+                        cleanup()
+                        setTimeout(() => { void poll(taskId, msgId).then(resolve) }, 1000)
+                    }
+                    // else: leave the stuck timer / onerror path to terminate.
+                }
+                const bumpActivity = () => {
+                    if (closed) return
+                    if (inactivityTimer) clearTimeout(inactivityTimer)
+                    inactivityTimer = setTimeout(onInactive, INACTIVITY_MS)
+                }
                 bumpActivity()
-                try {
-                    const d = JSON.parse(ev.data) as {
-                        status: string; elapsed: number; stepCount: number; lastAction: string | null
-                        phases?: Array<{ index: number; total: number; label: string; status: 'pending' | 'running' | 'complete' }>
-                        currentPhase?: string
-                        plan?: Message['livePlan']
-                        progressEvents?: RawProgressEvent[]
-                        sprint?: SprintActivity
-                    }
 
-                    const normalized = normalizeEvents(d.progressEvents)
-
-                    setMessages((prev) => prev.map((m) => {
-                        if (m.id !== msgId || isPlanProposalMessage(m)) return m
-                        const lastStep = m.steps?.[m.steps.length - 1]
-                        let nextSteps = m.steps || []
-                        if (d.lastAction && lastStep?.label !== d.lastAction) {
-                            nextSteps = [
-                                ...nextSteps.map(s => ({ ...s, status: 'complete' as const })),
-                                { id: `step-${Date.now()}`, label: d.lastAction, status: 'running' as const }
-                            ]
+                es.addEventListener('tick', (ev) => {
+                    bumpActivity()
+                    try {
+                        const d = JSON.parse(ev.data) as {
+                            status: string; elapsed: number; stepCount: number; lastAction: string | null
+                            phases?: Array<{ index: number; total: number; label: string; status: 'pending' | 'running' | 'complete' }>
+                            currentPhase?: string
+                            plan?: Message['livePlan']
+                            progressEvents?: RawProgressEvent[]
+                            sprint?: SprintActivity
                         }
-                        return {
-                            ...m, status: 'running', content: d.status, steps: nextSteps,
-                            phases: d.phases ?? m.phases, currentPhase: d.currentPhase ?? m.currentPhase,
-                            livePlan: d.plan ?? m.livePlan,
-                            progressEvents: normalized.length > 0 ? normalized : m.progressEvents,
-                            sprint: d.sprint ?? m.sprint,
+
+                        const normalized = normalizeEvents(d.progressEvents)
+
+                        setMessages((prev) => prev.map((m) => {
+                            if (m.id !== msgId || isPlanProposalMessage(m)) return m
+                            const lastStep = m.steps?.[m.steps.length - 1]
+                            let nextSteps = m.steps || []
+                            if (d.lastAction && lastStep?.label !== d.lastAction) {
+                                nextSteps = [
+                                    ...nextSteps.map(s => ({ ...s, status: 'complete' as const })),
+                                    { id: `step-${Date.now()}`, label: d.lastAction, status: 'running' as const }
+                                ]
+                            }
+                            return {
+                                ...m, status: 'running', content: d.status, steps: nextSteps,
+                                phases: d.phases ?? m.phases, currentPhase: d.currentPhase ?? m.currentPhase,
+                                livePlan: d.plan ?? m.livePlan,
+                                progressEvents: normalized.length > 0 ? normalized : m.progressEvents,
+                                sprint: d.sprint ?? m.sprint,
+                            }
+                        }))
+                    } catch { /* ignore parse errors */ }
+                })
+
+                const onTerminal = (e: MessageEvent, status: 'complete' | 'failed') => {
+                    try {
+                        const d = JSON.parse(e.data) as { reply?: string }
+                        const reply = d.reply ?? (status === 'complete' ? 'Done.' : 'Something went wrong.')
+                        setMessages((prev) => prev.map((m) =>
+                            m.id === msgId ? { ...m, status, content: reply } : m
+                        ))
+                        if (status === 'complete') {
+                            tts.speak(reply)
+                            void hydrateAssets(msgId, taskId)
                         }
-                    }))
-                } catch { /* ignore parse errors */ }
-            })
-
-            const onTerminal = (e: MessageEvent, status: 'complete' | 'failed') => {
-                try {
-                    const d = JSON.parse(e.data) as { reply?: string }
-                    const reply = d.reply ?? (status === 'complete' ? 'Done.' : 'Something went wrong.')
-                    setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status, content: reply } : m
-                    ))
-                    if (status === 'complete') {
-                        tts.speak(reply)
-                        void hydrateAssets(msgId, taskId)
-                    }
-                } catch { /* ignore */ }
-                cleanup()
-                resolve()
-            }
-
-            es.addEventListener('complete', (e) => onTerminal(e, 'complete'))
-            es.addEventListener('failed', (e) => onTerminal(e, 'failed'))
-            es.addEventListener('blocked', (e) => onTerminal(e, 'failed'))
-            es.addEventListener('cancelled', (e) => onTerminal(e, 'failed'))
-            es.addEventListener('timeout', (e) => onTerminal(e, 'failed'))
-
-            es.addEventListener('plan_proposal', (e) => {
-                try {
-                    const d = JSON.parse(e.data) as {
-                        taskId: string
-                        plan: PlanProposalMessage['plan']
-                        requiresApproval: boolean
-                        approvalId: string | null
-                    }
-                    const card: PlanProposalMessage = {
-                        id: `plan-${d.taskId}-${Date.now()}`,
-                        kind: 'plan_proposal',
-                        taskId: d.taskId,
-                        plan: d.plan,
-                        requiresApproval: d.requiresApproval,
-                        approvalId: d.approvalId,
-                        at: Date.now(),
-                    }
-                    setMessages((prev) => {
-                        if (prev.some((m) => isPlanProposalMessage(m) && m.taskId === d.taskId)) return prev
-                        return [...prev, card]
-                    })
-                } catch { /* ignore malformed plan_proposal */ }
-            })
-
-            stuckTimer = setTimeout(async () => {
-                if (closed) return
-                try {
-                    const r = await fetch(`${API}/api/v1/tasks/${taskId}`)
-                    if (r.ok) {
-                        const task = await r.json() as { status?: string; outcomeSummary?: string }
-                        if (task.status === 'complete' || task.status === 'failed' || task.status === 'blocked' || task.status === 'cancelled') {
-                            const s = task.status === 'complete' ? 'complete' as const : 'failed' as const
-                            setMessages((prev) => prev.map((m) =>
-                                m.id === msgId ? { ...m, status: s, content: task.outcomeSummary ?? (s === 'complete' ? 'Done.' : 'Something went wrong.') } : m
-                            ))
-                            cleanup(); resolve(); return
-                        }
-                    }
-                } catch { /* non-fatal */ }
-                setMessages((prev) => prev.map((m) =>
-                    m.id === msgId && !isPlanProposalMessage(m) && m.status === 'running'
-                        ? { ...m, content: 'Task may be stuck \u2014 check Tasks page for status.' }
-                        : m
-                ))
-            }, 5 * 60 * 1000)
-
-            es.onerror = () => {
-                if (sseRetryCountRef.current < 1) {
-                    sseRetryCountRef.current++
+                    } catch { /* ignore */ }
                     cleanup()
-                    setTimeout(() => { void pollReply(taskId, msgId).then(resolve) }, 2000)
-                    return
+                    resolve()
                 }
-                sseRetryCountRef.current = 0
-                setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? { ...m, status: 'pending', content: 'Lost connection. Check the Tasks page for status.' } : m
-                ))
-                cleanup(); resolve()
-            }
-        })
+
+                es.addEventListener('complete', (e) => onTerminal(e, 'complete'))
+                es.addEventListener('failed', (e) => onTerminal(e, 'failed'))
+                es.addEventListener('blocked', (e) => onTerminal(e, 'failed'))
+                es.addEventListener('cancelled', (e) => onTerminal(e, 'failed'))
+                es.addEventListener('timeout', (e) => onTerminal(e, 'failed'))
+
+                es.addEventListener('plan_proposal', (e) => {
+                    try {
+                        const d = JSON.parse(e.data) as {
+                            taskId: string
+                            plan: PlanProposalMessage['plan']
+                            requiresApproval: boolean
+                            approvalId: string | null
+                        }
+                        const card: PlanProposalMessage = {
+                            id: `plan-${d.taskId}-${Date.now()}`,
+                            kind: 'plan_proposal',
+                            taskId: d.taskId,
+                            plan: d.plan,
+                            requiresApproval: d.requiresApproval,
+                            approvalId: d.approvalId,
+                            at: Date.now(),
+                        }
+                        setMessages((prev) => {
+                            if (prev.some((m) => isPlanProposalMessage(m) && m.taskId === d.taskId)) return prev
+                            return [...prev, card]
+                        })
+                    } catch { /* ignore malformed plan_proposal */ }
+                })
+
+                stuckTimer = setTimeout(async () => {
+                    if (closed) return
+                    try {
+                        const r = await fetch(`${API}/api/v1/tasks/${taskId}`)
+                        if (r.ok) {
+                            const task = await r.json() as { status?: string; outcomeSummary?: string }
+                            if (task.status === 'complete' || task.status === 'failed' || task.status === 'blocked' || task.status === 'cancelled') {
+                                const s = task.status === 'complete' ? 'complete' as const : 'failed' as const
+                                setMessages((prev) => prev.map((m) =>
+                                    m.id === msgId ? { ...m, status: s, content: task.outcomeSummary ?? (s === 'complete' ? 'Done.' : 'Something went wrong.') } : m
+                                ))
+                                cleanup(); resolve(); return
+                            }
+                        }
+                    } catch { /* non-fatal */ }
+                    setMessages((prev) => prev.map((m) =>
+                        m.id === msgId && !isPlanProposalMessage(m) && m.status === 'running'
+                            ? { ...m, content: 'Task may be stuck \u2014 check Tasks page for status.' }
+                            : m
+                    ))
+                }, 5 * 60 * 1000)
+
+                es.onerror = () => {
+                    if (sseRetryCountRef.current < 1) {
+                        sseRetryCountRef.current++
+                        cleanup()
+                        setTimeout(() => { void poll(taskId, msgId).then(resolve) }, 2000)
+                        return
+                    }
+                    sseRetryCountRef.current = 0
+                    setMessages((prev) => prev.map((m) =>
+                        m.id === msgId ? { ...m, status: 'pending', content: 'Lost connection. Check the Tasks page for status.' } : m
+                    ))
+                    cleanup(); resolve()
+                }
+            })
+        }
+        return poll(taskId, msgId)
     }, [tts, hydrateAssets])
 
     const taskIdParam = searchParams.get('taskId')
@@ -766,7 +785,7 @@ function ChatContent() {
                 const res = await fetch(`${API}/api/v1/chat/message`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workspaceId: WS_ID, message: description, sessionId: sessionId.current, forceConversation: true }),
+                    body: JSON.stringify({ workspaceId: WS_ID, message: description, sessionId: sessionIdRef.current, forceConversation: true }),
                 })
                 const data = await res.json() as { reply?: string; status?: string; model?: string; taskId?: string }
                 setMessages((prev) => prev.map((m) =>
@@ -785,7 +804,7 @@ function ChatContent() {
             const res = await fetch(`${API}/api/v1/chat/execute-action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId: sessionId.current }),
+                body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId }),
             })
             if (!res.ok) {
                 const errBody = await res.json().catch(() => null) as { error?: { message?: string } } | null
@@ -1047,7 +1066,7 @@ function ChatContent() {
                 body: JSON.stringify({
                     workspaceId: WS_ID,
                     message: textWithAttachments,
-                    sessionId: sessionId.current,
+                    sessionId: sessionIdRef.current,
                     ...(isFirstNewSessionSend ? { newSession: true } : {}),
                     ...(isWorkbenchOpen && workbenchContext.repo ? {
                         repo: workbenchContext.repo,
@@ -1333,8 +1352,12 @@ function ChatContent() {
         }
     }
 
-    // Keep ref in sync so voice callbacks always call the latest version
-    sendMessageRef.current = sendMessageWith
+    // Keep ref in sync so voice callbacks always call the latest version.
+    // Written after commit rather than during render — the only consumer is a
+    // voice callback that fires from a timeout, well after the effect runs.
+    useEffect(() => {
+        sendMessageRef.current = sendMessageWith
+    })
 
     async function sendMessage() {
         const text = input.trim()
@@ -1440,7 +1463,7 @@ function ChatContent() {
                     </div>
                     <p className="text-sm text-text-muted mt-1">
                         Talk directly with your agent
-                        <CopyId id={sessionId.current} label="session" className="ml-2 align-middle" />
+                        <CopyId id={sessionId} label="session" className="ml-2 align-middle" />
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1454,7 +1477,7 @@ function ChatContent() {
                                 setSystemPromptOverride('')
                                 tts.stop()
                                 const fresh = `session-${Date.now()}`
-                                sessionId.current = fresh
+                                setSessionId(fresh)
                                 sessionStorage.setItem('plexo-chat-session', fresh)
                             }}
                             className="min-h-6 text-xs text-text-muted hover:text-text-secondary transition-colors"

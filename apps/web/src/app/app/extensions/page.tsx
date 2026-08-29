@@ -128,8 +128,8 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground truncate">{ext.name}</span>
-                        <span className="text-[11px] font-mono text-muted-foreground shrink-0">v{ext.version}</span>
+                        <span className="text-sm font-medium text-text-primary truncate">{ext.name}</span>
+                        <span className="text-[11px] font-mono text-text-muted shrink-0">v{ext.version}</span>
                         <span className={`text-[10px] font-medium uppercase tracking-wide rounded-sm border px-1.5 py-0.5 shrink-0 ${badgeStyle}`}>{typeBadge}</span>
                         {ext.isFirstParty && (
                             <span className="flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide rounded-sm border border-signal-green/30 bg-signal-green/10 text-emerald-400 px-1.5 py-0.5 shrink-0">
@@ -175,12 +175,12 @@ function ToolCard({ ext, onToggle, onUninstall }: { ext: Extension; onToggle: (i
                     {ext.isFirstParty && (
                         <div className="flex items-center justify-between rounded-sm border border-signal-green/20 bg-signal-green/5 px-3 py-2">
                             <div className="flex items-center gap-2">
-                                <Circle className={`h-2 w-2 shrink-0 ${ext.enabled ? 'fill-emerald-400 text-emerald-400' : 'fill-muted-foreground text-muted-foreground'}`} aria-hidden="true" />
-                                <span className="text-[11px] font-medium text-foreground">
+                                <Circle className={`h-2 w-2 shrink-0 ${ext.enabled ? 'fill-emerald-400 text-emerald-400' : 'fill-text-muted text-text-muted'}`} aria-hidden="true" />
+                                <span className="text-[11px] font-medium text-text-primary">
                                     {ext.enabled ? 'Connected' : 'Disconnected'}
                                 </span>
                                 {manifest?.tools && (
-                                    <span className="text-[11px] text-muted-foreground">
+                                    <span className="text-[11px] text-text-muted">
                                         {manifest.tools.length} tool{manifest.tools.length !== 1 ? 's' : ''} declared
                                     </span>
                                 )}
@@ -474,14 +474,14 @@ export default function ToolsPage() {
                 return (
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs text-muted-foreground">{filteredByType.filter((p) => p.enabled).length} / {filteredByType.length} enabled</p>
+                            <p className="text-xs text-text-muted">{filteredByType.filter((p) => p.enabled).length} / {filteredByType.length} enabled</p>
                         </div>
 
                         {officialApps.length > 0 && (
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
-                                    <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Official Apps</h2>
+                                    <h2 className="text-xs font-medium uppercase tracking-wider text-text-muted">Official Apps</h2>
                                 </div>
                                 {officialApps.map((p) => (
                                     <ToolCard key={p.id} ext={p} onToggle={handleToggle} onUninstall={handleUninstall} />
@@ -492,7 +492,7 @@ export default function ToolsPage() {
                         {communityExts.length > 0 && (
                             <div className="flex flex-col gap-2">
                                 {officialApps.length > 0 && (
-                                    <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mt-2">Installed Extensions</h2>
+                                    <h2 className="text-xs font-medium uppercase tracking-wider text-text-muted mt-2">Installed Extensions</h2>
                                 )}
                                 {communityExts.map((p) => (
                                     <ToolCard key={p.id} ext={p} onToggle={handleToggle} onUninstall={handleUninstall} />
