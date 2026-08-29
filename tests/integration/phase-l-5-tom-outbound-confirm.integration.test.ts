@@ -137,8 +137,13 @@ describe('Phase L5b — executor-side approval guard refuses uncovered outbound 
     it('throws when the LLM-emitted tool call has no covering OWD in plan.oneWayDoors[]', async () => {
         const requestApprovalMock = vi.fn().mockResolvedValue({ id: 'owd-l5b-int-1', decision: 'pending' })
         const waitForDecisionMock = vi.fn().mockResolvedValue('rejected')
-        vi.doMock('@plexo/agent/one-way-door', async () => {
-            const actual = await vi.importActual<typeof import('@plexo/agent/one-way-door')>('@plexo/agent/one-way-door')
+        // approval-guard.ts imports from '../one-way-door.js' (relative), not
+        // the '@plexo/agent/one-way-door' package specifier — mock the same
+        // specifier it actually resolves so the mock binds to its import.
+        vi.doMock('../../packages/agent/src/one-way-door.js', async () => {
+            const actual = await vi.importActual<typeof import('../../packages/agent/src/one-way-door.js')>(
+                '../../packages/agent/src/one-way-door.js',
+            )
             return { ...actual, requestApproval: requestApprovalMock, waitForDecision: waitForDecisionMock }
         })
 
@@ -158,7 +163,7 @@ describe('Phase L5b — executor-side approval guard refuses uncovered outbound 
             expect.objectContaining({ operation: 'gmail__send_email', riskLevel: 'high' }),
         )
 
-        vi.doUnmock('@plexo/agent/one-way-door')
+        vi.doUnmock('../../packages/agent/src/one-way-door.js')
     })
 })
 
