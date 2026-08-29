@@ -24,6 +24,29 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
 
+  arch:
+    # Clean Architecture boundary gate (ADR 0001). `--ignore-known` holds a
+    # baseline of violations that already existed when the gate was wired; it is
+    # a RATCHET, not an allowlist — new violations fail, and the baseline is
+    # being burned down cluster by cluster. Never regenerate it to make a build
+    # pass: `pnpm arch:baseline` is for recording a deliberate, reviewed change.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # @joeybuilt/plexo-sdk resolves through its "exports" map to dist/,
+      # which a fresh install does not produce. Without this the cruise reports
+      # 11 false not-unresolvable errors — locally it only passed because a
+      # stale dist/ happened to be lying around.
+      - run: pnpm --filter @joeybuilt/plexo-sdk build
+      - run: pnpm arch:check
+
   db-drift:
     # Phase J0 schema-vs-DDL gate: every pgTable() in schema.ts must have a
     # CREATE TABLE or RENAME TO in packages/db/drizzle/*.sql.
