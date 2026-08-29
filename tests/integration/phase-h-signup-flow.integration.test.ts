@@ -207,8 +207,12 @@ describe('Phase H — fresh-signup → workspace → task → terminal (no SQL w
             headers: { cookie: cookieHeader },
         })
         expect(getRes.status).toBe(200)
-        const taskRow = (await getRes.json()) as { status: string }
-        expect(['cancelled', 'complete', 'failed']).toContain(taskRow.status)
+        // GET /api/v1/tasks/:id returns the detail envelope
+        // `{ task, steps, events, approval }` — the status lives on `task`,
+        // not at the top level (see apps/api/src/routes/tasks.ts).
+        const detail = (await getRes.json()) as { task: { status: string } }
+        expect(detail.task).toBeDefined()
+        expect(['cancelled', 'complete', 'failed']).toContain(detail.task.status)
     })
 })
 
