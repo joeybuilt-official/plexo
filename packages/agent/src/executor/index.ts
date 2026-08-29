@@ -208,6 +208,9 @@ const TOOL_ISOLATION = process.env.PLEXO_TOOL_ISOLATION === '1'
 /** Tools eligible for worker-thread isolation */
 const WORKER_ELIGIBLE_TOOLS = new Set(['read_file', 'write_file', 'shell', 'edit_file', 'grep', 'glob'])
 
+/** Tracks consecutive PatchError per file to trigger diff-failure fallback (B8). Key: `${taskId}:${absPath}` */
+const editFailureCounts = new Map<string, number>()
+
 /**
  * Promote write_file outputs to works (DB + /tmp/plexo-assets).
  *
@@ -375,11 +378,45 @@ async function dispatchTool(
                 const { applyUnifiedPatch, PatchError } = await import('./code-tools.js')
                 const oldContent = readFileSync(p, 'utf8')
                 const patch = input.patch as string
+                const editFailKey = `${ctx.taskId}:${p}`
                 let patched: { result: string; bytesChanged: number }
                 try {
                     patched = applyUnifiedPatch(oldContent, patch)
+                    editFailureCounts.delete(editFailKey)
                 } catch (e) {
-                    if (e instanceof PatchError) return `ERROR: ${e.message}`
+                    if (e instanceof PatchError) {
+                        const prior = editFailureCounts.get(editFailKey) ?? 0
+                        const now = prior + 1
+                        editFailureCounts.set(editFailKey, now)
+                        if (now >= 2) {
+                            const fallbackContent = input.content as string | undefined
+                            if (fallbackContent && typeof fallbackContent === 'string' && fallbackContent.length > 0) {
+                                mkdirSync(dirname(p), { recursive: true })
+                                writeFileSync(p, fallbackContent, 'utf8')
+                                if (emit) {
+                                    let diff = ''
+                                    try {
+                                        const { createPatch } = await import('diff')
+                                        const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                                        diff = createPatch(relPath, oldContent, fallbackContent, '', '')
+                                    } catch { /* diff unavailable */ }
+                                    const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                                    emit({
+                                        type: 'step.file_write',
+                                        taskId: ctx.taskId,
+                                        workspaceId: ctx.workspaceId,
+                                        path: relPath,
+                                        patch: diff,
+                                        ts: Date.now(),
+                                    })
+                                }
+                                editFailureCounts.delete(editFailKey)
+                                return `OK: patch failed twice — fell back to write_file for ${p} (${fallbackContent.length} bytes)\nPatch error was: ${e.message}`
+                            }
+                            return `ERROR: Patch failed twice for ${p} (drifted context). The file has changed since you last read it. Re-read the file and use write_file with the complete intended content instead of another patch. Last error: ${e.message}`
+                        }
+                        return `ERROR: ${e.message}`
+                    }
                     throw e
                 }
                 writeFileSync(p, patched.result, 'utf8')
@@ -665,6 +702,7 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             inputSchema: z.object({
                 path: z.string().describe('Path to the file to edit'),
                 patch: z.string().describe('Unified-diff patch with @@ -a,b +c,d @@ hunk headers and context lines'),
+                content: z.string().optional().describe('Optional full file content to fall back to via write_file if the patch has failed on the previous attempt for this path (drifted).'),
             }),
             execute: async (input) => dispatchTool('edit_file', input as Record<string, unknown>, ctx, worker),
         }),
