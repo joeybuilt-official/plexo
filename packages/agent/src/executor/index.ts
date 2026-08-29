@@ -123,6 +123,9 @@ interface ParsedTestResult {
     detail: string
 }
 
+/** Max parsed test lines handed to the quality judge (failures first). */
+const JUDGE_TEST_EVIDENCE_LIMIT = 40
+
 /**
  * Extracts structured pass/fail info from common test runner output.
  * Handles: vitest, jest, mocha, TAP.
@@ -3028,6 +3031,24 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
     trackJudge((async () => {
         // Independent quality judge — decoupled from self-assessment to prevent
         // reward hacking. Falls back to the self-reported score on any failure.
+        // B14: real test evidence for the judge — re-parse this task's shell
+        // output so a failing suite is a signal the self-score cannot overpower.
+        // Failures are kept whole; passes are capped so the judge prompt stays
+        // bounded on a run with a large suite.
+        const parsedTests = toolCallRecords
+            .filter((t) => t.tool === 'shell')
+            .flatMap((t) => {
+                // StepResult.toolCalls[].output is `unknown` — the shell tool
+                // always returns a string, but narrow rather than assert.
+                const out = typeof t.output === 'string' ? t.output : ''
+                return out && !out.startsWith('ERROR:') ? parseTestOutput(out) : []
+            })
+        const failedTests = parsedTests.filter((r) => !r.pass)
+        const passedTests = parsedTests.filter((r) => r.pass)
+        const testResults = [...failedTests, ...passedTests]
+            .slice(0, JUDGE_TEST_EVIDENCE_LIMIT)
+            .map(({ pass, name }) => ({ pass, name }))
+
         const judgeResult = await judgeQuality({
             taskType: ctx.taskType ?? 'coding',
             goal: plan.goal,
@@ -3036,6 +3057,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
             selfScore: finalQuality,
             aiSettings,
             userRequest: plan.goal,
+            ...(testResults.length > 0 && { testResults }),
         }).catch((err) => {
             console.warn('[executor] quality judge failed — unverified fallback', err instanceof Error ? err.message : String(err))
             return { score: 0.3, meta: { mode: 'unverified' as const, selfScore: finalQuality, judgeCount: 0, dissenters: [], models: [] } }
