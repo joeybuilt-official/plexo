@@ -122,11 +122,18 @@ export async function runSubagent(args: {
         `Work within the working directory: ${workDir}\n\n` +
         `Brief: ${input.brief}${goalLine}`
 
-    // Sub-ctx: shares workdir/workspace/credential/signal; own taskId; events
-    // suppressed (see module doc — avoids new SSE shapes on the parent stream).
+    // Sub-ctx: shares workdir/workspace/credential/signal + IDs; strips
+    // volatile parent state that only bloats the sub-agent prompt (B7).
+    // Keep: workDir (sprintWorkDir), workspaceId/userId/credential/signal/
+    // taskType/tokenBudget, etc. Strip: scopeFiles, sclContext, agentPersona,
+    // emitStepEvent. Pass only workDir + IDs conceptually; spread + undefine
+    // is the minimal diff that keeps the type open for future fields.
     const subCtx: ExecutionContext = {
         ...ctx,
         taskId: subTaskId,
+        scopeFiles: undefined,
+        sclContext: undefined,
+        agentPersona: undefined,
         emitStepEvent: undefined,
     }
 
