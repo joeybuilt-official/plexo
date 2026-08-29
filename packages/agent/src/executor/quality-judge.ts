@@ -18,8 +18,9 @@
  * This creates a self-calibrating system: consistently-accurate models get more weight.
  *
  * Returns a JudgeResult with the composite score AND metadata (mode, judgeCount, dissenters,
- * selfScore) so the UI can surface the full picture. Never a hard dependency — falls back
- * to the agent's self-reported score on any unhandled failure.
+ * selfScore) so the UI can surface the full picture. Fail-closed (B6): when every judge
+ * tier is exhausted the score is capped at UNVERIFIED_SCORE with mode 'unverified' — never
+ * the agent's self-reported score.
  */
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
@@ -120,6 +121,8 @@ type JudgeParams = {
      * any `namespace__*` tool, the quality score is penalised heavily.
      */
     userRequest?: string
+    /** B14: structured test results parsed from the run's shell/test output. */
+    testResults?: Array<{ pass: boolean; name: string }>
 }
 
 type VerdictResult = { modelId: string; score: number; weight: number }
@@ -211,6 +214,13 @@ function buildJudgePrompt(
         .map((d) => `- ${d.dimension} (weight: ${(d.weight * 100).toFixed(0)}%)`)
         .join('\n')
 
+    // B14: real test evidence — parsed from the run's shell/test output. A
+    // failing suite is a strong correctness signal the model's self-score
+    // cannot overpower; a clean suite supports a higher score.
+    const testEvidence = params.testResults && params.testResults.length > 0
+        ? `\n\nTEST EVIDENCE (parsed from the run's test output):\n${params.testResults.map((r) => `${r.pass ? 'PASS' : 'FAIL'} ${r.name}`).join('\n')}\nFailed tests are a strong signal the deliverable is incomplete or incorrect — score accordingly.`
+        : ''
+
     return {
         system: `You are an independent quality evaluator for AI agent tasks.
 Score each dimension 0.0–1.0 based on the evidence provided. Apply strict, evidence-based scoring.
@@ -223,7 +233,7 @@ Agent self-score: ${params.selfScore.toFixed(2)} (for reference only — form yo
 
 Deliverable summary:
 ${params.deliverableSummary.slice(0, 2000)}
-
+${testEvidence}
 Score each of these quality dimensions:
 ${dimensionList}
 
@@ -450,6 +460,78 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
     const fallback: JudgeResult = {
         score: Math.min(capScore(UNVERIFIED_SCORE), UNVERIFIED_SCORE),
         meta: { mode: 'unverified', selfScore, judgeCount: 0, dissenters: [], models: [] },
+    }
+
+    // 0. Ensemble (B14) — when the workspace has an Ollama endpoint configured,
+    //    recruit N local judges, run them in parallel and aggregate by
+    //    reliability-weighted consensus. If any judge diverges from the mean by
+    //    more than the dissent threshold, one cloud arbiter breaks the tie.
+    //    Every failure here is non-fatal: we fall through to the single-judge
+    //    cascade below, which is itself fail-closed (B6).
+    const ollamaBaseUrl = aiSettings?.providers?.ollama?.baseUrl
+    if (ollamaBaseUrl) {
+        try {
+            const ensembleSize = aiSettings?.ensembleSize ?? DEFAULT_ENSEMBLE_SIZE
+            const dissentThreshold = aiSettings?.dissentThreshold ?? DEFAULT_DISSENT_THRESHOLD
+            const modelNames = await discoverOllamaModels(ollamaBaseUrl, ensembleSize)
+
+            if (modelNames.length > 0) {
+                const ensemble = await runEnsemble(params, rubric, ollamaBaseUrl, modelNames, dissentThreshold)
+                await updateReliabilityScores(ensemble.verdicts, ensemble.score, ensemble.dissenters)
+
+                // Dissent → one arbitration call through the judging cascade.
+                if (ensemble.dissenters.length > 0 && aiSettings) {
+                    try {
+                        const { routeAndCall } = await import('../providers/router-v2/index.js')
+                        const arbitrated = await routeAndCall({
+                            workspaceId: undefined,
+                            taskType: 'judging',
+                            settings: aiSettings,
+                            doCall: (model) => runSingleJudge(params, rubric, model),
+                        })
+                        const score = capScore(Math.min(1, Math.max(0, arbitrated)))
+                        logger.info(
+                            { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, dissenters: ensemble.dissenters },
+                            'Ensemble + arbitration done',
+                        )
+                        return {
+                            score,
+                            meta: {
+                                mode: 'ensemble+arbitration',
+                                selfScore,
+                                judgeCount: ensemble.verdicts.length + 1,
+                                dissenters: ensemble.dissenters,
+                                models: [...ensemble.models, 'arbiter'],
+                            },
+                        }
+                    } catch (arbErr) {
+                        const msg = arbErr instanceof Error ? arbErr.message : String(arbErr)
+                        logger.warn({ reason: msg.slice(0, 200) }, 'Arbitration failed — using ensemble consensus')
+                    }
+                }
+
+                const score = capScore(Math.min(1, Math.max(0, ensemble.score)))
+                logger.info(
+                    { taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3), penalised: sideEffectCheck.penalised, judges: ensemble.verdicts.length },
+                    'Ensemble judge done',
+                )
+                return {
+                    score,
+                    meta: {
+                        mode: 'ensemble',
+                        selfScore,
+                        judgeCount: ensemble.verdicts.length,
+                        dissenters: ensemble.dissenters,
+                        models: ensemble.models,
+                    },
+                }
+            }
+
+            logger.debug({ ollamaBaseUrl }, 'No Ollama models discovered — single-judge cascade')
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            logger.warn({ reason: msg.slice(0, 200) }, 'Ensemble judge failed — single-judge cascade')
+        }
     }
 
     // Single-model policy w/ recommended-judge fallback.

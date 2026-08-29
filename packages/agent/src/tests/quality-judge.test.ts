@@ -345,11 +345,64 @@ describe('judgeQuality', () => {
                 },
             } as any,
         })
-        expect(['ensemble', 'ensemble+arbitration', 'single', 'fallback']).toContain(result.meta.mode)
-        // Consensus — no dissent — should be ensemble mode with judgeCount > 0
-        if (result.meta.mode === 'ensemble') {
-            expect(result.meta.judgeCount).toBeGreaterThan(0)
-        }
+        // B14 revived the ensemble: identical mocked verdicts mean zero
+        // dissenters, so consensus is returned directly (no arbitration).
+        expect(result.meta.mode).toBe('ensemble')
+        expect(result.meta.judgeCount).toBeGreaterThan(0)
+        expect(result.meta.dissenters).toEqual([])
+        expect(result.meta.models).toEqual(['llama3.2:latest', 'phi3:mini'])
+    })
+
+    it('feeds parsed test results to the judge as TEST EVIDENCE (B14)', async () => {
+        const { generateObject } = await import('ai')
+        ;(generateObject as any).mockResolvedValue({
+            object: {
+                scores: [{ dimension: 'goal_met', score: 0.4, rationale: 'suite is red' }],
+                overall_notes: 'failing tests',
+            },
+            usage: { inputTokens: 10, outputTokens: 5 },
+        })
+
+        const { judgeQuality } = await loadModule()
+        await judgeQuality({
+            taskType: 'general',
+            goal: 'x',
+            deliverableSummary: 'y',
+            toolsUsed: [],
+            selfScore: 0.9,
+            testResults: [
+                { pass: false, name: 'parses the header' },
+                { pass: true, name: 'renders the footer' },
+            ],
+        })
+
+        const prompt = (generateObject as any).mock.calls[0][0].prompt as string
+        expect(prompt).toContain('TEST EVIDENCE')
+        expect(prompt).toContain('FAIL parses the header')
+        expect(prompt).toContain('PASS renders the footer')
+    })
+
+    it('omits the TEST EVIDENCE block when no test results are supplied (B14)', async () => {
+        const { generateObject } = await import('ai')
+        ;(generateObject as any).mockResolvedValue({
+            object: {
+                scores: [{ dimension: 'goal_met', score: 0.9, rationale: 'ok' }],
+                overall_notes: 'ok',
+            },
+            usage: { inputTokens: 10, outputTokens: 5 },
+        })
+
+        const { judgeQuality } = await loadModule()
+        await judgeQuality({
+            taskType: 'general',
+            goal: 'x',
+            deliverableSummary: 'y',
+            toolsUsed: [],
+            selfScore: 0.9,
+        })
+
+        const prompt = (generateObject as any).mock.calls[0][0].prompt as string
+        expect(prompt).not.toContain('TEST EVIDENCE')
     })
 
     it('falls through to single judge when ollama discovery returns empty', async () => {
@@ -387,13 +440,9 @@ describe('judgeQuality', () => {
         expect(result.meta.mode).toBe('single')
     })
 
-    it('accepts ensembleSize parameter from aiSettings without crashing', async () => {
-        // NOTE: discoverOllamaModels() is currently unreachable from
-        // judgeQuality (quality-judge.ts:142 is defined but not called) — the
-        // single-judge cascade is the only live path. This test verifies that
-        // passing ensembleSize through aiSettings does not crash the caller.
-        // Restored as a smoke test until Phase 4e-3 quality-judge migration
-        // either revives the ensemble path or removes the dead constant.
+    it('caps the ensemble at aiSettings.ensembleSize (B14)', async () => {
+        // Five models are advertised but ensembleSize is 2, so discovery walks
+        // PREFERRED_LOCAL_MODELS in priority order and stops at two judges.
         globalThis.fetch = vi.fn(async () =>
             new Response(JSON.stringify({
                 models: [
@@ -432,7 +481,9 @@ describe('judgeQuality', () => {
                 ensembleSize: 2,
             } as any,
         })
-        expect(['ensemble', 'ensemble+arbitration', 'single', 'fallback']).toContain(result.meta.mode)
+        expect(result.meta.mode).toBe('ensemble')
+        expect(result.meta.judgeCount).toBe(2)
+        expect(result.meta.models).toEqual(['llama3.2', 'phi3'])
     })
 
     it('clamps final score to [0, 1]', async () => {
