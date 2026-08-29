@@ -21,13 +21,20 @@
  *
  * This loop runs entirely within the executor at task completion — no separate job needed.
  */
-import { sql, desc, eq } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { workLedger } from '@plexo/db'
+import { DrizzleImprovementLogStore } from '../memory.repository.js'
+import type { ImprovementLogStore } from '../memory.ports.js'
 import { getPreference, learnPreference } from './preferences.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'ab-variants' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let improvementLogStore: ImprovementLogStore = new DrizzleImprovementLogStore()
+
+/** Swap the improvement log store (e.g. an in-memory fake in unit tests). */
+export function setImprovementLogStore(next: ImprovementLogStore): void {
+    improvementLogStore = next
+}
 
 /** Variant assignment result */
 export interface VariantAssignment {
@@ -43,21 +50,7 @@ export interface VariantAssignment {
 export async function assignVariant(workspaceId: string): Promise<VariantAssignment> {
     const control = ((await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null) ?? {}
 
-    const challengers = await db.execute<{
-        id: string
-        proposed_change: string
-        metadata: unknown
-    }>(sql`
-        SELECT id, proposed_change, metadata FROM agent_improvement_log
-        WHERE workspace_id = ${workspaceId}::uuid
-          AND pattern_type = 'prompt_patch'
-          AND applied = false
-          AND (metadata->>'discarded')::boolean IS NOT TRUE
-        ORDER BY created_at DESC
-        LIMIT 1
-    `)
-
-    const challenger = challengers[0]
+    const challenger = await improvementLogStore.selectPendingChallenger(workspaceId, 'prompt_patch')
 
     if (!challenger) {
         return { variant: 'A', challengerId: null, overrides: control }
@@ -90,7 +83,7 @@ export async function assignVariant(workspaceId: string): Promise<VariantAssignm
 
     let challengerOverrides: Record<string, string> = { ...control }
     try {
-        const patch = JSON.parse(challenger.proposed_change) as { section: string; proposed: string }
+        const patch = JSON.parse(challenger.proposedChange) as { section: string; proposed: string }
         challengerOverrides = { ...control, [patch.section]: patch.proposed }
     } catch {
         // malformed patch — fall back to control
@@ -115,15 +108,7 @@ export async function recordVariantOutcome(params: {
 
     // Persist variant assignment on the improvement log entry so we can aggregate
     if (challengerId) {
-        await db.execute(sql`
-            UPDATE agent_improvement_log
-            SET metadata = COALESCE(metadata, '{}'::jsonb) ||
-                jsonb_build_object(
-                    'variants', COALESCE(metadata->'variants', '[]'::jsonb) ||
-                        jsonb_build_array(jsonb_build_object('v', ${variant}, 'q', ${qualityScore}))
-                )
-            WHERE id = ${challengerId}::uuid
-        `)
+        await improvementLogStore.appendVariantOutcome(challengerId, { variant, qualityScore })
     }
 
     // Re-read stats and evaluate
@@ -132,13 +117,9 @@ export async function recordVariantOutcome(params: {
 }
 
 async function evaluateVariant(workspaceId: string, challengerId: string): Promise<void> {
-    const rows = await db.execute<{ metadata: unknown }>(sql`
-        SELECT metadata FROM agent_improvement_log
-        WHERE id = ${challengerId}::uuid
-        LIMIT 1
-    `)
+    const metadata = await improvementLogStore.getMetadata(challengerId)
 
-    const meta = rows[0]?.metadata as { variants?: { v: string; q: number }[]; discarded?: boolean } | null
+    const meta = metadata as { variants?: { v: string; q: number }[]; discarded?: boolean } | null
     const variants = meta?.variants ?? []
 
     const aScores = variants.filter((v) => v.v === 'A').map((v) => v.q)
@@ -167,26 +148,16 @@ async function evaluateVariant(workspaceId: string, challengerId: string): Promi
     // Discard if we've gathered enough evidence and it's still not winning
     if (bScores.length >= 40) {
         logger.info({ challengerId, pValue: stats.pValue }, 'Challenger prompt lost after 40 samples — discarding')
-        await db.execute(sql`
-            UPDATE agent_improvement_log
-            SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"discarded": true}'::jsonb
-            WHERE id = ${challengerId}::uuid
-        `)
+        await improvementLogStore.markDiscarded(challengerId)
     }
 }
 
 async function autoPromote(workspaceId: string, challengerId: string): Promise<void> {
-    const rows = await db.execute<{ proposed_change: string }>(sql`
-        SELECT proposed_change FROM agent_improvement_log
-        WHERE id = ${challengerId}::uuid
-        LIMIT 1
-    `)
-
-    const row = rows[0]
-    if (!row) return
+    const proposedChange = await improvementLogStore.getProposedChange(challengerId)
+    if (!proposedChange) return
 
     try {
-        const patch = JSON.parse(row.proposed_change) as { section: string; proposed: string }
+        const patch = JSON.parse(proposedChange) as { section: string; proposed: string }
         const current = ((await getPreference(workspaceId, 'prompt_overrides')) as Record<string, string> | null) ?? {}
         const updated = { ...current, [patch.section]: patch.proposed }
 
@@ -197,12 +168,7 @@ async function autoPromote(workspaceId: string, challengerId: string): Promise<v
             observationConfidence: 0.95, // higher than manual — statistically validated
         })
 
-        await db.execute(sql`
-            UPDATE agent_improvement_log
-            SET applied = true,
-                metadata = COALESCE(metadata, '{}'::jsonb) || '{"auto_promoted": true}'::jsonb
-            WHERE id = ${challengerId}::uuid
-        `)
+        await improvementLogStore.markAutoPromoted(challengerId)
 
         logger.info({ workspaceId, challengerId, section: patch.section }, 'Prompt A/B challenger auto-promoted')
     } catch (err) {

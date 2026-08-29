@@ -16,11 +16,19 @@
  *   preferred_tools          — ["read_file", "shell", ...]  (ranked by success rate)
  */
 import pino from 'pino'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
+import { DrizzlePreferenceStore } from '../memory.repository.js'
+import type { PreferenceStore } from '../memory.ports.js'
 import { getCachedPreferences, setCachedPreferences, invalidatePrefsCache } from './store.js'
 
 const logger = pino({ name: 'preferences' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let preferenceStore: PreferenceStore = new DrizzlePreferenceStore()
+
+/** Swap the preference store (e.g. an in-memory fake in unit tests). */
+export function setPreferenceStore(next: PreferenceStore): void {
+    preferenceStore = next
+}
 
 export interface Preference {
     workspaceId: string
@@ -38,16 +46,7 @@ export async function getPreferences(workspaceId: string): Promise<Record<string
     const cached = await getCachedPreferences(workspaceId)
     if (cached) return cached
 
-    const rows = await db.execute<{
-        key: string
-        value: unknown
-        confidence: number
-    }>(sql`
-    SELECT key, value, confidence
-    FROM workspace_preferences
-    WHERE workspace_id = ${workspaceId}::uuid
-    ORDER BY confidence DESC
-  `)
+    const rows = await preferenceStore.listByWorkspace(workspaceId)
 
     const prefs = Object.fromEntries(rows.map((r) => [r.key, r.value]))
     await setCachedPreferences(workspaceId, prefs)
@@ -55,12 +54,7 @@ export async function getPreferences(workspaceId: string): Promise<Record<string
 }
 
 export async function getPreference(workspaceId: string, key: string): Promise<unknown | null> {
-    const rows = await db.execute<{ value: unknown }>(sql`
-    SELECT value FROM workspace_preferences
-    WHERE workspace_id = ${workspaceId}::uuid AND key = ${key}
-    LIMIT 1
-  `)
-    return rows[0]?.value ?? null
+    return preferenceStore.getValue(workspaceId, key)
 }
 
 // ── Write (upsert with confidence accumulation) ───────────────────────────────
@@ -77,23 +71,7 @@ export async function learnPreference(params: {
 }): Promise<void> {
     const { workspaceId, key, value, observationConfidence = 0.6 } = params
 
-    await db.execute(sql`
-    INSERT INTO workspace_preferences (workspace_id, key, value, confidence, evidence_count, last_updated)
-    VALUES (
-      ${workspaceId}::uuid,
-      ${key},
-      ${JSON.stringify(value)}::jsonb,
-      ${observationConfidence},
-      1,
-      now()
-    )
-    ON CONFLICT (workspace_id, key)
-    DO UPDATE SET
-      value = EXCLUDED.value,
-      confidence = LEAST(0.95, workspace_preferences.confidence + (EXCLUDED.confidence * 0.1)),
-      evidence_count = workspace_preferences.evidence_count + 1,
-      last_updated = now()
-  `)
+    await preferenceStore.upsert({ workspaceId, key, value, confidence: observationConfidence })
 
     // Invalidate Redis cache so next read reflects the update
     await invalidatePrefsCache(workspaceId)
