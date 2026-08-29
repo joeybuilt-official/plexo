@@ -9,14 +9,14 @@
 # the VPS. Verifies the new code actually landed in the right
 # container by inspecting the built artifacts.
 #
-# The dashboard is `plexo-saas`. Picking the wrong service is the #1
+# The dashboard is `plexo`. Picking the wrong service is the #1
 # deploy mistake — see AGENTS.md "Deploy sequence" for the full table.
 # This script enforces the mapping so it can't be fat-fingered.
 #
 # Usage:
 #   ./scripts/deploy-vps.sh                      # auto-detect from git diff
 #   ./scripts/deploy-vps.sh plexo-api            # force one service
-#   ./scripts/deploy-vps.sh plexo-api plexo-saas # force several
+#   ./scripts/deploy-vps.sh plexo-api plexo      # force several
 #   ./scripts/deploy-vps.sh --all                # rebuild every plexo service
 #
 # Env vars:
@@ -53,12 +53,12 @@ ssh_run() {
 # documents the same map for human readers; this script uses it for the
 # auto-detect path.
 #
-# Order matters for verification: api/saas. If you add a new service,
+# Order matters for verification: api then web. If you add a new service,
 # add it here AND update AGENTS.md "Deploy sequence" in the same commit.
 
 SERVICE_MAP=(
   "plexo-api:plexo-api:apps/api/,packages/agent/,packages/db/,packages/queue/,packages/scl-core/,packages/sdk/,packages/storage/,packages/mcp-server/"
-  "plexo-saas:plexo-saas:apps/web/,packages/agent/,packages/db/,packages/sdk/,packages/storage/"
+  "plexo:plexo:apps/web/,packages/agent/,packages/db/,packages/sdk/,packages/storage/"
 )
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ verify_service() {
       ssh_run "docker exec $container ls /app/apps/api/src/index.ts" >/dev/null \
         && ok "$container source present" || die "$container source missing"
       ;;
-    plexo-saas)
+    plexo)
       ssh_run "docker exec $container ls /app/apps/web/.next/server/app/app" >/dev/null \
         && ok "$container .next/server/app/app built" || die "$container missing /app routes — wrong service rebuilt?"
       ;;

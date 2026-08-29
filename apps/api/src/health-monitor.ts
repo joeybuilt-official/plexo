@@ -47,7 +47,7 @@ export interface HealthEvent {
 // Default services to monitor. Override with HEALTH_MONITOR_SERVICES env var
 // (JSON array of { id, name, url, endpoint } objects).
 const DEFAULT_SERVICES: MonitoredService[] = [
-    { id: 'plexo-saas', name: 'Plexo App', url: 'http://plexo-saas:3000', endpoint: '/' },
+    { id: 'plexo', name: 'Plexo App', url: 'http://plexo:3000', endpoint: '/' },
     { id: 'plexo-api', name: 'Plexo API', url: 'http://plexo-api:3001', endpoint: '/health' },
     { id: 'embeddings', name: 'Embeddings Server', url: 'http://embeddings:3001', endpoint: '/health' },
 ]

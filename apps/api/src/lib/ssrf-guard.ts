@@ -40,7 +40,7 @@ const PRIVATE_HOSTS = new Set([
     'localhost', '127.0.0.1', '::1', '0.0.0.0',
     'postgres', 'plexo-db', 'redis', 'valkey', 'plexo-redis',
     'ollama', 'plexo-embeddings', 'plexo-api', 'plexo-web',
-    'plexo-saas', 'plexo-hub',
+    'plexo-saas', 'plexo', 'plexo-hub',
 ])
 
 const PRIVATE_IPV4 = [
