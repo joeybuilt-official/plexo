@@ -10,6 +10,9 @@ import {
     buildSystemPrompt,
     buildParallelismBlock,
     buildTaskPromptParts,
+    buildScopePrimingBlock,
+    SCOPE_PRIMING_BUDGET_CHARS,
+    SCOPE_PRIMING_PER_FILE_CHARS,
 } from './build-system-prompt.js'
 
 describe('buildConversationPrompt', () => {
@@ -295,5 +298,89 @@ describe('buildSystemPrompt (facade)', () => {
         expect(buildSystemPrompt({ taskType: 'classifier' })).toContain('Classify the last user message')
         expect(buildSystemPrompt({ taskType: 'conversational-task' })).toContain('call the task_complete tool')
         expect(buildSystemPrompt({ taskType: 'task', taskGoal: 'g', plannedSteps: 1 })).toContain('COMPLETION RULE:')
+    })
+})
+
+describe('buildScopePrimingBlock (B16)', () => {
+    /** The exact template this block rendered before B16 introduced the budget. */
+    function legacyBlock(files: Array<{ path: string; content: string }>): string {
+        const fileBlocks = files
+            .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+            .join('\n\n')
+        return `\n\nPRIMED FILE CONTEXT (pre-loaded — no need to re-read these):\n${fileBlocks}`
+    }
+
+    it('returns empty string for undefined or empty scope', () => {
+        expect(buildScopePrimingBlock(undefined)).toBe('')
+        expect(buildScopePrimingBlock([])).toBe('')
+    })
+
+    it('renders byte-identically to the pre-B16 block when the scope fits the budget', () => {
+        const files = [
+            { path: 'src/a.ts', content: 'export const a = 1' },
+            { path: 'src/b.ts', content: 'export const b = 2' },
+        ]
+        expect(buildScopePrimingBlock(files)).toBe(legacyBlock(files))
+    })
+
+    it('truncates a single oversized file and says so, instead of dropping it', () => {
+        const content = 'x'.repeat(SCOPE_PRIMING_PER_FILE_CHARS + 5_000)
+        const out = buildScopePrimingBlock([{ path: 'src/huge.ts', content }])
+
+        expect(out).toContain('src/huge.ts')
+        expect(out).toContain(`truncated to the first ${SCOPE_PRIMING_PER_FILE_CHARS} characters`)
+        expect(out).toContain('read_file for the rest')
+        // The body is capped, not merely labelled as capped.
+        expect(out).not.toContain('x'.repeat(SCOPE_PRIMING_PER_FILE_CHARS + 1))
+    })
+
+    it('names files it could not prime rather than dropping them silently', () => {
+        // Six files at the per-file cap overrun the 24k budget after three.
+        const files = Array.from({ length: 6 }, (_, i) => ({
+            path: `src/f${i}.ts`,
+            content: 'y'.repeat(SCOPE_PRIMING_PER_FILE_CHARS),
+        }))
+        const out = buildScopePrimingBlock(files)
+
+        expect(out).toContain('Also in scope but NOT pre-loaded')
+        // Every path is present exactly once, primed or deferred — nothing vanishes.
+        for (const f of files) expect(out).toContain(f.path)
+        expect(out).toContain('- src/f5.ts')
+    })
+
+    it('bounds the whole block by the budget regardless of scope size', () => {
+        const files = Array.from({ length: 200 }, (_, i) => ({
+            path: `src/f${i}.ts`,
+            content: 'z'.repeat(SCOPE_PRIMING_PER_FILE_CHARS),
+        }))
+        const out = buildScopePrimingBlock(files)
+
+        // Budgeted content + per-file headers + the deferred path list. The point
+        // is that it is O(budget + paths), not O(total scope bytes) — 200 files at
+        // the per-file cap would otherwise be 1.6M characters, every single turn.
+        expect(out.length).toBeLessThan(SCOPE_PRIMING_BUDGET_CHARS + 20_000)
+        expect(out.length).toBeGreaterThan(SCOPE_PRIMING_BUDGET_CHARS)
+    })
+
+    it('splits primed vs deferred exactly at the budget boundary', () => {
+        // Three files at the per-file cap spend the whole 24k budget, so the
+        // fourth has no room left and is named rather than primed.
+        const perFile = SCOPE_PRIMING_BUDGET_CHARS / SCOPE_PRIMING_PER_FILE_CHARS
+        expect(perFile).toBe(3)
+
+        const files = Array.from({ length: 4 }, (_, i) => ({
+            path: `src/f${i}.ts`,
+            content: 'q'.repeat(SCOPE_PRIMING_PER_FILE_CHARS),
+        }))
+        const out = buildScopePrimingBlock(files)
+
+        const deferredHeading = out.indexOf('Also in scope but NOT pre-loaded')
+        expect(deferredHeading).toBeGreaterThan(-1)
+        const primedHalf = out.slice(0, deferredHeading)
+        const deferredHalf = out.slice(deferredHeading)
+
+        for (const p of ['src/f0.ts', 'src/f1.ts', 'src/f2.ts']) expect(primedHalf).toContain(p)
+        expect(primedHalf).not.toContain('src/f3.ts')
+        expect(deferredHalf).toContain('- src/f3.ts')
     })
 })

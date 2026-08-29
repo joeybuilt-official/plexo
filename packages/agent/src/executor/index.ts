@@ -71,7 +71,7 @@ import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
 import { classifyCapabilityGap } from '../tasks/classify-capability-gap.js'
 import { buildWebTools } from '../tools/web-tools.js'
-import { buildConversationalTaskPrompt, buildTaskPrompt, buildTaskPromptParts } from '../prompts/build-system-prompt.js'
+import { buildConversationalTaskPrompt, buildScopePrimingBlock, buildTaskPrompt, buildTaskPromptParts } from '../prompts/build-system-prompt.js'
 import { resolveUserTimezone } from '../user-timezone-port.js'
 import { getFilesystemPort } from './filesystem-port.js'
 import { buildRepoMap } from './repomap.js'
@@ -1587,13 +1587,12 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         : ''
 
     // ── Phase C: Execution Priming — pre-loaded scope files ─────────────────
-    let scopePrimingBlock = ''
-    if (ctx.scopeFiles && ctx.scopeFiles.length > 0) {
-        const fileBlocks = ctx.scopeFiles
-            .map((f) => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-            .join('\n\n')
-        scopePrimingBlock = `\n\nPRIMED FILE CONTEXT (pre-loaded — no need to re-read these):\n${fileBlocks}`
-    }
+    // B16: rendered by the prompt builder under an explicit char budget. This
+    // block lands in the DYNAMIC tail, which the B1 cache breakpoint does not
+    // cover, so an oversized scope re-bills whole file bodies on every turn;
+    // the budget caps that and names the overflow by path instead. Skipped
+    // outright on the conversational-fast branch, whose prompt discards it.
+    const scopePrimingBlock = isConversationalFast ? '' : buildScopePrimingBlock(ctx.scopeFiles)
 
     // ── B4: repo-map (symbol map) — global code awareness for coding tasks ──
     // Scan the workdir and inject a relevance-ranked symbol map into the cached
