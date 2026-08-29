@@ -45,6 +45,13 @@ export interface PromptContext {
     primaryRepo?: string
     sprintGoal?: string
     sprintCodingBlock?: string
+    /**
+     * Repo-map (B4): a relevance-ranked symbol map of `sprintWorkDir`, prebuilt
+     * by the executor via `executor/repomap.ts`. Rendered in the STABLE prefix
+     * (after `sprintCodingBlock`) so it is prompt-cached across the multi-step
+     * loop — the repo does not change mid-task. Empty for non-coding tasks.
+     */
+    repomapBlock?: string
     scopePrimingBlock?: string
     taskType2?: string
     taskGoal?: string
@@ -437,6 +444,7 @@ export function buildTaskPromptParts(ctx: PromptContext): TaskPromptParts {
         identity,
         workspaceHeader,
         ctx.sprintCodingBlock,
+        ctx.repomapBlock,
         TASK_COMPLETION_RULES,
         TASK_EXECUTION_RULES,
         ctx.capabilityBlock,

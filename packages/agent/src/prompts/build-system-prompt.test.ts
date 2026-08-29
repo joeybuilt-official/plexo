@@ -266,6 +266,19 @@ describe('buildTaskPromptParts', () => {
         })
         expect(joined).toBe(full)
     })
+
+    it('places the repo map (B4) in the stable prefix, not the dynamic tail', () => {
+        const repomapBlock = '\n\nREPOSITORY MAP (top-level symbols):\n  function handleAuth :1'
+        const parts = buildTaskPromptParts({
+            taskType: 'task',
+            taskGoal: 'g',
+            plannedSteps: 1,
+            repomapBlock,
+        })
+        expect(parts.stable).toContain('REPOSITORY MAP')
+        expect(parts.dynamic).not.toContain('REPOSITORY MAP')
+        expect(buildTaskPrompt({ taskType: 'task', taskGoal: 'g', plannedSteps: 1, repomapBlock })).toContain('REPOSITORY MAP')
+    })
 })
 
 describe('buildClassifierPrompt', () => {

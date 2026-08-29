@@ -74,6 +74,8 @@ import { buildWebTools } from '../tools/web-tools.js'
 import { buildConversationalTaskPrompt, buildTaskPrompt, buildTaskPromptParts } from '../prompts/build-system-prompt.js'
 import { resolveUserTimezone } from '../user-timezone-port.js'
 import { getFilesystemPort } from './filesystem-port.js'
+import { buildRepoMap } from './repomap.js'
+import { getRepoMapPort } from './repomap-port.js'
 
 import { compactStaleToolResults, compactStaleAssistantMessages } from './context-projector.js'
 export { compactStaleToolResults, compactStaleAssistantMessages }
@@ -1486,6 +1488,27 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         scopePrimingBlock = `\n\nPRIMED FILE CONTEXT (pre-loaded — no need to re-read these):\n${fileBlocks}`
     }
 
+    // ── B4: repo-map (symbol map) — global code awareness for coding tasks ──
+    // Scan the workdir and inject a relevance-ranked symbol map into the cached
+    // stable prefix. Best-effort by design: a scan or ranking failure must never
+    // block the task, so any error here leaves repomapBlock '' (no block).
+    let repomapBlock = ''
+    if (!isConversationalFast && ctx.sprintWorkDir) {
+        try {
+            const sources = await getRepoMapPort().scanRepo(ctx.sprintWorkDir)
+            const query = [
+                plan.goal,
+                ...(ctx.sclContext?.relevantPatterns ?? []),
+                ...(ctx.sclContext?.suggestedTools ?? []),
+                ...(ctx.sclContext?.domainKnowledge ?? []),
+            ].filter((s): s is string => typeof s === 'string' && s.length > 0)
+            const map = buildRepoMap(sources, { query })
+            if (map) repomapBlock = `\n\n${map}`
+        } catch {
+            /* best-effort — leave repomapBlock '' */
+        }
+    }
+
     // identityLine is built after router resolution (below) so it reflects the actual model used.
 
     const planSummary = plan.steps
@@ -1867,6 +1890,7 @@ ${ctx.sclContext.domainKnowledge.length > 0 ? `Domain knowledge: ${ctx.sclContex
         sprintGoal: ctx.sprintGoal,
         sprintCodingBlock,
         scopePrimingBlock,
+        repomapBlock,
         taskGoal: plan.goal,
         taskSource: ctx.taskSource,
         plannedSteps: plan.steps.length,
