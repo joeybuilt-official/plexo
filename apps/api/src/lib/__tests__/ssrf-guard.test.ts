@@ -43,6 +43,13 @@ describe('isSSRFSafeUrl', () => {
                 expect(isSSRFSafeUrl(`http://${h}:5432`, 'cloud').ok).toBe(false)
             }
         })
+        it('blocks the web dashboard under both its old and new service name', () => {
+            // The compose service was renamed plexo-saas -> plexo. The denylist keeps
+            // both: a name that still resolves on the network must stay blocked.
+            for (const h of ['plexo-saas', 'plexo']) {
+                expect(isSSRFSafeUrl(`http://${h}:3000`, 'cloud').ok).toBe(false)
+            }
+        })
         it('rejects invalid URLs', () => {
             expect(isSSRFSafeUrl('not a url', 'cloud').ok).toBe(false)
             expect(isSSRFSafeUrl('', 'cloud').ok).toBe(false)
