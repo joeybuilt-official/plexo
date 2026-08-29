@@ -185,3 +185,42 @@ export interface WorkLedgerSampleStore {
     /** Fallback: completed tasks used when work-ledger history is sparse. */
     selectTaskOutcomeSamples(workspaceId: string, limit: number): Promise<TaskOutcomeSample[]>
 }
+
+/** One task memory eligible to be folded into a weekly summary. */
+export interface ConsolidationCandidate {
+    id: string
+    content: string
+    createdAt: Date
+}
+
+/** The summary row that replaces a batch of individual memories. */
+export interface ConsolidationWrite {
+    workspaceId: string
+    content: string
+    metadata: Record<string, unknown>
+    /** Dated to the oldest memory in the batch, so a later pass still skips it. */
+    createdAt: Date
+    /** Exactly the memories whose content is inside `content`. */
+    replaceIds: string[]
+}
+
+export interface MemoryConsolidationStore {
+    /** How many task memories have not yet been folded into a summary. */
+    countUnconsolidated(workspaceId: string): Promise<number>
+    /** Un-consolidated task memories created before `before`, oldest first. */
+    listUnconsolidatedBefore(
+        workspaceId: string,
+        before: Date,
+        limit: number,
+    ): Promise<ConsolidationCandidate[]>
+    /**
+     * Insert the summary and delete the memories it replaces.
+     *
+     * This is ONE method on purpose. Splitting it into `insert()` and
+     * `deleteMany()` would lose the atomicity the single data-modifying CTE
+     * gives it today: a crash between the two halves would either duplicate
+     * the memories or destroy them with no summary to show for it.
+     * Implementations must perform both in one statement or one transaction.
+     */
+    consolidateInto(write: ConsolidationWrite): Promise<void>
+}

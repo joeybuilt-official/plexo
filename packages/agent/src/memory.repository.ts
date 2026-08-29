@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Drizzle adapters for the memory-port extraction batches 1-3
+ * Drizzle adapters for the memory-port extraction batches 1-4
  * (docs/claude/platform/memory-port-extraction/plan.md).
  *
  * The ONLY memory modules in these batches permitted to import the ORM.
@@ -10,6 +10,7 @@
 
 import { db, memoryEntries, workLedger, tasks } from '@plexo/db'
 import { sql, eq, desc } from 'drizzle-orm'
+import { sqlArray } from './sql-array.js'
 import type {
     BehaviorRuleStore,
     BehaviorRuleInput,
@@ -28,6 +29,9 @@ import type {
     WorkLedgerPromptSample,
     WorkLedgerOutcomeSample,
     TaskOutcomeSample,
+    MemoryConsolidationStore,
+    ConsolidationCandidate,
+    ConsolidationWrite,
 } from './memory.ports.js'
 
 export class DrizzleBehaviorRuleStore implements BehaviorRuleStore {
@@ -287,5 +291,61 @@ export class DrizzleWorkLedgerSampleStore implements WorkLedgerSampleStore {
             .where(eq(tasks.workspaceId, workspaceId))
             .orderBy(desc(tasks.completedAt))
             .limit(limit)
+    }
+}
+
+export class DrizzleMemoryConsolidationStore implements MemoryConsolidationStore {
+    async countUnconsolidated(workspaceId: string): Promise<number> {
+        const [row] = await db.execute<{ count: number }>(sql`
+            SELECT count(*)::int as count FROM memory_entries
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND type = 'task'
+              AND (metadata->>'consolidated')::boolean IS NOT TRUE
+        `)
+        return row?.count ?? 0
+    }
+
+    async listUnconsolidatedBefore(
+        workspaceId: string,
+        before: Date,
+        limit: number,
+    ): Promise<ConsolidationCandidate[]> {
+        const rows = await db.execute<{ id: string, content: string, created_at: Date | string }>(sql`
+            SELECT id, content, created_at
+            FROM memory_entries
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND type = 'task'
+              AND (metadata->>'consolidated')::boolean IS NOT TRUE
+              AND created_at < ${before.toISOString()}::timestamp
+            ORDER BY created_at ASC
+            LIMIT ${limit}
+        `)
+        // The driver hands back a Date for timestamp columns, but the shape is
+        // resolved here rather than trusted downstream — the port promises a Date.
+        return rows.map((r) => ({
+            id: r.id,
+            content: r.content,
+            createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
+        }))
+    }
+
+    async consolidateInto(write: ConsolidationWrite): Promise<void> {
+        // One statement: the CTE's INSERT and the DELETE share a snapshot, so
+        // the summary and the removal of what it summarizes cannot come apart.
+        await db.execute(sql`
+            WITH inserted AS (
+                INSERT INTO memory_entries (workspace_id, type, content, metadata, created_at)
+                VALUES (
+                    ${write.workspaceId}::uuid,
+                    'task',
+                    ${write.content},
+                    ${JSON.stringify(write.metadata)}::jsonb,
+                    ${write.createdAt.toISOString()}::timestamp
+                )
+                RETURNING id
+            )
+            DELETE FROM memory_entries
+            WHERE id = ANY(${sqlArray(write.replaceIds, 'uuid')})
+        `)
     }
 }

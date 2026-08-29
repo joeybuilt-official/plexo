@@ -17,9 +17,8 @@
  */
 
 import pino from 'pino'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { sqlArray } from '../sql-array.js'
+import { DrizzleMemoryConsolidationStore } from '../memory.repository.js'
+import type { ConsolidationCandidate, MemoryConsolidationStore } from '../memory.ports.js'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 
 const logger = pino({ name: 'memory.consolidation' })
@@ -27,14 +26,14 @@ const logger = pino({ name: 'memory.consolidation' })
 const CONSOLIDATION_THRESHOLD = 50
 const CONSOLIDATION_AGE_DAYS = 30
 const MAX_MEMORIES_PER_CONSOLIDATED = 20
+/** Upper bound on rows examined per pass; the remainder waits for the next one. */
+const MAX_MEMORIES_PER_PASS = 200
 
-interface MemoryRow {
-    id: string
-    content: string
-    type: string
-    createdAt: Date
-    metadata: Record<string, unknown> | null
-    [key: string]: unknown
+let consolidationStore: MemoryConsolidationStore = new DrizzleMemoryConsolidationStore()
+
+/** Test seam — swap in a fake store. */
+export function setMemoryConsolidationStore(next: MemoryConsolidationStore): void {
+    consolidationStore = next
 }
 
 /**
@@ -43,14 +42,7 @@ interface MemoryRow {
  */
 export async function maybeConsolidate(workspaceId: string): Promise<{ consolidated: number }> {
     try {
-        // Count un-consolidated task memories
-        const [row] = await db.execute<{ count: number }>(sql`
-            SELECT count(*)::int as count FROM memory_entries
-            WHERE workspace_id = ${workspaceId}::uuid
-              AND type = 'task'
-              AND (metadata->>'consolidated')::boolean IS NOT TRUE
-        `)
-        const count = row?.count ?? 0
+        const count = await consolidationStore.countUnconsolidated(workspaceId)
 
         if (count < CONSOLIDATION_THRESHOLD) {
             return { consolidated: 0 }
@@ -70,25 +62,18 @@ export async function maybeConsolidate(workspaceId: string): Promise<{ consolida
 async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ consolidated: number }> {
     const cutoff = new Date(Date.now() - CONSOLIDATION_AGE_DAYS * 24 * 60 * 60 * 1000)
 
-    // Fetch old, un-consolidated task memories
-    const oldMemories = await db.execute<MemoryRow>(sql`
-        SELECT id, content, type, created_at as "createdAt", metadata
-        FROM memory_entries
-        WHERE workspace_id = ${workspaceId}::uuid
-          AND type = 'task'
-          AND (metadata->>'consolidated')::boolean IS NOT TRUE
-          AND created_at < ${cutoff.toISOString()}::timestamp
-        ORDER BY created_at ASC
-        LIMIT 200
-    `)
+    const oldMemories = await consolidationStore.listUnconsolidatedBefore(
+        workspaceId,
+        cutoff,
+        MAX_MEMORIES_PER_PASS,
+    )
 
     if (oldMemories.length === 0) return { consolidated: 0 }
 
     // Group by ISO week (YYYY-WNN)
-    const byWeek = new Map<string, MemoryRow[]>()
+    const byWeek = new Map<string, ConsolidationCandidate[]>()
     for (const mem of oldMemories) {
-        const d = mem.createdAt instanceof Date ? mem.createdAt : new Date(mem.createdAt)
-        const weekKey = getISOWeek(d)
+        const weekKey = getISOWeek(mem.createdAt)
         const list = byWeek.get(weekKey) ?? []
         list.push(mem)
         byWeek.set(weekKey, list)
@@ -111,23 +96,16 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
 
         const idsToDelete = batch.map(m => m.id)
 
-        // Atomic: insert consolidated entry + delete individuals
+        // One port call, not an insert followed by a delete — see the note on
+        // MemoryConsolidationStore.consolidateInto.
         try {
-            await db.execute(sql`
-                WITH inserted AS (
-                    INSERT INTO memory_entries (workspace_id, type, content, metadata, created_at)
-                    VALUES (
-                        ${workspaceId}::uuid,
-                        'task',
-                        ${summaryContent},
-                        ${JSON.stringify({ consolidated: true, sourceCount: batch.length, weekOf: weekKey })}::jsonb,
-                        ${(batch[0]!.createdAt instanceof Date ? batch[0]!.createdAt : new Date(batch[0]!.createdAt as string)).toISOString()}::timestamp
-                    )
-                    RETURNING id
-                )
-                DELETE FROM memory_entries
-                WHERE id = ANY(${sqlArray(idsToDelete, 'uuid')})
-            `)
+            await consolidationStore.consolidateInto({
+                workspaceId,
+                content: summaryContent,
+                metadata: { consolidated: true, sourceCount: batch.length, weekOf: weekKey },
+                createdAt: batch[0]!.createdAt,
+                replaceIds: idsToDelete,
+            })
             totalConsolidated += batch.length
             logger.info({ workspaceId, weekKey, count: batch.length, weekTotal: memories.length }, 'Consolidated week memories')
         } catch (err) {
