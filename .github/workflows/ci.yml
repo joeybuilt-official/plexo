@@ -97,3 +97,52 @@ jobs:
       # them and they rotted unnoticed. `test:integration` still needs Postgres
       # + Redis service containers and is wired up separately.
       - run: pnpm test:unit
+
+  integration:
+    # Root integration suite. It was dark for months: 19 files that nothing ran,
+    # so the fixtures rotted against the code they were meant to guard. It needs
+    # real Postgres (with pgvector — memory_entries.embedding is vector(384)) and
+    # real Redis, which is why it was never wired alongside `test`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: typecheck
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: plexo
+          POSTGRES_PASSWORD: plexo
+          POSTGRES_DB: plexo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U plexo -d plexo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://plexo:plexo@localhost:5432/plexo_test
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      # Migrations 0130-0143 are un-journaled orphans applied by hand in prod;
+      # drizzle-kit will not replay them, so a database built only from the
+      # journal is missing columns the suite writes to.
+      - run: pnpm db:apply-orphaned
+      - run: pnpm test:integration

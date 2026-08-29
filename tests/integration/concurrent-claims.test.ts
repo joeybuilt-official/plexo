@@ -2,12 +2,26 @@
  * Concurrent task claim integration tests.
  * Verifies that SELECT FOR UPDATE SKIP LOCKED prevents double-claims under
  * 3-worker parallel load. Runs against local dev Postgres.
+ *
+ * `claim()` is GLOBAL — `claimNext` has no workspace filter and orders by
+ * `priority ASC, created_at ASC` across the entire tasks table. Every other
+ * integration file shares this database and runs in its own fork, so a single
+ * older queued row belonging to anyone else absorbs all of our workers'
+ * claims and this file fails with "expected 0 to be greater than 0".
+ *
+ * CLAIM_PRIORITY is what makes the race deterministic: it outranks every other
+ * priority used in the suite (the `push()` default of 1, and 10 in queue.test.ts),
+ * so our rows are always at the head of the global queue when the workers race.
+ * Do not raise it, and do not push tasks here at the default priority.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { push, claim, list } from '../../packages/queue/src/index.js'
 import { db } from '@plexo/db'
 import { eq, sql } from 'drizzle-orm'
 import { workspaces, tasks } from '@plexo/db'
+
+/** Outranks every other priority in the suite. See the header note. */
+const CLAIM_PRIORITY = 0
 
 let workspaceId: string
 let userId: string
@@ -49,7 +63,7 @@ describe('queue claim — concurrent safety', () => {
                     type: 'research',
                     source: 'api',
                     context: { worker: i, test: 'concurrent-claim' },
-                    priority: 1,
+                    priority: CLAIM_PRIORITY,
                 })
             )
         )
@@ -97,7 +111,7 @@ describe('queue claim — concurrent safety', () => {
                     type: 'ops',
                     source: 'api',
                     context: { batch: 'exhaustion', seq: i },
-                    priority: 1,
+                    priority: CLAIM_PRIORITY,
                 })
             )
         )
@@ -128,15 +142,16 @@ describe('queue claim — concurrent safety', () => {
             type: 'monitoring',
             source: 'cron',
             context: { test: 'single-claim' },
-            priority: 1,
+            priority: CLAIM_PRIORITY,
         })
 
         // Verify task starts in queued state
         const queued = await list({ workspaceId, status: 'queued' })
         expect(queued.some(t => t.id === id)).toBe(true)
 
-        // claim() is global — other workspaces' tasks may be claimed first.
-        // Drain up to 20 claims until we reach our specific task.
+        // CLAIM_PRIORITY puts our task at the head, so the first claim should
+        // return it. The bounded loop stays as a guard: an earlier test in this
+        // file can leave its own unclaimed CLAIM_PRIORITY rows queued ahead of us.
         let ours: Awaited<ReturnType<typeof claim>> = null
         for (let i = 0; i < 20 && !ours; i++) {
             const t = await claim(`agent-drain-${i}`)

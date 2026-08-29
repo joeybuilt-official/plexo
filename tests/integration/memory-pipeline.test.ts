@@ -14,22 +14,27 @@ import { type WorkspaceAISettings } from '../../packages/domain/src/ai-settings.
 
 // ── Mock LLM (shorthand) + embedding before importing store ────────────────
 
-// Deterministic fake embedding: hash string into a 384-dim unit vector.
-// memory_entries.embedding is vector(384) (retyped from 1536 in migration 0065).
+// Deterministic fake embedding: feature-hash the words into a 384-dim unit
+// vector, one dimension per token. memory_entries.embedding is vector(384)
+// (retyped from 1536 in migration 0065).
+//
+// Token-level hashing matters: an earlier version hashed the whole string into
+// every dimension, so two texts sharing a word still came out near-orthogonal
+// (measured cosine -0.083 for "church calling" against a document containing
+// "church"). That makes any similarity assertion meaningless. Hashing per token
+// gives shared vocabulary a shared direction, which is the one property of a
+// real embedder this pipeline depends on.
 function fakeEmbedding(text: string): number[] {
-    const vec = new Array(384).fill(0)
-    let h = 0
-    for (let i = 0; i < text.length; i++) {
-        h = ((h << 5) - h + text.charCodeAt(i)) | 0
+    const vec = new Array<number>(384).fill(0)
+    for (const token of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
+        let h = 0
+        for (let i = 0; i < token.length; i++) {
+            h = ((h << 5) - h + token.charCodeAt(i)) | 0
+        }
+        vec[Math.abs(h) % 384] += 1
     }
-    // Spread energy across dimensions based on hash
-    for (let i = 0; i < 384; i++) {
-        h = ((h << 5) - h + i) | 0
-        vec[i] = Math.sin(h)
-    }
-    // Normalize
     const mag = Math.sqrt(vec.reduce((s: number, v: number) => s + v * v, 0))
-    return vec.map((v: number) => v / mag)
+    return mag === 0 ? vec : vec.map((v: number) => v / mag)
 }
 
 // Mock the embedding router — intercepts before store.ts loads it
@@ -41,19 +46,19 @@ vi.mock('../../packages/agent/src/embeddings/router.js', () => ({
     }),
 }))
 
-// Mock the AI SDK generateText — intercepts shorthand generation
-vi.mock('ai', () => ({
-    generateText: vi.fn().mockResolvedValue({
-        text: 'F: LDS bishop, Utah, near Utah Valley Hospital\nP: respect religious context\nS: bishop near hospital Utah',
-    }),
-}))
-
-// Mock the router — summarizeMemory calls routeAndCall(...).doCall(model),
-// which invokes the mocked `generateText` above. Bypasses provider selection
-// and model construction entirely (same pattern as store.test.ts).
+// Mock the router — `summarizeMemory` reaches the model only through
+// `routeAndCall`, so that is the seam this test controls, and the mock returns
+// the shorthand directly instead of invoking `doCall`.
+//
+// It must NOT delegate to `doCall`: the `ai` package is a dependency of
+// packages/agent and has no root-level install, so a `vi.mock('ai', ...)` in a
+// test under tests/ resolves nothing and silently never binds. The previous
+// version of this file did exactly that, so `doCall` reached the real AI SDK,
+// failed with "Unauthenticated request to AI Gateway", and left shorthand null.
 vi.mock('../../packages/agent/src/providers/router-v2/index.js', () => ({
-    routeAndCall: vi.fn(async (input: { doCall: (model: string) => Promise<string> }) =>
-        input.doCall('mock-model')),
+    routeAndCall: vi.fn().mockResolvedValue(
+        'F: LDS bishop, Utah, near Utah Valley Hospital\nP: respect religious context\nS: bishop near hospital Utah',
+    ),
 }))
 
 // Empty mock — store.ts only type-imports registry.js. This stays to satisfy
