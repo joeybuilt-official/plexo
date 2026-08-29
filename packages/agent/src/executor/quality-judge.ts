@@ -120,6 +120,8 @@ type JudgeParams = {
      * any `namespace__*` tool, the quality score is penalised heavily.
      */
     userRequest?: string
+    /** B14: structured test results parsed from the run's shell/test output. */
+    testResults?: Array<{ pass: boolean; name: string }>
 }
 
 type VerdictResult = { modelId: string; score: number; weight: number }
@@ -211,6 +213,13 @@ function buildJudgePrompt(
         .map((d) => `- ${d.dimension} (weight: ${(d.weight * 100).toFixed(0)}%)`)
         .join('\n')
 
+    // B14: real test evidence — parsed from the run's shell/test output. A
+    // failing suite is a strong correctness signal the model's self-score
+    // cannot overpower; a clean suite supports a higher score.
+    const testEvidence = params.testResults && params.testResults.length > 0
+        ? `\n\nTEST EVIDENCE (parsed from the run's test output):\n${params.testResults.map((r) => `${r.pass ? 'PASS' : 'FAIL'} ${r.name}`).join('\n')}\nFailed tests are a strong signal the deliverable is incomplete or incorrect — score accordingly.`
+        : ''
+
     return {
         system: `You are an independent quality evaluator for AI agent tasks.
 Score each dimension 0.0–1.0 based on the evidence provided. Apply strict, evidence-based scoring.
@@ -223,7 +232,7 @@ Agent self-score: ${params.selfScore.toFixed(2)} (for reference only — form yo
 
 Deliverable summary:
 ${params.deliverableSummary.slice(0, 2000)}
-
+${testEvidence}
 Score each of these quality dimensions:
 ${dimensionList}
 
