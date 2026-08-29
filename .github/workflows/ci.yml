@@ -40,6 +40,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # @joeybuilt/plexo-sdk resolves through its "exports" map to dist/,
+      # which a fresh install does not produce. Without this the cruise reports
+      # 11 false not-unresolvable errors — locally it only passed because a
+      # stale dist/ happened to be lying around.
+      - run: pnpm --filter @joeybuilt/plexo-sdk build
       - run: pnpm arch:check
 
   db-drift:
