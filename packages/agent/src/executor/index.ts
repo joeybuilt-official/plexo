@@ -219,6 +219,47 @@ export function truncateToolOutput(output: unknown): string {
     return str.slice(0, MAX_TOOL_OUTPUT_CHARS) + '\n\n[Output truncated at 30k chars — showing first 30k; narrow scope or read fewer files]'
 }
 
+// ── B13: identical read-only call dedupe ─────────────────────────────────────
+
+/**
+ * Tools whose output is safe to dedupe within a single task: pure reads with no
+ * side effects, so re-issuing them returns identical content while the
+ * underlying state hasn't changed.
+ */
+export const READ_DEDUPE_TOOLS = new Set([
+    'read_file', 'grep', 'glob', 'web_search', 'web_read_page', 'web_fetch',
+])
+
+/**
+ * Tools that can mutate the state visible to reads. Executing one of these
+ * invalidates the task's read cache so a later identical read re-fetches fresh
+ * content (e.g. read → edit → read must not return the stale pre-edit text).
+ */
+export const READ_INVALIDATING_TOOLS = new Set([
+    'write_file', 'edit_file', 'shell', 'write_asset', 'local_bridge',
+])
+
+/** Key: `${taskId}|${tool}|${stableArgs}` → truncated output already cached. */
+const readToolCache = new Map<string, string>()
+const READ_CACHE_MAX = 200
+
+/** Stable stringify so `{a,b}` and `{b,a}` produce the same key. Exported for tests. */
+export function stableStringify(value: unknown): string {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value)
+    if (Array.isArray(value)) return JSON.stringify(value.map(stableStringify))
+    const obj = value as Record<string, unknown>
+    const sorted = Object.keys(obj).sort()
+    return `{${sorted.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`
+}
+
+/** Clear a task's dedupe cache (exported so the executor can reset it at task end). */
+export function clearTaskReadCache(taskId: string): void {
+    const prefix = `${taskId}|`
+    for (const k of readToolCache.keys()) {
+        if (k.startsWith(prefix)) readToolCache.delete(k)
+    }
+}
+
 /**
  * Promote write_file outputs to works (DB + /tmp/plexo-assets).
  *
@@ -1042,18 +1083,40 @@ export function buildTools(ctx: ExecutionContext, worker?: ToolWorker | null) {
             },
         }),
     }
-    // B9 uniform truncation: wrap every tool so the model never receives an unbounded output.
-    for (const tool of Object.values(tools as Record<string, { execute?: (input: unknown) => Promise<unknown> }>)) {
-        const orig = tool.execute
+    // B9 uniform truncation + B13 identical-read dedupe: wrap every tool so
+    // the model never receives an unbounded output, and so repeated pure-read
+    // calls with identical args are served from the per-task cache instead of
+    // re-executed (saves latency + tokens in long exploration stretches).
+    // Mutation tools invalidate the task's read cache on the way out.
+    const readCacheKey = `${ctx.taskId}|` // prefix pruned by clearTaskReadCache
+    for (const [name, toolDef] of Object.entries(tools as Record<string, { execute?: (input: unknown) => Promise<unknown> }>)) {
+        const orig = toolDef.execute
         if (typeof orig !== 'function') continue
-        tool.execute = async (input: unknown) => {
-            const out = await (orig as (input: unknown) => Promise<unknown>)(input)
-            if (typeof out === 'string') return truncateToolOutput(out)
-            try {
-                return truncateToolOutput(JSON.stringify(out))
-            } catch {
-                return truncateToolOutput(String(out))
+        toolDef.execute = async (input: unknown) => {
+            const cacheable = READ_DEDUPE_TOOLS.has(name)
+            if (cacheable) {
+                const key = readCacheKey + name + stableStringify(input ?? {})
+                const cached = readToolCache.get(key)
+                if (cached !== undefined) {
+                    return cached
+                }
             }
+            const out = await (orig as (input: unknown) => Promise<unknown>)(input)
+            const text = typeof out === 'string'
+                ? out
+                : (() => { try { return JSON.stringify(out) } catch { return String(out) } })()
+            const bounded = truncateToolOutput(text)
+            if (cacheable) {
+                if (readToolCache.size >= READ_CACHE_MAX) {
+                    const oldest = readToolCache.keys().next().value
+                    if (oldest !== undefined) readToolCache.delete(oldest)
+                }
+                readToolCache.set(readCacheKey + name + stableStringify(input ?? {}), bounded)
+            }
+            if (READ_INVALIDATING_TOOLS.has(name)) {
+                clearTaskReadCache(ctx.taskId)
+            }
+            return bounded
         }
     }
     return tools
