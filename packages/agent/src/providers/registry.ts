@@ -362,6 +362,30 @@ export const CHEAP_MODEL_BY_PROVIDER: Partial<Record<ProviderKey, string>> = {
     ollama_cloud: 'gpt-oss:20b-cloud',
 }
 
+/**
+ * Weak/strong split (B17) — the `modelIdOverride` a DELEGATED sub-agent call
+ * should use, or `undefined` to leave routing untouched.
+ *
+ * Sub-agents are read-only by design and context-stripped (B7), so they are the
+ * one delegatable subtask that makes its own model call and does not need the
+ * parent's strong model. Returns a `provider/model` id for B11's
+ * `routeAndCall.modelIdOverride` seam.
+ *
+ * Deliberately NOT a `resolveEffectiveModelId` branch: that function keys on
+ * `TaskType`, and the parent executor loop and `spawn_subagent` both route at
+ * `'codeGeneration'`, so a task-type rule cannot tell them apart — it would
+ * downgrade the parent loop, which is the opposite of a weak/strong split.
+ *
+ * Off unless `weakDelegateModel === true`, and silent when the active provider
+ * has no cheap model mapped.
+ */
+export function resolveWeakDelegateModelId(settings: WorkspaceAISettings): string | undefined {
+    if (settings.weakDelegateModel !== true) return undefined
+    const provider = settings.primaryProvider
+    const cheap = CHEAP_MODEL_BY_PROVIDER[provider]
+    return cheap ? `${provider}/${cheap}` : undefined
+}
+
 function validModelId(id: string | undefined): string | undefined {
     return id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
 }
