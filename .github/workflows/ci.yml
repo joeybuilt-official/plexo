@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
     # because nothing ran it in CI, apps/web quietly accumulated 36 errors —
     # 17 of them React Compiler correctness bugs. Both are fixed; this job is
     # what stops it happening again.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +41,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # A static check the type system cannot make: interpolating a JS array
+      # into a `::type[]` cast renders a ROW constructor and fails at runtime.
+      # Three call sites shipped that way and swallowed the error.
+      - run: pnpm check:sql-arrays
 
   arch:
     # Clean Architecture boundary gate (ADR 0001). `--ignore-known` holds a
@@ -48,7 +52,7 @@ jobs:
     # a RATCHET, not an allowlist — new violations fail, and the baseline is
     # being burned down cluster by cluster. Never regenerate it to make a build
     # pass: `pnpm arch:baseline` is for recording a deliberate, reviewed change.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +72,7 @@ jobs:
   db-drift:
     # Phase J0 schema-vs-DDL gate: every pgTable() in schema.ts must have a
     # CREATE TABLE or RENAME TO in packages/db/drizzle/*.sql.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -87,6 +91,13 @@ jobs:
     # ENOENT /app/patches/sharp@0.35.0.patch and BOTH images were undeployable.
     # Every other gate was green, because no job here ever built an image. This
     # is that job. It builds only — publishing is a separate, credentialed step.
+    # Stays on a GitHub-hosted runner: the self-hosted pool has no Docker
+    # socket and the host's docker-socket proxy sets BUILD=0, so an image
+    # build cannot run there. Restricted to push events for the same reason —
+    # GitHub-hosted minutes are exhausted, and a job that cannot start must
+    # not sit red on every PR. Move this back to pull_request (and to
+    # [self-hosted, docker]) once a Docker-capable runner exists.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -112,7 +123,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]
     timeout-minutes: 10
     needs: typecheck
     steps:
@@ -133,36 +144,18 @@ jobs:
     # Root integration suite. It was dark for months: 19 files that nothing ran,
     # so the fixtures rotted against the code they were meant to guard. It needs
     # real Postgres (with pgvector — memory_entries.embedding is vector(384)) and
-    # real Redis, which is why it was never wired alongside `test`.
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # real Redis.
+    #
+    # It cannot use `services:` — the self-hosted runners have no Docker socket.
+    # Instead it reaches long-lived CI Postgres/Redis over the runner network and
+    # carves its own database per run, because the suite requires a clean one:
+    # a leftover queued task from an earlier run makes the global `claim()` in
+    # concurrent-claims pick up someone else's row.
+    runs-on: [self-hosted]
+    timeout-minutes: 20
     needs: typecheck
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: plexo
-          POSTGRES_PASSWORD: plexo
-          POSTGRES_DB: plexo_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U plexo -d plexo_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
     env:
-      DATABASE_URL: postgres://plexo:plexo@localhost:5432/plexo_test
-      REDIS_URL: redis://localhost:6379
+      REDIS_URL: ${{ secrets.CI_REDIS_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -171,9 +164,32 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
+      - name: Create an isolated database for this run
+        env:
+          BASE_URL: ${{ secrets.CI_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          DB="ci_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          psql "$BASE_URL" -v ON_ERROR_STOP=1 -q \
+            -c "DROP DATABASE IF EXISTS \"$DB\";" \
+            -c "CREATE DATABASE \"$DB\";"
+          URL="${BASE_URL%/*}/$DB"
+          echo "::add-mask::$URL"
+          echo "DATABASE_URL=$URL" >> "$GITHUB_ENV"
+          echo "CI_RUN_DB=$DB" >> "$GITHUB_ENV"
+
       - run: pnpm db:migrate
       # Migrations 0130-0143 are un-journaled orphans applied by hand in prod;
       # drizzle-kit will not replay them, so a database built only from the
       # journal is missing columns the suite writes to.
       - run: pnpm db:apply-orphaned
       - run: pnpm test:integration
+
+      - name: Drop the run database
+        if: always()
+        env:
+          BASE_URL: ${{ secrets.CI_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          psql "$BASE_URL" -q -c "DROP DATABASE IF EXISTS \"${CI_RUN_DB}\" WITH (FORCE);" || true

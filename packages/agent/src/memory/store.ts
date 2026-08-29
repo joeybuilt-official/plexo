@@ -16,6 +16,7 @@
 import pino from 'pino'
 import { generateText } from 'ai'
 import { eq, ne, and, desc, sql, inArray } from 'drizzle-orm'
+import { sqlArray } from '../sql-array.js'
 import { db } from '@plexo/db'
 import { memoryEntries, workspaces } from '@plexo/db'
 import { type WorkspaceAISettings } from '../providers/registry.js'
@@ -321,8 +322,8 @@ export async function storeMemory(params: {
 function promoteTier(ids: string[]): void {
     if (ids.length === 0) return
     db.execute(
-        sql`UPDATE memory_entries SET tier = 'hot' WHERE id = ANY(${ids}::uuid[]) AND tier != 'hot'`,
-    ).catch(() => { /* non-fatal */ })
+        sql`UPDATE memory_entries SET tier = 'hot' WHERE id = ANY(${sqlArray(ids, 'uuid')}) AND tier != 'hot'`,
+    ).catch((err) => logger.warn({ err, count: ids.length }, 'Tier promotion failed'))
 }
 
 export async function searchMemory(params: {

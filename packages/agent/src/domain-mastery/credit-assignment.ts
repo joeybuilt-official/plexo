@@ -17,6 +17,7 @@
  */
 
 import pino from 'pino'
+import { sqlArray } from '../sql-array.js'
 import {
     MIN_CREDIT_OCCURRENCES,
     MIN_QUALITY_DELTA,
@@ -212,16 +213,21 @@ export async function quarantinePoorRules(workspaceId: string): Promise<{ quaran
         let quarantinedCount = 0
 
         if (toQuarantine.length > 0) {
-            await db.execute(sql`
+            // Count what the UPDATE actually changed. Reporting
+            // `toQuarantine.length` claimed success for rules that were already
+            // quarantined or soft-deleted — and, while this statement was
+            // invalid SQL, for an UPDATE that never ran at all.
+            const updated = await db.execute<{ key: string }>(sql`
                 UPDATE behavior_rules
                 SET tags = array_append(tags, 'quarantined'),
                     updated_at = NOW()
                 WHERE workspace_id = ${workspaceId}::uuid
-                  AND key = ANY(${toQuarantine}::text[])
+                  AND key = ANY(${sqlArray(toQuarantine, 'text')})
                   AND deleted_at IS NULL
                   AND NOT ('quarantined' = ANY(tags))
-            `).catch(() => null)
-            quarantinedCount = toQuarantine.length
+                RETURNING key
+            `)
+            quarantinedCount = updated.length
         }
 
         if (quarantinedCount > 0) {

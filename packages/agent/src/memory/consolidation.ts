@@ -19,6 +19,7 @@
 import pino from 'pino'
 import { sql } from 'drizzle-orm'
 import { db } from '@plexo/db'
+import { sqlArray } from '../sql-array.js'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 
 const logger = pino({ name: 'memory.consolidation' })
@@ -125,7 +126,7 @@ async function consolidateWorkspaceMemories(workspaceId: string): Promise<{ cons
                     RETURNING id
                 )
                 DELETE FROM memory_entries
-                WHERE id = ANY(ARRAY[${sql.join(idsToDelete.map(id => sql`${id}`), sql`, `)}]::uuid[])
+                WHERE id = ANY(${sqlArray(idsToDelete, 'uuid')})
             `)
             totalConsolidated += batch.length
             logger.info({ workspaceId, weekKey, count: batch.length, weekTotal: memories.length }, 'Consolidated week memories')
