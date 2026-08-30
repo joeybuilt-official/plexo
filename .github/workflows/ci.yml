@@ -91,14 +91,12 @@ jobs:
     # ENOENT /app/patches/sharp@0.35.0.patch and BOTH images were undeployable.
     # Every other gate was green, because no job here ever built an image. This
     # is that job. It builds only — publishing is a separate, credentialed step.
-    # Stays on a GitHub-hosted runner: the self-hosted pool has no Docker
-    # socket and the host's docker-socket proxy sets BUILD=0, so an image
-    # build cannot run there. Restricted to push events for the same reason —
-    # GitHub-hosted minutes are exhausted, and a job that cannot start must
-    # not sit red on every PR. Move this back to pull_request (and to
-    # [self-hosted, docker]) once a Docker-capable runner exists.
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    #
+    # Runs on the one self-hosted runner that has the Docker socket, which is
+    # why it is back on pull_request: #161 had to restrict it to push events
+    # because no runner could build an image and GitHub-hosted minutes were
+    # exhausted, so it would have sat red on every PR.
+    runs-on: [self-hosted, docker]
     timeout-minutes: 30
     strategy:
       # Report both images. Without this a web failure would mask an api one,
@@ -108,19 +106,27 @@ jobs:
         image: [web, api]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.${{ matrix.image }}
-          push: false
-          # Both Dockerfiles derive the build id from SOURCE_COMMIT, falling back
-          # to reading .git. Pass it explicitly so the build does not depend on
-          # checkout depth.
-          build-args: |
-            SOURCE_COMMIT=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      # Plain `docker build`, not buildx with a GHA cache: `type=gha` writes to
+      # the GitHub Actions cache service, which is not reachable from a
+      # self-hosted runner. The builder here is long-lived, so the daemon's own
+      # layer cache already does that job — and does it across runs for free.
+      # Both Dockerfiles derive the build id from SOURCE_COMMIT and otherwise
+      # fall back to reading .git, so pass it explicitly rather than depend on
+      # checkout depth.
+      - name: Build the ${{ matrix.image }} image
+        run: |
+          docker build \
+            --file docker/Dockerfile.${{ matrix.image }} \
+            --build-arg SOURCE_COMMIT=${{ github.sha }} \
+            --tag plexo-${{ matrix.image }}:ci-${{ github.run_id }} \
+            .
+
+      # The daemon is shared with production containers on this host, so the
+      # run's image must not be left behind. Untagged parents stay in the layer
+      # cache, which is what makes the next build fast.
+      - name: Remove the run's image tag
+        if: always()
+        run: docker image rm plexo-${{ matrix.image }}:ci-${{ github.run_id }} || true
 
   test:
     runs-on: [self-hosted]
