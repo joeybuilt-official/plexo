@@ -114,8 +114,31 @@ function captureEvents(filter: (e: AgentEvent) => boolean): { events: AgentEvent
 
 // Allow plan_proposed inserts a moment to land — recordTaskEvent is fire-and-
 // forget inside emitPlanProposal (matches the prod call sites).
+/**
+ * Wait for the fire-and-forget `plan_proposed` write to land.
+ *
+ * This used to be a flat `setTimeout(250)`. That is a race against wall-clock,
+ * not a wait for the thing being tested: it passed on an idle machine and
+ * failed once the CI host was also building container images, with
+ * `expected [] to have a length of 1`. Poll for the row instead — same
+ * correction as the AbortSignal fix in #137 and the SSE import fix in #150.
+ */
+async function waitForPlanProposed(taskId: string): Promise<void> {
+    for (let i = 0; i < 60; i++) {
+        const rows = await db.select().from(plexoOpsTaskEvents)
+            .where(sql`${plexoOpsTaskEvents.taskId} = ${taskId} AND ${plexoOpsTaskEvents.eventType} = 'plan_proposed'`)
+        if (rows.length > 0) return
+        await new Promise(r => setTimeout(r, 50))
+    }
+}
+
+/**
+ * Proving a row is NEVER written cannot be done by polling — there is nothing
+ * to poll for — so this case keeps a fixed wait, widened to stay ahead of the
+ * write it is trying to outlast.
+ */
 async function flushTaskEvents(): Promise<void> {
-    await new Promise(r => setTimeout(r, 250))
+    await new Promise(r => setTimeout(r, 1000))
 }
 
 beforeAll(() => {
@@ -263,7 +286,7 @@ describe('Phase F1 — plan_proposal SSE', () => {
                 approvalId: null,
             })
             expect(fired).toBe(true)
-            await flushTaskEvents()
+            await waitForPlanProposed(taskId)
 
             const rows = await db.select().from(plexoOpsTaskEvents)
                 .where(sql`${plexoOpsTaskEvents.taskId} = ${taskId} AND ${plexoOpsTaskEvents.eventType} = 'plan_proposed'`)
@@ -310,7 +333,7 @@ describe('Phase F1 — plan_proposal SSE', () => {
                 requiresApproval: true,
                 approvalId: approval.id,
             })
-            await flushTaskEvents()
+            await waitForPlanProposed(taskId)
 
             const rows = await db.select().from(plexoOpsTaskEvents)
                 .where(sql`${plexoOpsTaskEvents.taskId} = ${taskId} AND ${plexoOpsTaskEvents.eventType} = 'plan_proposed'`)
