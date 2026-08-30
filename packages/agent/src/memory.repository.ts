@@ -8,8 +8,8 @@
  * The ONLY memory modules in these batches permitted to import the ORM.
  */
 
-import { db, memoryEntries, workLedger, tasks } from '@plexo/db'
-import { sql, eq, desc } from 'drizzle-orm'
+import { db, memoryEntries, workspaces, workLedger, tasks } from '@plexo/db'
+import { sql, eq, ne, and, desc, inArray } from 'drizzle-orm'
 import { sqlArray } from './sql-array.js'
 import type {
     BehaviorRuleStore,
@@ -32,6 +32,11 @@ import type {
     MemoryConsolidationStore,
     ConsolidationCandidate,
     ConsolidationWrite,
+    MemoryRetrievalStore,
+    MemoryRecord,
+    ScoredMemoryRecord,
+    MemoryQuery,
+    MemoryWriteInput,
 } from './memory.ports.js'
 
 export class DrizzleBehaviorRuleStore implements BehaviorRuleStore {
@@ -347,5 +352,105 @@ export class DrizzleMemoryConsolidationStore implements MemoryConsolidationStore
             DELETE FROM memory_entries
             WHERE id = ANY(${sqlArray(write.replaceIds, 'uuid')})
         `)
+    }
+}
+
+/** Shared projection so the vector and text paths cannot drift apart. */
+const toRecord = (r: {
+    id: string
+    workspace_id?: string
+    workspaceId?: string
+    type: string
+    content: string
+    shorthand: string | null
+    metadata: unknown
+    tier: string | null
+    confidence: number | null
+    namespace?: string | null
+    created_at?: Date | string
+    createdAt?: Date | string
+}): MemoryRecord => {
+    const created = r.created_at ?? r.createdAt ?? new Date()
+    return {
+        id: r.id,
+        workspaceId: (r.workspace_id ?? r.workspaceId)!,
+        type: r.type,
+        content: r.content,
+        shorthand: r.shorthand,
+        metadata: (r.metadata ?? {}) as Record<string, unknown>,
+        tier: r.tier ?? 'active',
+        confidence: r.confidence ?? null,
+        namespace: r.namespace ?? 'default',
+        createdAt: created instanceof Date ? created : new Date(created),
+    }
+}
+
+export class DrizzleMemoryRetrievalStore implements MemoryRetrievalStore {
+    async workspaceExists(workspaceId: string): Promise<boolean> {
+        const rows = await db.select({ id: workspaces.id }).from(workspaces)
+            .where(eq(workspaces.id, workspaceId)).limit(1)
+        return rows.length > 0
+    }
+
+    async write(record: MemoryWriteInput): Promise<void> {
+        await db.insert(memoryEntries).values(record as typeof memoryEntries.$inferInsert)
+    }
+
+    async setShorthand(id: string, shorthand: string): Promise<void> {
+        await db.update(memoryEntries).set({ shorthand }).where(eq(memoryEntries.id, id))
+    }
+
+    async searchByVector(
+        query: MemoryQuery & { embedding: number[] },
+    ): Promise<ScoredMemoryRecord[]> {
+        const vecStr = `[${query.embedding.join(',')}]`
+        const typeClause = query.type ? sql`AND type = ${query.type}::memory_type` : sql``
+        // ANY(array) matches one or many namespaces without rebuilding the
+        // statement per namespace.
+        const nsArray = sqlArray(query.namespaces, 'text')
+
+        // Two-phase retrieval: the CASE is the PRIMARY sort key, so a hot entry
+        // outranks a closer active one. Distance only orders within a tier.
+        const rows = await db.execute<Parameters<typeof toRecord>[0] & { similarity: number }>(sql`
+      SELECT id, workspace_id, type, content, shorthand, metadata, tier, confidence, namespace, created_at,
+             1 - (embedding <=> ${vecStr}::vector) AS similarity
+      FROM memory_entries
+      WHERE workspace_id = ${query.workspaceId}::uuid
+        AND embedding IS NOT NULL
+        AND tier != 'cold'
+        AND namespace = ANY(${nsArray})
+        ${typeClause}
+      ORDER BY
+        CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
+        embedding <=> ${vecStr}::vector ASC
+      LIMIT ${query.limit}
+    `)
+        return rows.map((r) => ({ ...toRecord(r), similarity: r.similarity }))
+    }
+
+    async searchByText(query: MemoryQuery & { text?: string }): Promise<MemoryRecord[]> {
+        const conditions: NonNullable<Parameters<typeof and>[0]>[] = [
+            eq(memoryEntries.workspaceId, query.workspaceId),
+            ne(memoryEntries.tier, 'cold'),
+            inArray(memoryEntries.namespace, query.namespaces),
+        ]
+        const text = query.text?.trim()
+        if (text) {
+            conditions.push(sql`content ILIKE ${'%' + text.split(' ').slice(0, 5).join('%') + '%'}`)
+        }
+        if (query.type) conditions.push(eq(memoryEntries.type, query.type as never))
+
+        const rows = await db.select().from(memoryEntries)
+            .where(and(...conditions))
+            .orderBy(desc(memoryEntries.createdAt))
+            .limit(query.limit)
+        return rows.map((r) => toRecord(r as unknown as Parameters<typeof toRecord>[0]))
+    }
+
+    async promoteToHot(ids: string[]): Promise<void> {
+        if (ids.length === 0) return
+        await db.execute(
+            sql`UPDATE memory_entries SET tier = 'hot' WHERE id = ANY(${sqlArray(ids, 'uuid')}) AND tier != 'hot'`,
+        )
     }
 }

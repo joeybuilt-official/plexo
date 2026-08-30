@@ -224,3 +224,63 @@ export interface MemoryConsolidationStore {
      */
     consolidateInto(write: ConsolidationWrite): Promise<void>
 }
+
+/** A memory entry as the core reasons about it — no ORM row shape crosses here. */
+export interface MemoryRecord {
+    id: string
+    workspaceId: string
+    type: string
+    content: string
+    shorthand: string | null
+    metadata: Record<string, unknown>
+    tier: string
+    confidence: number | null
+    namespace: string
+    createdAt: Date
+}
+
+/** A record plus its cosine similarity to the query vector. */
+export interface ScoredMemoryRecord extends MemoryRecord {
+    similarity: number
+}
+
+/** The filters every retrieval path shares. */
+export interface MemoryQuery {
+    workspaceId: string
+    namespaces: string[]
+    type?: string
+    limit: number
+}
+
+/** Row written by `storeMemory` / `writeShared`. */
+export interface MemoryWriteInput {
+    id: string
+    workspaceId: string
+    type: string
+    content: string
+    metadata: Record<string, unknown>
+    tier: string
+    namespace: string
+}
+
+export interface MemoryRetrievalStore {
+    /** False when the workspace row is absent, so a write can be skipped. */
+    workspaceExists(workspaceId: string): Promise<boolean>
+    /** Insert a memory row. Embedding and shorthand are filled in afterwards. */
+    write(record: MemoryWriteInput): Promise<void>
+    setShorthand(id: string, shorthand: string): Promise<void>
+    /**
+     * Cosine-ranked retrieval. Excludes the cold tier and rows with no
+     * embedding, and ranks hot-tier entries ahead of active ones before
+     * distance — tier is the primary sort key, not a tie-breaker.
+     */
+    searchByVector(query: MemoryQuery & { embedding: number[] }): Promise<ScoredMemoryRecord[]>
+    /**
+     * Fallback for when no embedding could be produced: newest first, with an
+     * optional substring match. Unscored — the caller decides what an absent
+     * similarity means.
+     */
+    searchByText(query: MemoryQuery & { text?: string }): Promise<MemoryRecord[]>
+    /** Move retrieved entries into the hot tier. Fire-and-forget at the call site. */
+    promoteToHot(ids: string[]): Promise<void>
+}

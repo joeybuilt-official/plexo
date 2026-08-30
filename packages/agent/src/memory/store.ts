@@ -15,10 +15,9 @@
  */
 import pino from 'pino'
 import { generateText } from 'ai'
-import { eq, ne, and, desc, sql, inArray } from 'drizzle-orm'
 import { sqlArray } from '../sql-array.js'
-import { db } from '@plexo/db'
-import { memoryEntries, workspaces } from '@plexo/db'
+import { DrizzleMemoryRetrievalStore, DrizzleMemoryEntryStore } from '../memory.repository.js'
+import type { MemoryRetrievalStore, MemoryRecord } from '../memory.ports.js'
 import { type WorkspaceAISettings } from '../providers/registry.js'
 import { routeAndCall } from '../providers/router-v2/index.js'
 import {
@@ -31,6 +30,14 @@ import { emitMemoryCacheHit, emitMemoryCacheMiss } from '../analytics/memory-eve
 import { inngest } from '@plexo/queue/inngest'
 
 const logger = pino({ name: 'memory' })
+
+let retrievalStore: MemoryRetrievalStore = new DrizzleMemoryRetrievalStore()
+const entryStore = new DrizzleMemoryEntryStore()
+
+/** Test seam — swap in a fake store. */
+export function setMemoryRetrievalStore(next: MemoryRetrievalStore): void {
+    retrievalStore = next
+}
 
 export type MemoryType = 'task' | 'incident' | 'session' | 'pattern'
 
@@ -244,15 +251,14 @@ export async function storeMemory(params: {
         namespace = DEFAULT_NAMESPACE
     }
 
-    const wsRows = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
-    if (wsRows.length === 0) {
+    if (!await retrievalStore.workspaceExists(workspaceId)) {
         logger.warn({ workspaceId, type }, 'storeMemory: workspace not found — skipping write')
         return ''
     }
 
     const id = crypto.randomUUID()
 
-    await db.insert(memoryEntries).values({
+    await retrievalStore.write({
         id,
         workspaceId,
         type,
@@ -269,9 +275,7 @@ export async function storeMemory(params: {
     try {
         const shorthand = await summarizeMemory({ content, workspaceId, aiSettings })
         if (shorthand) {
-            await db.update(memoryEntries)
-                .set({ shorthand })
-                .where(eq(memoryEntries.id, id))
+            await retrievalStore.setShorthand(id, shorthand)
         }
     } catch (err) {
         logger.error({ err, id }, 'Failed to update shorthand')
@@ -286,10 +290,7 @@ export async function storeMemory(params: {
         try {
             const vector = await embed(content, workspaceId, aiSettings)
             if (vector) {
-                const vecStr = `[${vector.join(',')}]`
-                await db.execute(
-                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-                )
+                await entryStore.setEmbedding(id, vector)
             } else {
                 logger.warn({ id, workspaceId, type }, 'embed() returned null for pattern/note — enqueueing for retry')
                 void inngest.send({
@@ -321,9 +322,25 @@ export async function storeMemory(params: {
 /** Promote a memory entry to hot tier (async, non-blocking). */
 function promoteTier(ids: string[]): void {
     if (ids.length === 0) return
-    db.execute(
-        sql`UPDATE memory_entries SET tier = 'hot' WHERE id = ANY(${sqlArray(ids, 'uuid')}) AND tier != 'hot'`,
-    ).catch((err) => logger.warn({ err, count: ids.length }, 'Tier promotion failed'))
+    void retrievalStore.promoteToHot(ids)
+        .catch((err) => logger.warn({ err, count: ids.length }, 'Tier promotion failed'))
+}
+
+/** Map a stored record onto the public search result shape. */
+function toResult(r: MemoryRecord, similarity: number): MemorySearchResult {
+    return {
+        id: r.id,
+        workspaceId: r.workspaceId,
+        type: r.type as MemoryType,
+        content: r.content,
+        shorthand: r.shorthand ?? undefined,
+        metadata: r.metadata,
+        tier: r.tier as MemoryTier,
+        confidence: r.confidence,
+        namespace: r.namespace,
+        createdAt: r.createdAt,
+        similarity,
+    }
 }
 
 export async function searchMemory(params: {
@@ -380,92 +397,20 @@ export async function searchMemory(params: {
     let results: MemorySearchResult[]
 
     if (vector) {
-        // Cosine similarity via HNSW index
-        const vecStr = `[${vector.join(',')}]`
-        const typeClause = type ? sql`AND type = ${type}::memory_type` : sql``
-        // Namespace filter: ANY(array) so we can match one or many in a
-        // single query without rebuilding the whole statement per namespace.
-        const nsArray = sql`ARRAY[${sql.join(resolvedNamespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
-
-        // Two-phase retrieval: hot tier entries ranked first, then by similarity.
-        // CASE sorts hot=0, active=1, cold=2 so hot bubbles up within the same similarity band.
-        const rows = await db.execute<{
-            id: string
-            workspace_id: string
-            type: string
-            content: string
-            metadata: Record<string, unknown>
-            shorthand: string | null
-            tier: string
-            confidence: number | null
-            namespace: string
-            created_at: Date
-            similarity: number
-        }>(sql`
-      SELECT id, workspace_id, type, content, shorthand, metadata, tier, confidence, namespace, created_at,
-             1 - (embedding <=> ${vecStr}::vector) AS similarity
-      FROM memory_entries
-      WHERE workspace_id = ${workspaceId}::uuid
-        AND embedding IS NOT NULL
-        AND tier != 'cold'
-        AND namespace = ANY(${nsArray})
-        ${typeClause}
-      ORDER BY
-        CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
-        embedding <=> ${vecStr}::vector ASC
-      LIMIT ${limit}
-    `)
-
-        results = rows.map((r) => ({
-            id: r.id,
-            workspaceId: r.workspace_id,
-            type: r.type as MemoryType,
-            content: r.content,
-            shorthand: r.shorthand ?? undefined,
-            metadata: r.metadata,
-            tier: (r.tier ?? 'active') as MemoryTier,
-            confidence: r.confidence ?? null,
-            namespace: r.namespace ?? DEFAULT_NAMESPACE,
-            createdAt: r.created_at,
-            similarity: r.similarity,
-        }))
-        // Promote retrieved entries to hot tier (non-blocking)
-        promoteTier(results.map((r) => r.id))
+        results = (await retrievalStore.searchByVector({
+            workspaceId, namespaces: resolvedNamespaces, type, limit, embedding: vector,
+        })).map((r) => toResult(r, r.similarity))
     } else {
-        // Text fallback — ILIKE search when no embedding available, or just recent if query is empty
-        const conditions: NonNullable<Parameters<typeof and>[0]>[] = [
-            eq(memoryEntries.workspaceId, workspaceId),
-            ne(memoryEntries.tier, 'cold'),
-            inArray(memoryEntries.namespace, resolvedNamespaces),
-        ]
-
-        if (query?.trim()) {
-            conditions.push(sql`content ILIKE ${'%' + query.split(' ').slice(0, 5).join('%') + '%'}`)
-        }
-
-        if (type) conditions.push(eq(memoryEntries.type, type))
-
-        const rows = await db.select().from(memoryEntries)
-            .where(and(...conditions))
-            .orderBy(desc(memoryEntries.createdAt))
-            .limit(limit)
-
-        results = rows.map((r) => ({
-            id: r.id,
-            workspaceId: r.workspaceId,
-            type: r.type,
-            content: r.content,
-            shorthand: r.shorthand ?? undefined,
-            metadata: r.metadata as Record<string, unknown>,
-            tier: (r.tier ?? 'active') as MemoryTier,
-            confidence: r.confidence ?? null,
-            namespace: (r as { namespace?: string }).namespace ?? DEFAULT_NAMESPACE,
-            createdAt: r.createdAt,
-            similarity: 0.5, // unknown without vector
-        }))
-        // Promote retrieved entries to hot tier (non-blocking)
-        promoteTier(results.map((r) => r.id))
+        // No embedding available, or the query was empty: newest-first with an
+        // optional substring match. The 0.5 is not a score — it is this layer
+        // saying "unknown without a vector", which is why it is applied here
+        // and not inside the adapter.
+        results = (await retrievalStore.searchByText({
+            workspaceId, namespaces: resolvedNamespaces, type, limit, text: query,
+        })).map((r) => toResult(r, 0.5))
     }
+    // Promote retrieved entries to hot tier (non-blocking)
+    promoteTier(results.map((r) => r.id))
 
     if (useCache && results.length > 0) {
         try {
@@ -538,91 +483,22 @@ export async function searchMemoryBatch(params: {
         uncachedQueries.map(q => q.trim() ? embed(q, workspaceId) : Promise.resolve(null))
     )
 
-    const nsArray = sql`ARRAY[${sql.join(resolvedNamespaces.map((n) => sql`${n}`), sql`, `)}]::text[]`
-    const typeClause = type ? sql`AND type = ${type}::memory_type` : sql``
-
     for (let i = 0; i < uncachedQueries.length; i++) {
         const query = uncachedQueries[i]!
         const vector = vectors[i]!
 
-        let results: MemorySearchResult[]
-
-        if (vector) {
-            const vecStr = `[${vector.join(',')}]`
-            const rows = await db.execute<{
-                id: string
-                workspace_id: string
-                type: string
-                content: string
-                metadata: Record<string, unknown>
-                shorthand: string | null
-                tier: string
-                confidence: number | null
-                namespace: string
-                created_at: Date
-                similarity: number
-            }>(sql`
-        SELECT id, workspace_id, type, content, shorthand, metadata, tier, confidence, namespace, created_at,
-                 1 - (embedding <=> ${vecStr}::vector) AS similarity
-        FROM memory_entries
-        WHERE workspace_id = ${workspaceId}::uuid
-          AND embedding IS NOT NULL
-          AND tier != 'cold'
-          AND namespace = ANY(${nsArray})
-          ${typeClause}
-        ORDER BY
-          CASE tier WHEN 'hot' THEN 0 WHEN 'active' THEN 1 ELSE 2 END ASC,
-          embedding <=> ${vecStr}::vector ASC
-        LIMIT ${limit}
-      `)
-
-            results = rows.map((r) => ({
-                id: r.id,
-                workspaceId: r.workspace_id,
-                type: r.type as MemoryType,
-                content: r.content,
-                shorthand: r.shorthand ?? undefined,
-                metadata: r.metadata,
-                tier: (r.tier ?? 'active') as MemoryTier,
-                confidence: r.confidence ?? null,
-                namespace: r.namespace ?? DEFAULT_NAMESPACE,
-                createdAt: r.created_at,
-                similarity: r.similarity,
-            }))
-            promoteTier(results.map((r) => r.id))
-        } else {
-            const conditions: NonNullable<Parameters<typeof and>[0]>[] = [
-                eq(memoryEntries.workspaceId, workspaceId),
-                ne(memoryEntries.tier, 'cold'),
-                inArray(memoryEntries.namespace, resolvedNamespaces),
-            ]
-
-            if (query.trim()) {
-                conditions.push(sql`content ILIKE ${'%' + query.split(' ').slice(0, 5).join('%') + '%'}`)
-            }
-
-            if (type) conditions.push(eq(memoryEntries.type, type))
-
-            const rows = await db.select().from(memoryEntries)
-                .where(and(...conditions))
-                .orderBy(desc(memoryEntries.createdAt))
-                .limit(limit)
-
-            results = rows.map((r) => ({
-                id: r.id,
-                workspaceId: r.workspaceId,
-                type: r.type,
-                content: r.content,
-                shorthand: r.shorthand ?? undefined,
-                metadata: r.metadata as Record<string, unknown>,
-                tier: (r.tier ?? 'active') as MemoryTier,
-                confidence: r.confidence ?? null,
-                namespace: (r as { namespace?: string }).namespace ?? DEFAULT_NAMESPACE,
-                createdAt: r.createdAt,
-                similarity: 0.5,
-            }))
-            promoteTier(results.map((r) => r.id))
-        }
+        // The same two port calls searchMemory makes. Before this extraction
+        // the loop carried its own byte-identical copy of both queries, so any
+        // change to the ranking had to be made twice or silently diverge.
+        const results: MemorySearchResult[] = vector
+            ? (await retrievalStore.searchByVector({
+                workspaceId, namespaces: resolvedNamespaces, type, limit, embedding: vector,
+            })).map((r) => toResult(r, r.similarity))
+            : (await retrievalStore.searchByText({
+                workspaceId, namespaces: resolvedNamespaces, type, limit, text: query,
+            })).map((r) => toResult(r, 0.5))
+        // Promote retrieved entries to hot tier (non-blocking)
+        promoteTier(results.map((r) => r.id))
 
         resultMap.set(query, results)
 
@@ -732,7 +608,7 @@ export async function writeShared(params: {
         sharedAt: new Date().toISOString(),
     }
 
-    await db.insert(memoryEntries).values({
+    await retrievalStore.write({
         id,
         workspaceId: rest.workspaceId,
         type: rest.type,
@@ -752,9 +628,7 @@ export async function writeShared(params: {
             aiSettings: rest.aiSettings,
         })
         if (shorthand) {
-            await db.update(memoryEntries)
-                .set({ shorthand })
-                .where(eq(memoryEntries.id, id))
+            await retrievalStore.setShorthand(id, shorthand)
         }
     } catch (err) {
         logger.error({ err, id }, 'Failed to update shorthand (shared write)')
@@ -767,10 +641,7 @@ export async function writeShared(params: {
         try {
             const vector = await embed(rest.content, rest.workspaceId, rest.aiSettings)
             if (vector) {
-                const vecStr = `[${vector.join(',')}]`
-                await db.execute(
-                    sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-                )
+                await entryStore.setEmbedding(id, vector)
             }
         } catch (err) {
             logger.error({ err, id }, 'Failed to embed shared pattern/note synchronously')
@@ -778,10 +649,7 @@ export async function writeShared(params: {
     } else {
         embed(rest.content, rest.workspaceId, rest.aiSettings).then(async (vector) => {
             if (!vector) return
-            const vecStr = `[${vector.join(',')}]`
-            await db.execute(
-                sql`UPDATE memory_entries SET embedding = ${vecStr}::vector WHERE id = ${id}::uuid`,
-            )
+            await entryStore.setEmbedding(id, vector)
         }).catch((err) => logger.error({ err, id }, 'Failed to update embedding (shared write)'))
     }
 
