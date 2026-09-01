@@ -118,7 +118,7 @@ Plexo uses S3-compatible storage for agent-produced files. The Docker Compose st
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_COST_CEILING_USD` | `10.00` | Weekly AI spend limit in USD. Tasks auto-pause when reached. |
-| `MAX_SPRINT_WORKERS` | `5` | Max concurrent sprint workers. Reduce on memory-constrained VPS. |
+| `MAX_SPRINT_WORKERS` | `5` | Max concurrent sprint workers. Reduce on a memory-constrained host. |
 
 ## Voice
 

@@ -28,7 +28,7 @@ dist/
 *.p12
 docker/caddy/data/
 
-# Self-updater artifacts (written to repo root on VPS by one-click update)
+# Self-updater artifacts (written to repo root on the deploy host by one-click update)
 .source-commit-override
 .update-log
 
@@ -124,3 +124,6 @@ CLAUDE.local.md
 !.claude/rules/
 !.claude/rules/**
 !.claude/settings.local.json.example
+
+# Harness runtime state — never source, never shared between machines.
+.claude-runs/

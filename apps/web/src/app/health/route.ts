@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 /**
- * Minimal health-check endpoint consumed by scripts/deploy-vps.sh smoke test.
+ * Minimal health-check endpoint consumed by the scripts/deploy.sh smoke test.
  * Returns { status: "ok" } so the deploy pipeline can verify the app is up.
  */
 

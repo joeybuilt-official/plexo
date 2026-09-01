@@ -14,7 +14,7 @@ No. Plexo is self-hosted. Your data stays on your infrastructure. The only exter
 
 ## How much does it cost to run?
 
-Plexo itself is free and open-source (MIT). The only costs are your server ($5-20/month for a VPS) and the AI provider API usage — typically $0.01-0.10 per task depending on the model.
+Plexo itself is free and open-source (MIT). The only costs are your server ($5-20/month for a small cloud VM, or nothing if you already run one) and the AI provider API usage — typically $0.01-0.10 per task depending on the model.
 
 ## Can multiple people use the same instance?
 

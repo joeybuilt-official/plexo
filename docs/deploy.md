@@ -57,7 +57,7 @@ See `.env.example` for the full list with descriptions.
 
 ## Platform-Specific Deployments (Portainer and similar PaaS)
 
-When using a standard VPS, our `install.sh` script automatically generates cryptographically secure values for the required secrets (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_SECRET`), writes them to a `.env` file, and boots the stack.
+On a standard Linux host, our `install.sh` script automatically generates cryptographically secure values for the required secrets (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_SECRET`), writes them to a `.env` file, and boots the stack.
 
 However, when deploying via PaaS solutions like **Portainer** or similar Docker-Compose-aware dashboards, they parse the `docker-compose.yml` directly and detect the required environment variables, but they **will leave the values blank by default**.
 

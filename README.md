@@ -55,7 +55,7 @@ Both options have feature parity. The cloud version adds managed backups and zer
 | **Docker** | 24.0+ | Latest |
 | **Docker Compose** | 2.20+ | Latest |
 
-A $24/mo VPS (Hetzner CX32, DigitalOcean, etc.) handles it comfortably.
+A small cloud VM or a home server in that class handles it comfortably.
 
 ## Quick Start (Self-Host)
 

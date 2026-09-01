@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 Joeybuilt LLC
 #
-# deploy-vps.sh — deploy Plexo to a production VPS.
+# deploy.sh — deploy Plexo to a production host.
 #
 # Picks the right docker compose services based on `git diff` between
 # origin/main and HEAD~1, then runs the rebuild + restart sequence on
-# the VPS. Verifies the new code actually landed in the right
+# the host. Verifies the new code actually landed in the right
 # container by inspecting the built artifacts.
 #
 # The dashboard is `plexo`. Picking the wrong service is the #1
@@ -14,16 +14,19 @@
 # This script enforces the mapping so it can't be fat-fingered.
 #
 # Usage:
-#   ./scripts/deploy-vps.sh                      # auto-detect from git diff
-#   ./scripts/deploy-vps.sh plexo-api            # force one service
-#   ./scripts/deploy-vps.sh plexo-api plexo      # force several
-#   ./scripts/deploy-vps.sh --all                # rebuild every plexo service
+#   ./scripts/deploy.sh                          # auto-detect from git diff
+#   ./scripts/deploy.sh plexo-api                # force one service
+#   ./scripts/deploy.sh plexo-api plexo          # force several
+#   ./scripts/deploy.sh --all                    # rebuild every plexo service
 #
 # Env vars:
-#   VPS_HOST     (required) target VPS IP or hostname
-#   VPS_USER     default root
-#   VPS_KEY      (required) path to SSH private key
-#   VPS_REPO     default /opt/plexo
+#   DEPLOY_HOST  (required) target host IP or hostname
+#   DEPLOY_USER  default root
+#   DEPLOY_KEY   (required) path to SSH private key
+#   DEPLOY_REPO  default /opt/plexo
+#
+# The former VPS_HOST / VPS_USER / VPS_KEY / VPS_REPO names are still accepted
+# as a deprecated fallback; they will be removed in a future release.
 #   COMPOSE_DIR  default /opt/app/infra
 #   COMPOSE_BASE     default docker-compose.yml
 #   COMPOSE_OVERRIDE default docker-compose.prod.yml
@@ -31,17 +34,19 @@
 
 set -euo pipefail
 
-VPS_HOST="${VPS_HOST:?VPS_HOST must be set (target VPS IP or hostname)}"
-VPS_USER="${VPS_USER:-root}"
-VPS_KEY="${VPS_KEY:?VPS_KEY must be set (path to SSH private key)}"
-VPS_REPO="${VPS_REPO:-/opt/plexo}"
+DEPLOY_HOST="${DEPLOY_HOST:-${VPS_HOST:-}}"
+DEPLOY_USER="${DEPLOY_USER:-${VPS_USER:-root}}"
+DEPLOY_KEY="${DEPLOY_KEY:-${VPS_KEY:-}}"
+DEPLOY_REPO="${DEPLOY_REPO:-${VPS_REPO:-/opt/plexo}}"
+: "${DEPLOY_HOST:?DEPLOY_HOST must be set (target host IP or hostname)}"
+: "${DEPLOY_KEY:?DEPLOY_KEY must be set (path to SSH private key)}"
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/app/infra}"
 COMPOSE_BASE="${COMPOSE_BASE:-docker-compose.yml}"
 COMPOSE_OVERRIDE="${COMPOSE_OVERRIDE:-docker-compose.prod.yml}"
 APP_DOMAIN="${APP_DOMAIN:-getplexo.com}"
 
 ssh_run() {
-  ssh -o StrictHostKeyChecking=no -i "$VPS_KEY" "$VPS_USER@$VPS_HOST" "$@"
+  ssh -o StrictHostKeyChecking=no -i "$DEPLOY_KEY" "$DEPLOY_USER@$DEPLOY_HOST" "$@"
 }
 
 # ── Service map ──────────────────────────────────────────────────────────
@@ -180,19 +185,19 @@ if [[ ${#services[@]} -eq 0 ]]; then
   exit 0
 fi
 
-info "Deploying to $VPS_USER@$VPS_HOST: ${services[*]}"
+info "Deploying to $DEPLOY_USER@$DEPLOY_HOST: ${services[*]}"
 
-# Pull on VPS
-info "Pulling latest on VPS…"
-ssh_run "cd $VPS_REPO && git pull origin main" >/dev/null
-ok "VPS pulled to $local_head"
+# Pull on the deploy host
+info "Pulling latest on the deploy host…"
+ssh_run "cd $DEPLOY_REPO && git pull origin main" >/dev/null
+ok "deploy host pulled to $local_head"
 
 # Build
 info "Building: ${services[*]} (this may take a few minutes)…"
 build_args="${services[*]}"
 if ! ssh_run "cd $COMPOSE_DIR && docker compose -f $COMPOSE_BASE -f $COMPOSE_OVERRIDE build --no-cache $build_args"; then
   warn "Build failed. Common cause: disk pressure. Try:"
-  echo "  ssh -i $VPS_KEY $VPS_USER@$VPS_HOST \"docker builder prune -af && docker image prune -af\""
+  echo "  ssh -i $DEPLOY_KEY $DEPLOY_USER@$DEPLOY_HOST \"docker builder prune -af && docker image prune -af\""
   die "Aborting — fix disk and re-run."
 fi
 ok "Built: ${services[*]}"

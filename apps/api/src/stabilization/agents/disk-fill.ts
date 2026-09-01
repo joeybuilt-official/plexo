@@ -4,7 +4,7 @@
 /**
  * Reads the filesystem stats for /var/lib/docker (or PLEXO_DISK_PATH)
  * and alerts when usage exceeds 85%. Disk-full incidents are the
- * single most common cause of silent service failure on the VPS, and
+ * single most common cause of silent service failure on the deploy host, and
  * by the time pgsql or Redis notices, recovery is hard.
  */
 

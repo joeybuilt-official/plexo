@@ -9,7 +9,7 @@
 # - Retains the last 7 daily snapshots
 # - Optionally uploads off-host via aws s3 cp (--offhost-upload)
 #
-# Designed to run from the VPS host. ADR 0030.
+# Designed to run from the deploy host. ADR 0030.
 
 set -euo pipefail
 

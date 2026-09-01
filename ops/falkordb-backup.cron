@@ -3,7 +3,7 @@
 #
 # This cron is auto-installed + path-templated by
 # `.github/workflows/deploy.yml` on every deploy (the committed file's
-# `/opt/joeybuilt/plexo` is rewritten to $VPS_REPO at install time, so
+# `/opt/joeybuilt/plexo` is rewritten to $DEPLOY_REPO at install time, so
 # operators no longer copy this manually).
 #
 # This cron is now a SECONDARY safety net. The falkordb container's

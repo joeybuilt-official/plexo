@@ -2,7 +2,7 @@
 
 ## Current behavior
 
-The deploy script (`scripts/deploy-vps.sh`) and manual deploy sequence use
+The deploy script (`scripts/deploy.sh`) and manual deploy sequence use
 `docker compose up -d --force-recreate --no-deps <service>`. This stops the
 old container and starts a new one, resulting in a **5–30 second window**
 where the service is unavailable.

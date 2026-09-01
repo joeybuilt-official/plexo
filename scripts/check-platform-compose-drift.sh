@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Read-only drift check for the inline `plexo-gmessages` edit on the joeybuilt
-# VPS at /srv/platform/infra/docker-compose.yml.
+# Read-only drift check for the inline `plexo-gmessages` edit on the deploy
+# host at /srv/platform/infra/docker-compose.yml.
 #
 # Pre-flight before PHASE-6-OPS §3.5 (persist plexo-gmessages to upstream
 # platform repo). The §3.5 workflow requires `git --no-pager diff` to match the
@@ -16,8 +16,11 @@
 #   bash scripts/check-platform-compose-drift.sh
 #
 # Env overrides:
-#   PLEXO_VPS_HOST  default root@<prod-server-ip>
-#   PLEXO_VPS_KEY   default ~/.ssh/deploy-key
+#   PLEXO_DEPLOY_HOST  default root@<prod-server-ip>
+#   PLEXO_DEPLOY_KEY   default ~/.ssh/deploy-key
+#
+# The former PLEXO_VPS_HOST / PLEXO_VPS_KEY names are still accepted as a
+# deprecated fallback; they will be removed in a future release.
 #
 # Exit codes:
 #   0  no drift — diff matches baseline byte-for-byte; safe to paste §3.5 workflow.
@@ -33,8 +36,8 @@
 
 set -uo pipefail
 
-VPS="${PLEXO_VPS_HOST:-root@<prod-server-ip>}"
-KEY="${PLEXO_VPS_KEY:-$HOME/.ssh/deploy-key}"
+HOST="${PLEXO_DEPLOY_HOST:-${PLEXO_VPS_HOST:-root@<prod-server-ip>}}"
+KEY="${PLEXO_DEPLOY_KEY:-${PLEXO_VPS_KEY:-$HOME/.ssh/deploy-key}}"
 
 # Baseline captured 2026-05-06 evening — `git --no-pager diff infra/docker-compose.yml`
 # on /srv/platform; matches PHASE-6-OPS §3.5 verbatim block.
@@ -42,7 +45,7 @@ BASELINE_LINES=43
 BASELINE_SHA256="911d054c136ba01484bb966a8564bae906a4ae07957f4c0710f2322fa035639d"
 BASELINE_TS="2026-05-06T22:47Z (inline edit) / captured evening 2026-05-06"
 
-ssh_run() { ssh -o ConnectTimeout=10 -i "$KEY" "$VPS" "$@"; }
+ssh_run() { ssh -o ConnectTimeout=10 -i "$KEY" "$HOST" "$@"; }
 
 ok()   { echo "[drift-check] PASS: $1"; }
 warn() { echo "[drift-check] WARN: $1"; }
@@ -51,7 +54,7 @@ fail() { echo "[drift-check] FAIL: $1" >&2; }
 # 1. Confirm the platform repo is reachable + on main.
 branch=$(ssh_run "cd /srv/platform && git rev-parse --abbrev-ref HEAD" 2>/dev/null)
 if [ -z "$branch" ]; then
-    fail "could not reach /srv/platform on $VPS"
+    fail "could not reach /srv/platform on $HOST"
     exit 1
 fi
 if [ "$branch" = "main" ]; then

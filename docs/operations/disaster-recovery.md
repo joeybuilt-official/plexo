@@ -16,8 +16,8 @@ plexo-20260410T071500Z.sql.gz
 
 Files land on the `postgres-backups` named Docker volume, which maps
 to `/var/lib/docker/volumes/<project>_postgres-backups/_data` on the
-host. For the OVH VPS the project prefix is `joeybuilt` so the path is
-`/var/lib/docker/volumes/joeybuilt_postgres-backups/_data`.
+host. The project prefix is the compose project name, so the path is
+`/var/lib/docker/volumes/<project>_postgres-backups/_data`.
 
 Retention is governed by `BACKUP_RETENTION_DAYS` (default 7). Files
 older than the retention window are pruned by `backup.sh` at the end
@@ -182,7 +182,7 @@ For encryption at rest on the off-server copy, use `rclone crypt` or
 
 ## Managed deployment (production)
 
-The production VPS uses the same `postgres-backup` sidecar wired into
+The production host uses the same `postgres-backup` sidecar wired into
 your `docker-compose.prod.yml`. Configure an off-server cron to mirror
 backups to your preferred object storage provider (see the rclone
 example above).
