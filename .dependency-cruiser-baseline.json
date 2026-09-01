@@ -637,41 +637,6 @@
     }
   },
   {
-    "type": "dependency",
-    "from": "packages/logger/src/drizzle-session-log-store.ts",
-    "to": "packages/db/src/index.ts",
-    "unresolvedTo": "@plexo/db",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "logger-imports-outer"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "packages/logger/src/ports.ts",
-    "to": "packages/db/src/index.ts",
-    "unresolvedTo": "@plexo/db",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "logger-imports-outer"
-    }
-  },
-  {
     "type": "cycle",
     "from": "packages/agent/src/providers/registry.ts",
     "to": "packages/agent/src/providers/router.ts",

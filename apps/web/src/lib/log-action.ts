@@ -4,6 +4,7 @@
 'use server'
 
 import { SessionLogger } from '@plexo/logger'
+import { DrizzleSessionLogStore } from '@plexo/db'
 
 export async function logClientSideError(opts: {
     sessionId?: string
@@ -14,6 +15,7 @@ export async function logClientSideError(opts: {
     const logger = new SessionLogger({
         sessionId: opts.sessionId,
         personaId: opts.personaId,
+        store: new DrizzleSessionLogStore(),
     })
 
     await logger.log({

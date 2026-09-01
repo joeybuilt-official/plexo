@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { DrizzleSessionLogStore } from './drizzle-session-log-store'
 import type { SessionLogStore, SessionLogInsert } from './ports'
 
 export type { SessionLogStore, SessionLogInsert } from './ports'
@@ -13,11 +12,13 @@ export class SessionLogger {
     private personaId?: string
     private store: SessionLogStore
 
-    constructor(opts: { sessionId?: string; personaId?: string; store?: SessionLogStore }) {
+    // `store` is required: choosing the persistence adapter is a composition
+    // decision, and defaulting to the drizzle one here would drag @plexo/db
+    // back into this package.
+    constructor(opts: { sessionId?: string; personaId?: string; store: SessionLogStore }) {
         this.sessionId = opts.sessionId ?? crypto.randomUUID()
         this.personaId = opts.personaId
-        // Default adapter is drizzle; tests inject a fake via `store`.
-        this.store = opts.store ?? new DrizzleSessionLogStore()
+        this.store = opts.store
     }
 
     async log(eventOpts: Omit<InsertSessionLog, 'id' | 'sessionId' | 'personaId' | 'createdAt'>): Promise<void> {

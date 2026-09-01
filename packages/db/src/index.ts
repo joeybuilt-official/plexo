@@ -5,6 +5,7 @@ export * from './schema'
 export * from './pushd-schema'
 export * from './gmessages-schema'
 export { db, type Database } from './client'
+export { DrizzleSessionLogStore } from './session-log-store'
 // ADR-0045 Phase 2: drizzle operators are intentionally NOT re-exported here.
 // Import operators (eq, and, sql, …) directly from 'drizzle-orm' in
 // adapter/repository code — the ORM stays inside the adapter ring, so the

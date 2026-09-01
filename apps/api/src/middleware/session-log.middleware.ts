@@ -3,13 +3,16 @@
 
 import { Request, Response, NextFunction } from 'express'
 import { SessionLogger } from '@plexo/logger'
+import { DrizzleSessionLogStore } from '@plexo/db'
+
+const store = new DrizzleSessionLogStore()
 
 export function sessionLogMiddleware(req: Request, res: Response, next: NextFunction) {
     const start = Date.now()
     const sessionId = (req.headers['x-session-id'] as string) || (req.cookies?.['plexo-session'] as string) || undefined
     const personaId = req.headers['x-persona-id'] as string || undefined
 
-    const logger = new SessionLogger({ sessionId, personaId })
+    const logger = new SessionLogger({ sessionId, personaId, store })
 
     res.on('finish', () => {
         const durationMs = Date.now() - start

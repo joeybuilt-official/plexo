@@ -18,11 +18,12 @@
     "db:check-drift": "tsx scripts/check-drift.ts"
   },
   "dependencies": {
+    "@plexo/logger": "workspace:*",
     "better-auth": "^1.5.6",
+    "dotenv": "^16",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.20.0",
     "postgres": "^3.4",
-    "dotenv": "^16",
     "tsx": "^4"
   },
   "devDependencies": {
