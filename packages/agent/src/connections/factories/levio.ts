@@ -15,7 +15,7 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { createHmac } from 'node:crypto'
-import type { ConnectionCredentials, ToolSet } from '../bridge.js'
+import type { ConnectionCredentials, ToolSet } from '../bridge-types.js'
 import { decrypt } from '../crypto-util.js'
 import pino from 'pino'
 

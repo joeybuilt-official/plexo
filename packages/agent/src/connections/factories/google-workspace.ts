@@ -13,7 +13,7 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import type { ConnectionCredentials, ToolSet } from '../bridge.js'
+import type { ConnectionCredentials, ToolSet } from '../bridge-types.js'
 import { buildMime } from '../../channels/multipart-builder.js'
 import {
     getOutboundAttachmentsHandler,

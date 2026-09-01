@@ -12,7 +12,7 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { sshExec, sshUpload, sshDownload, sshListDir, type SSHClientOptions } from '../../ssh/client.js'
-import type { ConnectionCredentials, ToolSet } from '../bridge.js'
+import type { ConnectionCredentials, ToolSet } from '../bridge-types.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'ssh:tools' })
