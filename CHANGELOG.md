@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Removed
+- **Two stale `chore/graphiti-core-*` branches deleted.** The upstream-watcher workflow had opened `chore/graphiti-core-0.29.2` (`8b85838`) and `chore/graphiti-core-0.29.3` (`e80147c`) — one-line bumps of `services/graphiti-sidecar/requirements.txt`, never given a PR, 142 commits behind `main`, and the first superseded by the second. The watcher recreates them if the bump still matters, and the bump itself is now a `TASKS.md` item rather than a dangling branch. Recorded there, not lost: no CI job exercises the Python sidecar, so the TS gates go green whether or not a new `graphiti-core` works — which is exactly the scenario `requirements.txt` already warns about.
+
 ### Changed
 - **`.claude-runs/` is no longer tracked in git.** It is harness runtime state — per-branch verify flags and a loop sentinel — so every loop pass dirtied the tree and the flags leaked between machines, which `PROGRESS.md` had already warned against while the directory stayed committed anyway. Removed from the index and added to `.gitignore`. The stale `BLOCKED` sentinel it carried went with it: that sentinel described a 2026-08-19 credentials blocker for a deploy path that no longer exists, it had been marked obsolete in `PROGRESS.md` since 2026-08-29, and prod was redeployed successfully today with it still sitting there — so it was pausing the loop over nothing. The matching `PROGRESS.md` line is retagged `RESOLVED` rather than deleted; it is a checkpoint record, not live state.
 
