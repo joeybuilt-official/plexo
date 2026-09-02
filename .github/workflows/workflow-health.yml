@@ -1,0 +1,44 @@
+# Stage 0d -- watchdog for the repo's scheduled workflows.
+#
+# A scheduled workflow that fails on its cron is silent: the run goes red in
+# the Actions tab and nobody looks. The graphiti-core watcher failed daily for
+# three days before anyone noticed. This job runs on its own cron, reads every
+# other scheduled workflow's recent runs, and opens a GitHub issue (assigned to
+# the maintainer, so GitHub Mobile pushes it) when one has failed twice in a
+# row -- closing the issue automatically when the workflow recovers.
+#
+# The job stays green on a clean check: the signal is the issue, not a red run
+# (a red watchdog is as silent as the thing it watches). It goes red only if
+# the watchdog itself breaks, so a broken watchdog is at least visible here.
+#
+# Logic lives in scripts/workflow-health.py (stdlib only, testable locally
+# with DRY_RUN=1).
+
+name: workflow-health
+
+on:
+  schedule:
+    - cron: '30 15 * * *'  # 15:30 UTC daily, after the 14:00 watcher
+  workflow_dispatch: {}     # manual trigger for testing
+
+permissions:
+  issues: write
+  actions: read
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check scheduled workflow health
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/workflow-health.py
