@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { eq, and, isNull } from 'drizzle-orm'
-import { db, artifactShares } from '@plexo/db'
+import { DrizzleArtifactShareStore } from '../tasks.repository.js'
+import type { ArtifactShareStore } from '../tasks.ports.js'
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: ArtifactShareStore = new DrizzleArtifactShareStore()
+
+/** Swap the artifact-share store (e.g. an in-memory fake in unit tests). */
+export function setArtifactShareStore(next: ArtifactShareStore): void {
+    store = next
+}
 
 // The human-facing share PAGE is served by the WEB app (e.g. app.getplexo.com/s/<id>),
 // NOT the api origin. PUBLIC_URL points at the api (api.getplexo.com), whose /s/<id>
@@ -39,28 +47,22 @@ export async function ensureArtifactShareUrl(artifactId: string, workspaceId: st
     const visibility = autoShareVisibility()
     if (visibility === 'off') return null
     try {
-        const reuse = await db.select({ id: artifactShares.id })
-            .from(artifactShares)
-            .where(and(eq(artifactShares.artifactId, artifactId), isNull(artifactShares.revokedAt)))
-            .limit(1)
-        if (reuse[0]) return `${APP_URL}/s/${reuse[0].id}`
+        const reuse = await store.findActiveShareId(artifactId)
+        if (reuse) return `${APP_URL}/s/${reuse}`
 
         const shareId = generateShareId()
-        await db.insert(artifactShares).values({
+        await store.insertShareIfAbsent({
             id: shareId,
             artifactId,
             workspaceId,
             createdBy: 'agent-auto',
             visibility,
-        }).onConflictDoNothing()
+        })
 
         // Re-read to resolve the winner under the active-share unique index
         // (covers the onConflictDoNothing race where another writer won).
-        const after = await db.select({ id: artifactShares.id })
-            .from(artifactShares)
-            .where(and(eq(artifactShares.artifactId, artifactId), isNull(artifactShares.revokedAt)))
-            .limit(1)
-        return after[0] ? `${APP_URL}/s/${after[0].id}` : null
+        const after = await store.findActiveShareId(artifactId)
+        return after ? `${APP_URL}/s/${after}` : null
     } catch {
         return null
     }

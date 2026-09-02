@@ -10,13 +10,20 @@
  * Called by agent-loop before every task execution.
  */
 
-import type { BehaviorRule, ResolvedRule, ResolvedBehavior, RuleSource, RuleValue } from './types.js'
+import type { BehaviorRule, ResolvedRule, ResolvedBehavior, RuleSource } from './types.js'
 import { PLATFORM_DEFAULT_RULES } from './types.js'
 import { compileBehavior } from './compiler.js'
 import { computeContextHash } from '../domain-mastery/index.js'
+import { DrizzleBehaviorResolutionStore } from '../behavior.repository.js'
+import type { BehaviorResolutionStore } from '../behavior.ports.js'
 
-import { eq, isNull, and } from 'drizzle-orm'
-import { db, behaviorRules, behaviorSnapshots } from '@plexo/db'
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: BehaviorResolutionStore = new DrizzleBehaviorResolutionStore()
+
+/** Swap the behavior resolution store (e.g. an in-memory fake in unit tests). */
+export function setBehaviorResolutionStore(next: BehaviorResolutionStore): void {
+    store = next
+}
 
 // ── Layer fetchers ────────────────────────────────────────────────────────────
 
@@ -34,31 +41,11 @@ async function getPlatformDefaults(workspaceId: string): Promise<BehaviorRule[]>
 }
 
 async function getWorkspaceRules(workspaceId: string): Promise<BehaviorRule[]> {
-    const rows = await db.select().from(behaviorRules)
-        .where(and(
-            eq(behaviorRules.workspaceId, workspaceId),
-            isNull(behaviorRules.projectId),
-            isNull(behaviorRules.deletedAt),
-        ))
-        .limit(500)
-    return rows.map(r => ({
-        ...r,
-        value: r.value as RuleValue,
-    }))
+    return store.listWorkspaceRules(workspaceId)
 }
 
 async function getProjectRules(workspaceId: string, projectId: string): Promise<BehaviorRule[]> {
-    const rows = await db.select().from(behaviorRules)
-        .where(and(
-            eq(behaviorRules.workspaceId, workspaceId),
-            eq(behaviorRules.projectId, projectId),
-            isNull(behaviorRules.deletedAt),
-        ))
-        .limit(500)
-    return rows.map(r => ({
-        ...r,
-        value: r.value as RuleValue,
-    }))
+    return store.listProjectRules(workspaceId, projectId)
 }
 
 // ── Merge logic ───────────────────────────────────────────────────────────────
@@ -100,7 +87,7 @@ async function snapshotBehavior(
     triggerResourceId?: string,
 ): Promise<void> {
     try {
-        await db.insert(behaviorSnapshots).values({
+        await store.insertSnapshot({
             workspaceId,
             projectId,
             snapshot: resolved as unknown as Record<string, unknown>[],

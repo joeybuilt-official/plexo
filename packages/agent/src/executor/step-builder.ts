@@ -6,20 +6,23 @@
  * Reads persisted step records from task_steps to enable resume-from-checkpoint.
  */
 
-import { eq, sql, desc } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { taskSteps } from '@plexo/db'
+import { DrizzleTaskStepStore } from '../executor.repository.js'
+import type { TaskStepStore } from '../executor.ports.js'
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: TaskStepStore = new DrizzleTaskStepStore()
+
+/** Swap the task-step store (e.g. an in-memory fake in unit tests). */
+export function setTaskStepStore(next: TaskStepStore): void {
+    store = next
+}
 
 /**
  * Determine where to resume execution. Returns the next step number
  * (0 if fresh task, N+1 if resuming after step N).
  */
 export async function getResumeStep(taskId: string): Promise<number> {
-    const [lastStep] = await db.select({ stepNumber: taskSteps.stepNumber, isTerminal: taskSteps.isTerminal })
-        .from(taskSteps)
-        .where(eq(taskSteps.taskId, taskId))
-        .orderBy(desc(taskSteps.stepNumber))
-        .limit(1)
+    const lastStep = await store.getLastStep(taskId)
 
     if (!lastStep) return 0
     // If the last step was terminal, the task is done — return -1 as sentinel
@@ -36,14 +39,7 @@ export async function buildResumeMessages(
     systemPrompt: string,
     userMessage: string,
 ): Promise<{ messages: unknown[]; resumeFromStep: number }> {
-    const steps = await db.select({
-        stepNumber: taskSteps.stepNumber,
-        stepState: taskSteps.stepState,
-        isTerminal: taskSteps.isTerminal,
-    })
-        .from(taskSteps)
-        .where(eq(taskSteps.taskId, taskId))
-        .orderBy(taskSteps.stepNumber)
+    const steps = await store.listSteps(taskId)
 
     if (steps.length === 0) {
         return {

@@ -6,78 +6,45 @@
  * iterative agent loop.
  *
  * Pure functions (extractToolCalls, hasTaskComplete) are tested without any
- * mocks. DB-dependent functions (getResumeStep, buildResumeMessages) use a
- * lightweight @plexo/db mock so no real database is required.
+ * setup. DB-dependent functions (getResumeStep, buildResumeMessages) run
+ * against an in-memory TaskStepStore injected through the port seam, so no real
+ * database and no ORM import is required.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-// ── DB mock ───────────────────────────────────────────────────────────────────
-// We create a flexible chain that supports both:
-//   .from().where().orderBy().limit()  (getResumeStep)
-//   .from().where().orderBy()          (buildResumeMessages — awaited directly)
-
-let _dbResolve: unknown[] = []
-
-vi.mock('@plexo/db', () => {
-    function makeThenable(val: () => unknown[]) {
-        return {
-            limit: vi.fn(() => Promise.resolve(val())),
-            then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
-                Promise.resolve(val()).then(resolve, reject),
-            catch: (reject: (e: unknown) => unknown) => Promise.resolve(val()).catch(reject),
-        }
-    }
-    function makeChain(val: () => unknown[]) {
-        const chain: Record<string, unknown> = {}
-        chain['from'] = vi.fn(() => chain)
-        chain['where'] = vi.fn(() => chain)
-        chain['orderBy'] = vi.fn(() => makeThenable(val))
-        return chain
-    }
-    return {
-        db: { select: vi.fn() },
-        taskSteps: {
-            taskId: 'task_id',
-            stepNumber: 'step_number',
-            isTerminal: 'is_terminal',
-            stepState: 'step_state',
-        },
-        eq: vi.fn(),
-        desc: vi.fn(),
-        sql: vi.fn(),
-    }
-})
-
-import { db } from '@plexo/db'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
     extractToolCalls,
     hasTaskComplete,
     getResumeStep,
     buildResumeMessages,
+    setTaskStepStore,
 } from './step-builder.js'
+import type { TaskStepStore, TaskStepRow } from '../executor.ports.js'
 
-function configureDb(rows: unknown[]) {
-    _dbResolve = rows
-    function makeThenable(val: () => unknown[]) {
-        return {
-            limit: vi.fn(() => Promise.resolve(val())),
-            then: (resolve: (v: unknown[]) => unknown, reject?: (e: unknown) => unknown) =>
-                Promise.resolve(val()).then(resolve, reject),
-            catch: (reject: (e: unknown) => unknown) => Promise.resolve(val()).catch(reject),
-        }
-    }
-    const chain: Record<string, unknown> = {}
-    chain['from'] = vi.fn(() => chain)
-    chain['where'] = vi.fn(() => chain)
-    chain['orderBy'] = vi.fn(() => makeThenable(() => _dbResolve))
-    vi.mocked(db.select).mockReturnValue(chain as unknown as ReturnType<typeof db.select>)
+// ── In-memory store ─────────────────────────────────────────────────────────
+
+let rows: TaskStepRow[] = []
+
+const fakeStore: TaskStepStore = {
+    getLastStep: async () => {
+        if (rows.length === 0) return null
+        const last = rows.reduce((a, b) => (b.stepNumber > a.stepNumber ? b : a))
+        return { stepNumber: last.stepNumber, isTerminal: last.isTerminal }
+    },
+    listSteps: async () => [...rows].sort((a, b) => a.stepNumber - b.stepNumber),
+}
+
+function stepRow(p: { stepNumber: number; isTerminal: boolean; stepState?: TaskStepRow['stepState'] }): TaskStepRow {
+    return { stepNumber: p.stepNumber, isTerminal: p.isTerminal, stepState: p.stepState ?? null }
+}
+
+function configure(next: TaskStepRow[]) {
+    rows = next
 }
 
 beforeEach(() => {
-    vi.clearAllMocks()
-    _dbResolve = []
-    configureDb([])
+    rows = []
+    setTaskStepStore(fakeStore)
 })
 
 // ── extractToolCalls ──────────────────────────────────────────────────────────
@@ -190,22 +157,22 @@ describe('hasTaskComplete', () => {
 
 describe('getResumeStep', () => {
     it('returns 0 when no steps exist', async () => {
-        configureDb([])
+        configure([])
         expect(await getResumeStep('task_fresh')).toBe(0)
     })
 
     it('returns N+1 for the last non-terminal step', async () => {
-        configureDb([{ stepNumber: 3, isTerminal: false }])
+        configure([stepRow({ stepNumber: 3, isTerminal: false })])
         expect(await getResumeStep('task_abc')).toBe(4)
     })
 
     it('returns 1 when only step 0 exists and is non-terminal', async () => {
-        configureDb([{ stepNumber: 0, isTerminal: false }])
+        configure([stepRow({ stepNumber: 0, isTerminal: false })])
         expect(await getResumeStep('task_abc')).toBe(1)
     })
 
     it('returns -1 when the last step was terminal', async () => {
-        configureDb([{ stepNumber: 5, isTerminal: true }])
+        configure([stepRow({ stepNumber: 5, isTerminal: true })])
         expect(await getResumeStep('task_done')).toBe(-1)
     })
 })
@@ -214,7 +181,7 @@ describe('getResumeStep', () => {
 
 describe('buildResumeMessages', () => {
     it('returns initial user message and resumeFromStep=0 when no steps exist', async () => {
-        configureDb([])
+        configure([])
         const { messages, resumeFromStep } = await buildResumeMessages('task_1', 'sys', 'Hello')
         expect(resumeFromStep).toBe(0)
         expect(messages).toHaveLength(1)
@@ -227,8 +194,8 @@ describe('buildResumeMessages', () => {
             { role: 'assistant', content: 'Step 0 analysis' },
             { role: 'tool', content: [{ type: 'tool-result', output: 'ok' }] },
         ]
-        configureDb([
-            { stepNumber: 0, stepState: { responseMessages: storedMsgs }, isTerminal: false },
+        configure([
+            stepRow({ stepNumber: 0, isTerminal: false, stepState: { responseMessages: storedMsgs } }),
         ])
         const { messages, resumeFromStep } = await buildResumeMessages('task_2', 'sys', 'Build it')
 
@@ -244,8 +211,8 @@ describe('buildResumeMessages', () => {
     })
 
     it('handles steps with null stepState without throwing', async () => {
-        configureDb([
-            { stepNumber: 0, stepState: null, isTerminal: false },
+        configure([
+            stepRow({ stepNumber: 0, isTerminal: false, stepState: null }),
         ])
         const { messages, resumeFromStep } = await buildResumeMessages('task_3', 'sys', 'Hi')
         expect(resumeFromStep).toBe(1)
@@ -256,9 +223,9 @@ describe('buildResumeMessages', () => {
     })
 
     it('flattens responseMessages from multiple steps in order', async () => {
-        configureDb([
-            { stepNumber: 0, stepState: { responseMessages: [{ role: 'assistant', content: 'Step 0' }] }, isTerminal: false },
-            { stepNumber: 1, stepState: { responseMessages: [{ role: 'assistant', content: 'Step 1' }] }, isTerminal: false },
+        configure([
+            stepRow({ stepNumber: 0, isTerminal: false, stepState: { responseMessages: [{ role: 'assistant', content: 'Step 0' }] } }),
+            stepRow({ stepNumber: 1, isTerminal: false, stepState: { responseMessages: [{ role: 'assistant', content: 'Step 1' }] } }),
         ])
         const { messages, resumeFromStep } = await buildResumeMessages('task_4', 'sys', 'Go')
         expect(resumeFromStep).toBe(2)

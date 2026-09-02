@@ -8,31 +8,29 @@
  * preferences, implicit preferences, temporal supersession, team scope,
  * questions, hypotheticals, compound statements, identity, and error paths.
  *
- * All LLM calls and DB calls are mocked. No real DB or network required.
+ * LLM calls are mocked and DB writes go through an injected in-memory
+ * MemoryEntryStore. No real DB or network required.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { MemoryEntryInput, MemoryEntryStore } from '../../memory.ports.js'
 
 // vi.mock is hoisted before imports, so any variables referenced directly
 // inside the factory object must be declared via vi.hoisted().
-const { mockCallModel, mockInsertValues } = vi.hoisted(() => ({
+const { mockCallModel } = vi.hoisted(() => ({
     mockCallModel: vi.fn(),
-    mockInsertValues: vi.fn(async (_values?: Record<string, unknown>) => undefined),
 }))
+
+// ── Persistence seam ─────────────────────────────────────────────────────────
+// extract-worker writes through the MemoryEntryStore port; inject an in-memory
+// fake and assert on its inserts rather than mocking the ORM.
+const mockInsert = vi.fn(async (_record: MemoryEntryInput) => undefined)
+const fakeStore: MemoryEntryStore = {
+    insert: mockInsert,
+    setEmbedding: vi.fn(async () => undefined),
+}
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
-
-vi.mock('@plexo/db', () => ({
-    db: {
-        insert: vi.fn(() => ({ values: mockInsertValues })),
-        execute: vi.fn(async () => []),
-    },
-    sql: Object.assign(
-        (strings: TemplateStringsArray, ...vals: unknown[]) => ({ strings, values: vals, _kind: 'sql' }),
-        { join: vi.fn((arr: unknown[]) => arr), raw: vi.fn((s: string) => s) },
-    ),
-    memoryEntries: { id: 'id' },
-}))
 
 // From __tests__/, providers are at ../../providers/
 vi.mock('../../providers/call-model.js', () => ({ callModel: (...args: unknown[]) => mockCallModel(...args) }))
@@ -60,15 +58,12 @@ vi.mock('../write-backend.js', () => ({
     shouldWritePostgres: () => true,
 }))
 
-import { extractTurn } from '../extract-worker.js'
-import { db } from '@plexo/db'
-
-const dbInsert = vi.mocked(db.insert)
+import { extractTurn, setMemoryEntryStore } from '../extract-worker.js'
 
 beforeEach(() => {
     mockCallModel.mockReset()
-    mockInsertValues.mockReset()
-    dbInsert.mockClear()
+    mockInsert.mockReset()
+    setMemoryEntryStore(fakeStore)
 })
 
 function fakeTurn(overrides: { user?: string; assistant?: string } = {}) {
@@ -104,8 +99,8 @@ describe('case 1: simple preference', () => {
 
         await extractTurn(fakeTurn({ user: 'I always prefer TypeScript over plain JavaScript for new projects.' }))
 
-        expect(dbInsert).toHaveBeenCalledOnce()
-        const insertArg = mockInsertValues.mock.calls[0]?.[0]
+        expect(mockInsert).toHaveBeenCalledOnce()
+        const insertArg = mockInsert.mock.calls[0]?.[0]
         expect(insertArg).toMatchObject({
             factType: 'preference',
             predicate: 'prefers',
@@ -129,7 +124,7 @@ describe('case 2: implicit preference', () => {
 
         await extractTurn(fakeTurn({ user: 'Ugh, spaces again — everyone on this team uses spaces and I hate it.' }))
 
-        const insertArg = mockInsertValues.mock.calls[0]?.[0]
+        const insertArg = mockInsert.mock.calls[0]?.[0]
         expect(insertArg?.factType).toBe('preference')
         expect(insertArg?.predicate).toBe('dislikes')
     })
@@ -150,7 +145,7 @@ describe('case 3: temporal supersession', () => {
 
         await extractTurn(fakeTurn({ user: 'We moved off Go last month — everything is in Python now.' }))
 
-        const insertArg = mockInsertValues.mock.calls[0]?.[0]
+        const insertArg = mockInsert.mock.calls[0]?.[0]
         expect(insertArg?.factType).toBe('skill')
         expect(insertArg?.object).toContain('Go')
     })
@@ -171,7 +166,7 @@ describe('case 4: team scope', () => {
 
         await extractTurn(fakeTurn({ user: 'Our team uses Postgres for everything — it\'s the standard here.' }))
 
-        const insertArg = mockInsertValues.mock.calls[0]?.[0]
+        const insertArg = mockInsert.mock.calls[0]?.[0]
         expect(insertArg?.subject).toBe('team')
     })
 })
@@ -184,7 +179,7 @@ describe('case 5: question', () => {
 
         await extractTurn(fakeTurn({ user: 'Should I use tabs or spaces for Python indentation?' }))
 
-        expect(dbInsert).not.toHaveBeenCalled()
+        expect(mockInsert).not.toHaveBeenCalled()
     })
 })
 
@@ -196,7 +191,7 @@ describe('case 6: hypothetical', () => {
 
         await extractTurn(fakeTurn({ user: 'If I were to rewrite this in Rust, what would you recommend?' }))
 
-        expect(dbInsert).not.toHaveBeenCalled()
+        expect(mockInsert).not.toHaveBeenCalled()
     })
 })
 
@@ -215,7 +210,7 @@ describe('case 7: user_authored existing fact — new fact written alongside', (
 
         await extractTurn(fakeTurn({ user: 'I switched to Neovim last week, loving the lua config.' }))
 
-        expect(dbInsert).toHaveBeenCalledOnce()
+        expect(mockInsert).toHaveBeenCalledOnce()
     })
 })
 
@@ -232,7 +227,7 @@ describe('case 8: compound statement', () => {
         await extractTurn(fakeTurn({ user: 'I use React on the frontend, Fastify on the backend, all in a TypeScript monorepo.' }))
 
         // extract-worker caps at 3
-        expect(mockInsertValues.mock.calls.length).toBe(3)
+        expect(mockInsert.mock.calls.length).toBe(3)
     })
 })
 
@@ -251,7 +246,7 @@ describe('case 9: identity statement', () => {
 
         await extractTurn(fakeTurn({ user: 'I\'m a backend engineer — I\'ve been doing server-side work for 8 years.' }))
 
-        const insertArg = mockInsertValues.mock.calls[0]?.[0]
+        const insertArg = mockInsert.mock.calls[0]?.[0]
         expect(insertArg?.factType).toBe('identity')
         expect(insertArg?.confidence).toBeGreaterThanOrEqual(0.85)
     })
@@ -267,6 +262,6 @@ describe('case 10: Zod parse failure on malformed LLM response', () => {
             extractTurn(fakeTurn({ user: 'I prefer tabs for all my projects including Python and JS.' }))
         ).resolves.not.toThrow()
 
-        expect(dbInsert).not.toHaveBeenCalled()
+        expect(mockInsert).not.toHaveBeenCalled()
     })
 })

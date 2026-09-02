@@ -13,10 +13,17 @@
  * Injected into both the planner and executor system prompts so the agent
  * can self-limit to achievable work and surface capability gaps to the user.
  */
-import { eq, and } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { installedConnections, workspaces, extensions } from '@plexo/db'
 import { buildManifestCapabilityMap } from '../connections/registry.js'
+import { DrizzleManifestStore } from '../capabilities.repository.js'
+import type { ManifestStore } from '../capabilities.ports.js'
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: ManifestStore = new DrizzleManifestStore()
+
+/** Swap the manifest store (e.g. an in-memory fake in unit tests). */
+export function setManifestStore(next: ManifestStore): void {
+    store = next
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -130,17 +137,7 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
     // 1. Active installed connections
     const sshHosts: Array<{ nickname: string; host: string; username: string; mode: string }> = []
     try {
-        const rows = await db
-            .select({
-                registryId: installedConnections.registryId,
-                name: installedConnections.name,
-                credentials: installedConnections.credentials,
-            })
-            .from(installedConnections)
-            .where(and(
-                eq(installedConnections.workspaceId, workspaceId),
-                eq(installedConnections.status, 'active'),
-            ))
+        const rows = await store.listActiveConnections(workspaceId)
 
         for (const row of rows) {
             const caps = CONNECTION_CAPABILITIES[row.registryId] ?? []
@@ -151,7 +148,7 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
             if (row.registryId === 'ssh') {
                 try {
                     const { decrypt } = await import('../connections/crypto-util.js')
-                    const raw = row.credentials as { encrypted?: string } | null
+                    const raw = row.credentials
                     if (raw?.encrypted) {
                         const parsed = JSON.parse(decrypt(raw.encrypted, workspaceId)) as Record<string, string>
                         sshHosts.push({
@@ -168,23 +165,11 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
 
     // 2. Configured AI providers from workspace settings
     try {
-        const [wsRow] = await db
-            .select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const settings = await store.getWorkspaceSettings(workspaceId)
 
         // Try provider_instances table first (canonical source after Intelligence page)
         try {
-            const { providerInstances } = await import('@plexo/db')
-            const { asc } = await import('drizzle-orm')
-            const instances = await db.select({
-                providerType: providerInstances.providerType,
-                selectedModel: providerInstances.selectedModel,
-                enabled: providerInstances.enabled,
-            }).from(providerInstances)
-                .where(eq(providerInstances.workspaceId, workspaceId))
-                .orderBy(asc(providerInstances.preferenceOrder))
+            const instances = await store.listProviderInstances(workspaceId)
 
             for (const inst of instances) {
                 if (!inst.enabled) continue
@@ -199,8 +184,8 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
         } catch { /* provider_instances not available — fall back to legacy */ }
 
         // Legacy fallback: settings.aiProviders (pre-migration workspaces)
-        if (models.length === 0 && wsRow?.settings) {
-            const s = wsRow.settings as Record<string, unknown>
+        if (models.length === 0 && settings) {
+            const s = settings
             const ap = s.aiProviders as Record<string, unknown> | undefined
             if (ap?.providers) {
                 const providers = ap.providers as Record<string, Record<string, unknown>>
@@ -232,19 +217,10 @@ export async function buildCapabilityManifest(workspaceId: string): Promise<Capa
 
     // 3. Active skill extensions
     try {
-        const extRows = await db
-            .select({
-                name: extensions.name,
-                manifest: extensions.manifest,
-            })
-            .from(extensions)
-            .where(and(
-                eq(extensions.workspaceId, workspaceId),
-                eq(extensions.enabled, true),
-            ))
+        const extRows = await store.listEnabledExtensions(workspaceId)
 
         for (const row of extRows) {
-            const m = (row.manifest ?? {}) as { description?: string }
+            const m = row.manifest ?? {}
             const label = m.description ? `${row.name} — ${m.description}` : row.name
             skills.push(label)
         }

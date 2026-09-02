@@ -16,14 +16,22 @@
  */
 
 import pino from 'pino'
-import { eq, and } from 'drizzle-orm'
-import { db, tasks, type TaskStatus } from '@plexo/db'
+import { DrizzleTaskFailStore } from '../tasks.repository.js'
+import type { TaskFailStore, TaskStatus } from '../tasks.ports.js'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { generateEscalationSummary, deterministicEscalation, type EscalateInput } from './escalate.js'
 import type { EscalationSummary, FailureReason, TaskFailedPayload } from './types.js'
 
 const logger = pino({ name: 'task-terminal-fail' })
+
+// ── Composition root + test seam ────────────────────────────────────────────
+let store: TaskFailStore = new DrizzleTaskFailStore()
+
+/** Swap the task-fail store (e.g. an in-memory fake in unit tests). */
+export function setTaskFailStore(next: TaskFailStore): void {
+    store = next
+}
 
 export interface MarkTaskFailedInput {
     taskId: string
@@ -85,26 +93,17 @@ export async function markTaskFailed(input: MarkTaskFailedInput): Promise<MarkTa
         ? await generateEscalationSummary(escalateInput, input.aiSettings)
         : deterministicEscalation(escalateInput)
 
-    const whereClause = input.requireFromStatus
-        ? and(eq(tasks.id, input.taskId), eq(tasks.status, input.requireFromStatus))
-        : eq(tasks.id, input.taskId)
-
     let transitioned = false
     let parentTaskId: string | null = null
     try {
-        const updated = await db.update(tasks)
-            .set({
-                status: 'failed',
-                failedAt: new Date(),
-                failureReason: input.failureReason,
-                outcomeSummary: renderOutcome(summary),
-                claimedAt: null,
-                claimedUntil: null,
-            })
-            .where(whereClause)
-            .returning({ id: tasks.id, parentId: tasks.parentId })
-        transitioned = updated.length > 0
-        parentTaskId = updated[0]?.parentId ?? null
+        const outcome = await store.markFailed({
+            taskId: input.taskId,
+            failureReason: input.failureReason,
+            outcomeSummary: renderOutcome(summary),
+            requireFromStatus: input.requireFromStatus,
+        })
+        transitioned = outcome.transitioned
+        parentTaskId = outcome.parentTaskId
     } catch (err) {
         logger.error(
             { err, taskId: input.taskId, failureReason: input.failureReason },
