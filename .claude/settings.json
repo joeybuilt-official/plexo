@@ -98,7 +98,11 @@
       "Bash(gh issue view:*)",
       "Bash(gh issue list:*)",
       "Bash(gh run list:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "Bash(pnpm:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --filter:*)",
+      "Bash(gh pr create:*)"
     ],
     "deny": [
       "Read(./.env)",
