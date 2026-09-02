@@ -1,6 +1,7 @@
 # Visual-regression + a11y gate for the design-system sweeps (FE7/FE8).
 #
-# STATUS: informational until set up — it is NOT yet a required status check.
+# STATUS: informational — it is NOT a required status check, and on this plan it
+#         cannot be one (see 4 below). Runs on the self-hosted pool.
 # Before it can pass / be made required, an operator must:
 #   1. Provision a long-lived QA better-auth session token and store it as the
 #      repo secret E2E_SESSION_COOKIE (extract it the way scripts in
@@ -20,9 +21,13 @@
 #      timestamps, live list bodies on home/tasks/memory/approvals) — otherwise
 #      fullPage diffs vs LIVE prod false-positive on data/time drift. Until then
 #      treat authed-route results as informational artifacts, gate on public routes.
-#   4. Add "visual-regression / visual-a11y" to main branch protection:
-#        gh api -X PATCH repos/joeybuilt-official/plexo/branches/main/protection/required_status_checks \
-#          -f 'checks[][context]=visual-regression / visual-a11y'
+#   4. Making this a REQUIRED check is not currently possible: the repository is
+#      private on the GitHub Free plan, where both /branches/main/protection and
+#      /rulesets return 403 (verified 2026-08-31). Nothing server-side can gate a
+#      merge here, so treat a red run as a stop sign you honour. Making the repo
+#      public would unlock protection and rulesets — and would also let untrusted
+#      PRs run on the self-hosted pool, one of whose runners has the host Docker
+#      socket. That is an operator decision and a one-way door.
 
 name: visual-regression
 
@@ -43,13 +48,30 @@ concurrency:
 
 jobs:
   visual-a11y:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Pin to the EXACT PW client version from pnpm-lock.yaml (1.61.1). Browser
-    # binaries are baked into this image; a mismatch = every screenshot drifts.
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-      options: --ipc=host
+    # The last job still burning GitHub-hosted minutes. Private repos get 2,000
+    # a month; August 2026 blew through them and every check in the repo died in
+    # ~2s with zero steps, so the rest of CI moved to the self-hosted pool. This
+    # is a 20-minute Playwright job — the most expensive one left.
+    #
+    # It CANNOT use an Actions `container:` block here. The self-hosted runners
+    # are themselves containers whose `/home/runner` is a named Docker volume, so
+    # the workspace path the runner reports does not exist on the host; Actions
+    # would bind-mount a path that resolves to nothing and the job would run
+    # against an empty tree. `--volumes-from` the runner's own container is what
+    # makes the workspace visible at the identical path, so the Playwright image
+    # is driven directly with `docker run` instead. The step below discovers the
+    # runner container at run time rather than naming it, both because the name
+    # is deployment detail that does not belong in this repo and because it must
+    # keep working if the pool is renumbered.
+    #
+    # Tradeoff, recorded because it is real: this concentrates every
+    # Docker-needing job — both `docker-build` matrix legs, `graphiti-sidecar`,
+    # and now this — on the single `docker`-labelled runner, so a PR touching
+    # apps/** serialises them. This job is path-filtered and the others are
+    # minutes, so the trade is a longer worst-case wall clock against a CI outage
+    # when the monthly allowance runs out.
+    runs-on: [self-hosted, docker]
+    timeout-minutes: 30
     env:
       # Read-only authed traffic against prod (no staging env exists today).
       E2E_BASE_URL: https://app.getplexo.com
@@ -71,29 +93,97 @@ jobs:
             exit 1
           fi
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      # Image already ships matching browsers — do NOT run `playwright install`.
-      - run: pnpm install --frozen-lockfile
-
-      # Catch a future lockfile bump that forgets to bump the image tag above.
-      - name: Assert PW version matches image
+      # `--volumes-from` needs the runner's OWN container, identified at run time.
+      # `$(hostname)` is the container's name or short id for every runner in the
+      # pool; if the daemon does not recognise it, stop here with a readable
+      # message rather than 20 minutes of screenshot diffs against an empty tree.
+      - name: Resolve the runner container
+        id: runner
         run: |
-          V=$(pnpm playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "playwright client: $V"
-          case "$V" in
-            1.61.*) echo "ok" ;;
-            *) echo "::error::PW client $V != image v1.61.1-noble. Bump the container image tag in this workflow to match the lockfile, then regenerate baselines."; exit 1 ;;
-          esac
+          SELF="$(hostname)"
+          if ! docker inspect "$SELF" >/dev/null 2>&1; then
+            echo "::error::the Docker daemon does not recognise this runner's hostname ('$SELF'), so --volumes-from cannot mount the workspace. The runner must be a container this daemon owns."
+            exit 1
+          fi
+          echo "container=$SELF" >> "$GITHUB_OUTPUT"
 
-      # setup project injects the cookie into storageState; mobile-390 +
-      # desktop-1440 run the visual + a11y matrix at both operator viewports.
+      # `--user` is not optional. The Playwright image runs as root, and with
+      # `--volumes-from` that is the RUNNER'S OWN workspace: the first attempt
+      # left ~94k root-owned files under `_work`, and every job that landed on
+      # that runner afterwards died at checkout with
+      # `EACCES: permission denied, rmdir .../node_modules/@joeybuilt`. Running
+      # as the runner's uid keeps everything written here owned by the runner.
+      # `corepack enable` needs write access to the Node install, so it is not
+      # used; `corepack pnpm` resolves the version from packageManager and
+      # caches under COREPACK_HOME, which is why HOME is pointed at /tmp.
+      #
+      # Everything runs inside the pinned Playwright image. Pin to the EXACT PW
+      # client version from pnpm-lock.yaml (1.61.1): browser binaries are baked
+      # into the image, and a mismatch drifts every screenshot. The committed
+      # baselines were regenerated in this same image, so this is the environment
+      # they came from.
+      #
+      # The version assertion, install and test run share one container because
+      # `pnpm install` writes node_modules into the workspace and re-entering a
+      # fresh container for each step would repeat it.
       - name: Visual + a11y matrix
-        run: pnpm playwright test responsive-visual a11y --project=setup --project=mobile-390 --project=desktop-1440
+        run: |
+          docker run --rm \
+            --volumes-from "${{ steps.runner.outputs.container }}" \
+            --workdir "$GITHUB_WORKSPACE" \
+            --user "$(id -u):$(id -g)" \
+            --ipc=host \
+            -e CI \
+            -e HOME=/tmp \
+            -e COREPACK_HOME=/tmp/corepack \
+            -e E2E_BASE_URL \
+            -e E2E_SESSION_COOKIE \
+            -e E2E_COOKIE_DOMAIN \
+            -e E2E_PUBLIC_ONLY \
+            mcr.microsoft.com/playwright:v1.61.1-noble \
+            sh -lc '
+              set -e
+              # --ignore-scripts is load-bearing, not a shortcut. This image
+              # ships Node 24; the job previously used actions/setup-node to
+              # put Node 22 inside the container, and `isolated-vm` publishes
+              # prebuilt binaries for 22 but not 24, so without this pnpm falls
+              # back to compiling it from source and dies on `not found: make`
+              # (the image carries no build toolchain, and the container now
+              # runs unprivileged so it cannot apt-get one). Nothing this job
+              # does needs a native addon: it drives a browser against a LIVE
+              # deployment over HTTP, and the browsers are baked into the image
+              # — which is also why the original job said never to run
+              # `playwright install`.
+              corepack pnpm install --frozen-lockfile --ignore-scripts
+              # Catch a future lockfile bump that forgets to bump the image tag.
+              V=$(corepack pnpm playwright --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+              echo "playwright client: $V"
+              case "$V" in
+                1.61.*) echo "ok" ;;
+                *) echo "::error::PW client $V != image v1.61.1-noble. Bump the image tag in this workflow to match the lockfile, then regenerate baselines."; exit 1 ;;
+              esac
+              # setup project injects the cookie into storageState; mobile-390 +
+              # desktop-1440 run the matrix at both operator viewports.
+              corepack pnpm playwright test responsive-visual a11y --project=setup --project=mobile-390 --project=desktop-1440
+            '
+
+      # Belt and braces. The first attempt at this job wedged the runner by
+      # writing as root into its own workspace, and the symptom landed on the
+      # NEXT job to be scheduled there, not on this one — so if anything here
+      # ever writes as root again, hand the workspace back before that can
+      # happen. A no-op on a clean run.
+      - name: Return the workspace to the runner
+        if: ${{ always() && steps.runner.outputs.container != '' }}
+        run: |
+          if find "$GITHUB_WORKSPACE" -uid 0 -print -quit 2>/dev/null | grep -q .; then
+            echo "::warning::root-owned files in the workspace — restoring ownership"
+            docker run --rm --user 0 \
+              --volumes-from "${{ steps.runner.outputs.container }}" \
+              --workdir "$GITHUB_WORKSPACE" \
+              --entrypoint chown \
+              mcr.microsoft.com/playwright:v1.61.1-noble \
+              -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+          fi
 
       # On diff/failure: upload the HTML report (expected/actual/diff PNGs) + raw
       # results so a reviewer can eyeball every diff.
