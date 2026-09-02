@@ -41,9 +41,10 @@ After a feature is tested and signed off:
 3. Add an entry to `completed-features.md`: what shipped, when, and the archived path.
 4. Delete the task's `docs/claude/in-progress.d/<slug>.md` fragment **in the same PR that ships the
    code** — a fragment that outlives its merge is planned against as if still open. Leftovers are
-   retired from PR state with `phalanx-docs-reconcile.sh --apply` (Phalanx ≥ 1.7.30), never by guessing.
-4. Remove the item from `in-progress.md`.
-5. Update any closed issue or milestone descriptions that pointed at the old paths.
+   retired from PR state with the Phalanx harness command `phalanx-docs-reconcile --apply`
+   (Phalanx ≥ 1.7.30, installed outside this repo — there is no such script here), never by guessing.
+5. Remove the item from `in-progress.md`.
+6. Update any closed issue or milestone descriptions that pointed at the old paths.
 
 Archive, do not delete. The reasoning behind a shipped feature is the context for the next change to it.
 

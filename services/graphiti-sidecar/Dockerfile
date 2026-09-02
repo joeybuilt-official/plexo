@@ -15,10 +15,13 @@ RUN pip install -r /app/requirements.txt
 
 COPY services/graphiti-sidecar/ /app/
 
-# Single uvicorn worker — Kuzu's embedded mode requires single-writer per DB
-# file, and concurrency comes from async I/O within one worker. Pre-mortem #2
-# of ADR 0011 covers the alternate (Kuzu standalone-server mode) if this
-# becomes a bottleneck.
+# Single uvicorn worker. The original reason was Kuzu's single-writer-per-DB-file
+# embedded mode; Kuzu is gone (ADR 0010 moved the graph to FalkorDB), but the
+# constraint survives the swap for a different reason: main.py serialises writes
+# with `_ws_lock(workspace_id)`, an in-process asyncio lock. A second worker is a
+# second process, so the lock would not span it and two episode writes to one
+# workspace could interleave. Concurrency comes from async I/O within the one
+# worker.
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/health').read()" || exit 1

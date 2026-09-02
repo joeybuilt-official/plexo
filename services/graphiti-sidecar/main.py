@@ -58,10 +58,15 @@ from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.nodes import EntityNode, EpisodeType
 from graphiti_core.errors import NodeNotFoundError
 
-# Escape hyphenated-UUID group_ids in the vendored graphiti-core RediSearch
-# fulltext query (graphiti-core==0.29.0). Without this, /v1/search 500s on every
-# hyphenated workspace UUID. Import for side effect (patches at import time).
-import redisearch_groupid_patch  # noqa: F401
+# NOTE: `redisearch_groupid_patch` used to be imported here for side effect. It
+# backslash-escaped hyphenated-UUID group_ids in graphiti-core's RediSearch
+# fulltext query, without which /v1/search 500s on every workspace UUID
+# ("-" parses as RediSearch's negation operator). graphiti-core 0.29.2 fixed it
+# upstream (getzep/graphiti#1549), so on the current pin the wrapper is a
+# verified no-op — both builders already emit the escaped form — and the module
+# was deleted with the bump, exactly as its own docstring said to. The
+# regression it guarded is now covered by test/probe.sh, which fails on a
+# non-200 /v1/search against a hyphenated group_id.
 
 import schema_registry
 

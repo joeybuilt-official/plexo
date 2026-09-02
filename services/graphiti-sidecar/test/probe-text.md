@@ -1,8 +1,18 @@
 # Phase 11 canonical probe text
 
 The smoke + Phase 11 schema-compat probe both feed graphiti the same
-text so a regression caused by graphiti-core / Kuzu version drift is
+text so a regression caused by graphiti-core / FalkorDB version drift is
 distinguishable from LLM-quality drift.
+
+> **What the CI probe actually asserts.** `probe.sh` runs against
+> `probe-stub.py`, which answers every model call with schema-shaped
+> constants — it never reads the episode text. So the entities below are
+> what a *real* model produces from this text (the prod smoke path), not
+> what the CI probe sees; the probe asserts the pipeline's structure
+> instead: an `episode_id` comes back, nodes land in FalkorDB, and
+> `/v1/search` returns 200 with ≥1 edge for a hyphenated-UUID
+> `group_id`. Keep the text realistic anyway: the moment a probe run has
+> a real model behind it, the table below is the expectation.
 
 ## The text
 
@@ -40,7 +50,7 @@ fail the probe.
 - **Shared object** (Austin appears in 2 edges): exercises FTS index +
   RRF ranking.
 - **No jargon**: any reasonable LLM should extract these — failures
-  point at infra (Kuzu, sidecar, schema), not model quality.
+  point at infra (FalkorDB, sidecar, schema), not model quality.
 
 If a future bump's probe fails on this text, the failure is structural,
 not model-quality.

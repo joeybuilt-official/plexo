@@ -77,6 +77,14 @@ vi.mock('../logger.js', () => ({
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
+// Imported at module scope, not `await import(...)` inside each test. agent-loop
+// pulls in ~20 mocked dependencies, and doing the import in the test body bills
+// that whole transform to the first test's 15s budget: it passes in isolation
+// (~6s) and times out under a parallel full-suite run. Same root cause and same
+// fix as the chat-reply-stream flake (#149). `vi.mock` is hoisted above imports
+// by vitest, so the mocks above still apply.
+import { loadWorkspaceApprovalPolicy } from '../agent-loop.js'
+
 describe('loadWorkspaceApprovalPolicy', () => {
     beforeEach(() => {
         ctl.settingsRow = undefined
@@ -84,31 +92,26 @@ describe('loadWorkspaceApprovalPolicy', () => {
     })
 
     it('returns false-default for null/undefined workspaceId', async () => {
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy(null)).toEqual({ requireApprovalForGeneralTasks: false })
         expect(await loadWorkspaceApprovalPolicy(undefined)).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('returns false-default for empty workspaceId', async () => {
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('returns true when settings.requireApprovalForGeneralTasks === true', async () => {
         ctl.settingsRow = { settings: { requireApprovalForGeneralTasks: true } }
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: true })
     })
 
     it('returns false when setting is explicitly false', async () => {
         ctl.settingsRow = { settings: { requireApprovalForGeneralTasks: false } }
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('returns false for truthy-but-not-strict-true values (=== check)', async () => {
         ctl.settingsRow = { settings: { requireApprovalForGeneralTasks: 'true' } }
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: false })
 
         ctl.settingsRow = { settings: { requireApprovalForGeneralTasks: 1 } }
@@ -117,25 +120,21 @@ describe('loadWorkspaceApprovalPolicy', () => {
 
     it('returns false when settings is missing the key', async () => {
         ctl.settingsRow = { settings: { other: 'value' } }
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('returns false when workspace row is absent', async () => {
         ctl.settingsRow = undefined
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-missing')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('returns false when settings is null', async () => {
         ctl.settingsRow = { settings: null }
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 
     it('defaults to off when the DB throws', async () => {
         ctl.shouldThrow = true
-        const { loadWorkspaceApprovalPolicy } = await import('../agent-loop.js')
         expect(await loadWorkspaceApprovalPolicy('ws-1')).toEqual({ requireApprovalForGeneralTasks: false })
     })
 })

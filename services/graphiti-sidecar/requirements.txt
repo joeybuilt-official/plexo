@@ -5,6 +5,26 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pydantic==2.11.5
-graphiti-core==0.29.0
+graphiti-core==0.29.3
 falkordb==1.6.1
 pyyaml==6.0.2
+
+# Transitive pins. Both are dependencies OF the pins above, left unbounded
+# upstream, and both silently broke this image when a new major shipped —
+# verified 2026-09-02 by building the then-current pins from a clean cache.
+# Nothing in this repo changed; upstream releases did. Prod kept working only
+# because its running image predates them.
+#   openai — graphiti-core declares `openai>=1.91.0`. openai 3.x moved its HTTP
+#     layer to the `httpx2` distribution while graphiti-core still does
+#     `import httpx`, so the container died on boot with
+#     `ModuleNotFoundError: No module named 'httpx'`.
+#   redis  — falkordb declares `redis>=7.1.0`. redis 8.x changed the Redis
+#     constructor, so building a FalkorDriver raised `TypeError:
+#     Redis.__init__() got an unexpected keyword argument 'himport_registry'`
+#     on the first episode write.
+# Drop either pin only when its parent bounds it upstream, and re-run
+# test/probe.sh when you do. That probe is what catches the next one: the
+# upstream watcher now builds and probes the CURRENT pin every day, not only a
+# bump candidate.
+openai==2.54.0
+redis==7.4.1

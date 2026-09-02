@@ -1,15 +1,26 @@
-# Phase 11 — graphiti-core upstream version watcher.
+# Phase 11 — graphiti-core upstream version watcher AND daily sidecar canary.
 #
-# Daily cron checks PyPI for a new graphiti-core release, opens a PR
-# pinning the new version, runs schema-compat probe, surfaces probe
-# result as a PR check. NEVER auto-merges. See
-# graphiti-migration/phase-11-design.md for the full architecture.
+# Two jobs in one, deliberately:
 #
-# Operator setup TODO before this workflow goes live (post-Phase-9):
-#   - Add repo secret PROBE_PLEXO_SERVICE_KEY (a probe-only key, NOT the
-#     prod key — the probe stub doesn't talk to prod, but key reuse risk).
-#   - Add repo secret VPS_SSH_KEY for fetching the prod Kuzu snapshot.
-#   - Confirm joeybuilt-official/plexo has Actions enabled.
+#  1. Every run builds the sidecar image at the CURRENT pin and probes it. The
+#     sidecar's dependencies are pinned but their dependencies are not, so an
+#     upstream release can break the image with no commit here — and on
+#     2026-09-02 two had, silently: openai 3.x moved to the `httpx2`
+#     distribution (graphiti-core still `import httpx`) and redis 8.x changed
+#     the constructor falkordb calls. Prod kept running only because its image
+#     predates both. Nothing in this repo notices that class of failure unless
+#     something builds the image on a schedule; this is that something.
+#  2. When PyPI has a newer graphiti-core, it builds and probes THAT pin too,
+#     and opens a PR only if the probe passed. NEVER auto-merges.
+#
+# The probe (services/graphiti-sidecar/test/probe.sh) stands up a throwaway
+# FalkorDB + the image under test and drives ingest → graph read → search. It
+# replaced a Kuzu snapshot restore that fetched prod data over SSH: Kuzu is gone
+# (ADR 0010), and that step still carried `<prod-server-ip>` placeholders, so it
+# could never have run. No prod data and no deploy key are involved now.
+#
+# A failure here is a real signal: `workflow-health.yml` opens an issue once any
+# scheduled workflow fails twice running.
 
 name: graphiti-core upstream watcher
 
@@ -22,9 +33,16 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: graphiti-upstream-watcher
+  cancel-in-progress: false
+
 jobs:
   check-and-probe:
-    runs-on: ubuntu-latest
+    # Needs the Docker socket, which only the `docker`-labelled self-hosted
+    # runner has — and self-hosted consumes no GitHub Actions minutes, the
+    # constraint that took CI down in August.
+    runs-on: [self-hosted, docker]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +55,7 @@ jobs:
           PINNED=$(grep -oE 'graphiti-core==[0-9]+\.[0-9]+\.[0-9]+' \
             services/graphiti-sidecar/requirements.txt | cut -d= -f3)
           LATEST=$(curl -fsS https://pypi.org/pypi/graphiti-core/json \
-            | python -c 'import json,sys; d=json.load(sys.stdin); \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); \
               vs=[v for v in d["releases"] if not any(c in v for c in ("a","b","rc","dev"))]; \
               vs.sort(key=lambda v: tuple(int(x) for x in v.split("."))); \
               print(vs[-1])')
@@ -62,6 +80,20 @@ jobs:
             fi
           fi
 
+      # Runs unconditionally — this is the daily canary, not part of the bump.
+      # The build context is the repo root: the Dockerfile COPYs
+      # `services/graphiti-sidecar/...`, so building with the service directory
+      # as context fails on "/services/graphiti-sidecar: not found", which is
+      # exactly how this workflow died every day from 2026-08-30.
+      - name: Build + probe the CURRENT pin
+        run: |
+          docker build \
+            --file services/graphiti-sidecar/Dockerfile \
+            --tag graphiti-sidecar:probe-current-${{ github.run_id }} \
+            .
+          PROBE_IMAGE=graphiti-sidecar:probe-current-${{ github.run_id }} \
+            bash services/graphiti-sidecar/test/probe.sh
+
       - name: Open feature branch + bump pin
         if: steps.detect.outputs.needs_bump == 'true'
         run: |
@@ -73,41 +105,20 @@ jobs:
             services/graphiti-sidecar/requirements.txt
           git add services/graphiti-sidecar/requirements.txt
           git commit -m "chore(graphiti-core): bump ${{ steps.detect.outputs.pinned }} → ${{ steps.detect.outputs.latest }}"
-          # NOTE: the push moved BELOW the probe deliberately. It used to run
-          # here, so when "Build sidecar image at new pin" failed — as it did
-          # every day from 2026-08-30 — the branch was already pushed and the
-          # `gh pr create` step downstream never ran. Result: a fresh orphan
-          # branch daily, no PR, no signal. Push only after the probe passes.
+          # NOTE: the push is deliberately BELOW the probe. It used to run here,
+          # so when the build step failed — as it did every day from 2026-08-30 —
+          # the branch was already pushed and `gh pr create` never ran. Result: a
+          # fresh orphan branch daily, no PR, no signal. Push only after a pass.
 
-      - name: Build sidecar image at new pin
+      - name: Build + probe the CANDIDATE pin
         if: steps.detect.outputs.needs_bump == 'true'
         run: |
           docker build \
-            -t service:probe-${{ steps.detect.outputs.latest }} \
-            services/graphiti-sidecar/
-
-      - name: Fetch prod Kuzu snapshot
-        if: steps.detect.outputs.needs_bump == 'true'
-        env:
-          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh && echo "$VPS_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H <prod-server-ip> >> ~/.ssh/known_hosts
-          # Snapshot the canonical compat workspace (00000000-...-c0fe)
-          # which is seeded post-Phase-9 with the canonical 5-S-V-O text.
-          ssh root@<prod-server-ip> \
-            "docker exec service tar -czf /tmp/graphiti-snapshot.tgz \
-             -C /data graphiti/00000000-0000-0000-0000-00000000c0fe --exclude='*.wal'"
-          scp root@<prod-server-ip>:/tmp/graphiti-snapshot.tgz /tmp/graphiti-snapshot.tgz
-
-      - name: Run schema-compat probe
-        if: steps.detect.outputs.needs_bump == 'true'
-        env:
-          PROBE_VERSION: ${{ steps.detect.outputs.latest }}
-          PLEXO_SERVICE_KEY: ${{ secrets.PROBE_PLEXO_SERVICE_KEY }}
-          PROBE_KUZU_SOURCE: /tmp/graphiti-snapshot.tgz
-        run: ./services/graphiti-sidecar/test/snapshot-probe.sh
+            --file services/graphiti-sidecar/Dockerfile \
+            --tag graphiti-sidecar:probe-${{ steps.detect.outputs.latest }} \
+            .
+          PROBE_IMAGE=graphiti-sidecar:probe-${{ steps.detect.outputs.latest }} \
+            bash services/graphiti-sidecar/test/probe.sh
 
       - name: Push branch (only after the probe passed)
         if: steps.detect.outputs.needs_bump == 'true'
@@ -119,7 +130,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           NOTES=$(curl -fsS "https://api.github.com/repos/getzep/graphiti/releases/tags/v${{ steps.detect.outputs.latest }}" \
-            | python -c 'import json,sys; print(json.load(sys.stdin).get("body","(no release notes)")[:2000])')
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("body","(no release notes)")[:2000])')
           gh pr create \
             --title "chore(graphiti-core): bump to ${{ steps.detect.outputs.latest }}" \
             --body "$(cat <<EOF
@@ -128,6 +139,11 @@ jobs:
           - **Previous pin:** ${{ steps.detect.outputs.pinned }}
           - **New pin:** ${{ steps.detect.outputs.latest }}
           - **Schema-compat probe:** PASS (workflow run ${{ github.run_id }})
+
+          The probe built this pin's image, stood it up against a throwaway
+          FalkorDB, ingested an episode, read the graph back, and searched it.
+          It does NOT judge extraction quality — the inference backend is a stub
+          that answers with schema-shaped constants.
 
           Upstream release notes (truncated to 2000 chars):
 
@@ -138,8 +154,8 @@ jobs:
           ## ⚠ Operator review checklist
 
           - [ ] Read the full upstream changelog at https://github.com/getzep/graphiti/releases/tag/v${{ steps.detect.outputs.latest }}
-          - [ ] Confirm no Kuzu file-format breaking change is called out
-          - [ ] Probe ran against a real prod Kuzu snapshot (snapshot job logs above)
+          - [ ] Confirm no FalkorDB storage or index-format breaking change is called out
+          - [ ] Confirm the transitive pins in requirements.txt (openai, redis) are still the right bounds for this release
           - [ ] Merge → auto-deploy daemon ships
 
           NEVER auto-merge. NEVER skip the operator review.
@@ -147,3 +163,12 @@ jobs:
           )" \
             --base main \
             --head "chore/graphiti-core-${{ steps.detect.outputs.latest }}"
+
+      # The daemon is shared with production containers on this host, so the
+      # run's image tags must not be left behind. Untagged parents stay in the
+      # layer cache, which is what makes the next build fast.
+      - name: Remove the run's image tags
+        if: always()
+        run: |
+          docker image rm graphiti-sidecar:probe-current-${{ github.run_id }} || true
+          docker image rm graphiti-sidecar:probe-${{ steps.detect.outputs.latest }} || true

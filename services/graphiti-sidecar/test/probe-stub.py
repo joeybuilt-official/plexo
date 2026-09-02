@@ -8,23 +8,27 @@ schema-compat probe (see graphiti-migration/phase-11-design.md §"Probe
 stub").
 
 Returns deterministic, schema-compliant responses on:
-  POST /api/inference/ws/{ws}/v1/embeddings        → 256-dim zero vector
+  POST /api/inference/ws/{ws}/v1/embeddings        → PROBE_EMBEDDING_DIM vector
   POST /api/inference/ws/{ws}/v1/chat/completions  → canonical extraction shape
 
-The point is to test graphiti's pipeline + Kuzu file format against a
+The point is to test graphiti's pipeline + the FalkorDB graph against a
 new graphiti-core version. LLM quality is NOT the variable under test
 here — that's caught downstream by prod observation, not the bump probe.
 
-HMAC verification mirrors apps/api's requireServiceKey middleware so the
-sidecar's signed-and-timestamped requests succeed end-to-end. Same
-PLEXO_SERVICE_KEY env var the prod stack uses.
+Auth mirrors apps/api's `requireServiceKey` (see
+apps/api/src/middleware/service-key-auth.ts): `Authorization: Bearer
+<PLEXO_SERVICE_KEY>` plus an `X-App-Id` header. That is what the sidecar
+actually sends — its LLM/embedder calls go out through graphiti-core's
+OpenAI clients, which only know how to send a Bearer api_key. The stub
+previously demanded an HMAC signature instead, which no caller on this
+path produces, so every inference call 401'd and the probe could never
+have ingested an episode.
 
 Run:
   PLEXO_SERVICE_KEY=<key> uvicorn probe-stub:app --host 127.0.0.1 --port 8090
 """
 from __future__ import annotations
 
-import hashlib
 import hmac
 import json
 import os
@@ -35,40 +39,27 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 SERVICE_KEY = os.environ.get("PLEXO_SERVICE_KEY", "")
-TIMESTAMP_TOLERANCE_S = 300  # ±5 min, matches sidecar gmessages-receiver
+# Must match the sidecar's GRAPHITI_EMBEDDING_DIM for the run under probe: the
+# FalkorDB vector index is built at that dimension and a mismatch makes every
+# search miss. probe.sh sets both from one variable.
+EMBEDDING_DIM = int(os.environ.get("PROBE_EMBEDDING_DIM", "256"))
 
 app = FastAPI(title="phase-11 probe stub", version="0.1.0")
 
 
-async def _verify_hmac(request: Request) -> bytes:
+async def _require_service_key(request: Request) -> bytes:
+    """Bearer service-key check, mirroring apps/api `requireServiceKey`."""
     raw = await request.body()
     if not SERVICE_KEY:
         # Stub mode — operator forgot to set the key. Fail loudly so the
         # probe surfaces config errors instead of silently passing.
         raise HTTPException(401, detail="PLEXO_SERVICE_KEY not configured")
 
-    sig_header = request.headers.get("X-Plexo-Signature", "")
-    ts_header = request.headers.get("X-Plexo-Timestamp", "")
-    if not sig_header.startswith("sha256="):
-        raise HTTPException(401, detail="missing or malformed X-Plexo-Signature")
-    if not ts_header:
-        raise HTTPException(401, detail="missing X-Plexo-Timestamp")
-
-    try:
-        ts = datetime.fromisoformat(ts_header.replace("Z", "+00:00"))
-    except ValueError:
-        raise HTTPException(401, detail="X-Plexo-Timestamp not ISO-8601") from None
-    skew = abs((datetime.now(UTC) - ts).total_seconds())
-    if skew > TIMESTAMP_TOLERANCE_S:
-        raise HTTPException(401, detail=f"timestamp skew {skew:.0f}s exceeds {TIMESTAMP_TOLERANCE_S}s")
-
-    expected = "sha256=" + hmac.new(
-        SERVICE_KEY.encode(),
-        raw + ts_header.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    if not hmac.compare_digest(sig_header, expected):
-        raise HTTPException(401, detail="HMAC mismatch")
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(401, detail="missing or malformed Authorization: Bearer")
+    if not hmac.compare_digest(auth[len("Bearer "):], SERVICE_KEY):
+        raise HTTPException(401, detail="invalid service key")
 
     return raw
 
@@ -79,20 +70,20 @@ async def health() -> JSONResponse:
     return JSONResponse({
         "ok": True,
         "service": "probe-stub",
-        "hmac_configured": bool(SERVICE_KEY),
+        "service_key_configured": bool(SERVICE_KEY),
     })
 
 
 @app.post("/api/inference/ws/{workspace_id}/v1/embeddings")
 async def embeddings(workspace_id: str, request: Request) -> JSONResponse:
-    raw = await _verify_hmac(request)
+    raw = await _require_service_key(request)
     body = json.loads(raw or b"{}")
     inputs = body.get("input", [])
     if isinstance(inputs, str):
         inputs = [inputs]
-    # Deterministic 256-dim vector — alternating 0.1 / -0.1 so cosine
-    # similarity is non-degenerate but identical across runs.
-    vec = [0.1 if i % 2 == 0 else -0.1 for i in range(256)]
+    # Deterministic vector — alternating 0.1 / -0.1 so cosine similarity is
+    # non-degenerate but identical across runs.
+    vec = [0.1 if i % 2 == 0 else -0.1 for i in range(EMBEDDING_DIM)]
     data = [{"object": "embedding", "index": i, "embedding": vec} for i in range(len(inputs))]
     return JSONResponse({
         "object": "list",
@@ -104,7 +95,7 @@ async def embeddings(workspace_id: str, request: Request) -> JSONResponse:
 
 @app.post("/api/inference/ws/{workspace_id}/v1/chat/completions")
 async def chat_completions(workspace_id: str, request: Request) -> JSONResponse:
-    raw = await _verify_hmac(request)
+    raw = await _require_service_key(request)
     body = json.loads(raw or b"{}")
 
     fmt = body.get("response_format") or {}
@@ -131,15 +122,40 @@ async def chat_completions(workspace_id: str, request: Request) -> JSONResponse:
     })
 
 
-def _canonical_response_for_schema(schema: dict[str, Any]) -> dict[str, Any]:
+# Two distinct, deterministic entity names. graphiti's edge extraction names
+# its endpoints (`source_entity_name` / `target_entity_name`) rather than
+# indexing them, so a stub that answers every string field with one constant
+# makes both endpoints the same entity — graphiti then logs "Dropping self-edge"
+# and the graph ends up with zero edges. `/v1/search` returns edges, so the
+# whole recall path (RediSearch FTS + vector) would go untested and the probe
+# would pass on an empty result set. These two names are what make an edge
+# survive.
+PROBE_ENTITIES = ("probe-entity-alpha", "probe-entity-beta")
+# Field-name-driven, not schema-version-driven: these names have been stable
+# across graphiti-core's extraction models, and anything not listed still falls
+# through to the generic type-based default below.
+_NAMED_VALUES = {
+    "source_entity_name": PROBE_ENTITIES[0],
+    "target_entity_name": PROBE_ENTITIES[1],
+    "relation_type": "PROBE_LINKED_TO",
+    "fact": f"{PROBE_ENTITIES[0]} is linked to {PROBE_ENTITIES[1]} (probe fixture).",
+}
+
+
+def _canonical_response_for_schema(
+    schema: dict[str, Any], index: int = 0
+) -> dict[str, Any]:
     """Synthesize a minimal schema-compliant object.
 
     Walks the top-level required properties + emits a deterministic value
-    matching each declared type. Arrays get one stub element; nested
-    objects recurse. Covers the graphiti-core 0.29 pipeline schemas
-    (extracted_entities, extracted_edges, summary, dedup, attributes)
-    without per-version chasing — every new shape passes as long as the
-    JSON Schema is well-formed.
+    matching each declared type. Arrays get two stub elements (see
+    PROBE_ENTITIES); nested objects recurse. Covers the graphiti-core 0.29
+    pipeline schemas (extracted_entities, extracted_edges, summary, dedup,
+    attributes) without per-version chasing — every new shape passes as long as
+    the JSON Schema is well-formed.
+
+    `index` is the position of this object within its parent array, so a list
+    of entities comes back with distinguishable names.
     """
     if schema.get("type") != "object":
         return {}
@@ -149,11 +165,16 @@ def _canonical_response_for_schema(schema: dict[str, Any]) -> dict[str, Any]:
     defs = {**(schema.get("$defs") or {}), **(schema.get("definitions") or {})}
     for key in required:
         prop = properties.get(key, {})
-        out[key] = _value_for(prop, defs)
+        out[key] = _value_for(prop, defs, index=index, field=key)
     return out
 
 
-def _value_for(prop: dict[str, Any], defs: dict[str, Any]) -> Any:
+def _value_for(
+    prop: dict[str, Any],
+    defs: dict[str, Any],
+    index: int = 0,
+    field: str | None = None,
+) -> Any:
     if "$ref" in prop:
         ref = prop["$ref"].rsplit("/", 1)[-1]
         prop = defs.get(ref, {})
@@ -162,6 +183,10 @@ def _value_for(prop: dict[str, Any], defs: dict[str, Any]) -> Any:
         # nullable union — pick the non-null type
         t = next((x for x in t if x != "null"), "string")
     if t == "string":
+        if field in _NAMED_VALUES:
+            return _NAMED_VALUES[field]
+        if field == "name":
+            return PROBE_ENTITIES[index % len(PROBE_ENTITIES)]
         return prop.get("default", "probe-stub-string")
     if t == "integer":
         return prop.get("default", 0)
@@ -171,9 +196,11 @@ def _value_for(prop: dict[str, Any], defs: dict[str, Any]) -> Any:
         return prop.get("default", False)
     if t == "array":
         items = prop.get("items") or {}
-        return [_value_for(items, defs)]
+        # Two elements, so an entity list yields two distinct entities and the
+        # edge between them is not a self-edge.
+        return [_value_for(items, defs, index=i, field=field) for i in range(2)]
     if t == "object":
-        return _canonical_response_for_schema({**prop, "type": "object"})
+        return _canonical_response_for_schema({**prop, "type": "object"}, index=index)
     if "enum" in prop and prop["enum"]:
         return prop["enum"][0]
     return None

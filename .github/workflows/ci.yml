@@ -137,6 +137,45 @@ jobs:
         if: always()
         run: docker image rm plexo-${{ matrix.image }}:ci-${{ github.run_id }} || true
 
+  graphiti-sidecar:
+    # The Python sidecar's first CI coverage. Until this job no gate in the repo
+    # touched services/graphiti-sidecar/**: every TypeScript check stayed green
+    # while the image could not build (the upstream watcher passed the service
+    # directory as the build context, but the Dockerfile COPYs
+    # services/graphiti-sidecar/..., so it had failed daily since 2026-08-30)
+    # and, separately, could not boot — the direct deps are pinned but their
+    # deps are not, and openai 3.x moved to the `httpx2` distribution while
+    # graphiti-core still `import httpx`, then redis 8.x changed the constructor
+    # falkordb calls. Prod kept serving only because its image predates both.
+    #
+    # Not path-filtered on purpose: the failure this catches arrives from an
+    # upstream release, with no diff under services/graphiti-sidecar at all. The
+    # cost is one more job on the single docker-labelled runner; the daily
+    # graphiti-upstream-watcher covers the days with no PR.
+    runs-on: [self-hosted, docker]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the sidecar image
+        run: |
+          docker build \
+            --file services/graphiti-sidecar/Dockerfile \
+            --tag graphiti-sidecar:ci-${{ github.run_id }} \
+            .
+
+      # Stands up a throwaway FalkorDB plus a stub inference backend, then
+      # drives ingest -> graph read -> search. See test/probe_client.py for what
+      # each assertion catches; extraction QUALITY is deliberately not asserted.
+      - name: Probe ingest + search against a real FalkorDB
+        run: |
+          PROBE_IMAGE=graphiti-sidecar:ci-${{ github.run_id }} \
+            bash services/graphiti-sidecar/test/probe.sh
+
+      - name: Remove the run's image tag
+        if: always()
+        run: docker image rm graphiti-sidecar:ci-${{ github.run_id }} || true
+
   test:
     runs-on: [self-hosted]
     timeout-minutes: 10
