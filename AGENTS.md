@@ -44,9 +44,9 @@ work fit**.
 3. **`docs/claude/in-progress.md`** — the tactical queue that rolls up into the roadmap: what is in
    flight, what is next, and the *exact next step* to resume cold. **Carry these initiatives forward;
    do NOT open a parallel track for work already queued here.**
-4. **The running worklog** — `docs/claude/worklog.md`, or this repo's `CHANGELOG.md` / `HISTORY.md`
-   `[Unreleased]` section if it keeps one instead. Skim what landed recently. You will append one line
-   here in the same change as your work (see Non-negotiables).
+4. **The running worklog** — in this repo that is **`CHANGELOG.md`, the `[Unreleased]` section**.
+   There is no `docs/claude/worklog.md`; do not look for one or create one. Skim what landed recently.
+   You will add your entry there in the same change as your work (see Non-negotiables).
 5. **`CLAUDE.md`** — project overview, tech stack, the real command table, and the directory map.
    Plain markdown; read it even if you are not Claude. It lists the rule modules as `@.claude/rules/*.md`.
 6. **`.claude/rules/clean-architecture.md`** — the architecture premise every change obeys (below).
@@ -72,10 +72,11 @@ In a monorepo the closest `AGENTS.md` to the file you are editing wins; this roo
 - **The plan and worklog are never stale — and this is enforced, not just asked.** Every change
   updates `docs/claude/in-progress.md` (its status + Next step), appends one line to the running
   worklog, and moves the `roadmap.md` initiative when it starts or ships — all in the same commit as
-  the code. Shipped-but-unlogged counts as not done. **The landing gate `scripts/check-docs.sh` fails
-  any commit that changes code but not the worklog in the same commit** — it runs in required CI, so
-  no agent in any tool can land a code change without its doc update. Full doctrine:
-  `.claude/rules/documentation.md`.
+  the code. Shipped-but-unlogged counts as not done. **This is convention, not a gate: there is no
+  `scripts/check-docs.sh` in this repo and no CI job that checks it.** The only changelog gate that
+  exists is `.github/workflows/changelog-check.yml`, and it is narrow — it fires only on PRs touching
+  `packages/sdk/src/**`, and `[skip-changelog]` bypasses it. Everywhere else, keeping the worklog
+  current is on you. Full doctrine: `.claude/rules/documentation.md`.
 
 ## Architecture is non-negotiable
 
@@ -93,11 +94,12 @@ declared in the use-case layer) implemented by an **adapter** at the edge.
   DTO at the boundary.
 - Before you build, state the layers you touch and the ports you add (the plan template forces this).
   If a new dependency would point outward, stop and raise it before writing the code.
-- This is enforced **mechanically** where the project has wired it: the architecture-boundary check in
-  `CLAUDE.md` → Key Commands (a dependency-cruiser / import-linter / ArchUnit config) fails the build
-  on an outward import. That check binds every contributor equally **only once it runs in required
-  CI** — a client-side pre-commit hook is skippable with `--no-verify`, so CI is the plane that
-  actually holds against a non-Claude agent. See "Enforcement — the honest version" below.
+- This is checked **mechanically**: `pnpm arch:check` (dependency-cruiser, config at
+  `.dependency-cruiser.js`) fails on an outward import, and the `arch` job runs it on every PR. It
+  works off `.dependency-cruiser-baseline.json`, a ratchet of known violations that only ever shrinks
+  — **delete the entries your change fixes; never regenerate the baseline to go green.** The check
+  reports but cannot block: this repo has no required status checks (see "Enforcement — the honest
+  version" below), so treat a red `arch` as a stop sign you honour, not a wall that stops you.
 
 <!-- MIRROR:start — this block is copied verbatim into every tool-native file by scripts/sync-agents.sh. Edit here only; it is the "if you read nothing else" contract for tools that do not open AGENTS.md. -->
 ## If you read nothing else in this repo
@@ -105,9 +107,8 @@ declared in the use-case layer) implemented by an **adapter** at the edge.
 **Before writing anything, open `AGENTS.md` at the repo root and read it fully.** The short version:
 
 - **Read, in order:** `docs/claude/roadmap.md` (the plan) → `docs/claude/in-progress.md` (the queue +
-  the exact next step) → the running worklog (`docs/claude/worklog.md` or the `CHANGELOG`
-  `[Unreleased]` section) → `CLAUDE.md` (stack + commands) → the `.claude/rules/` module for what you
-  touch.
+  the exact next step) → the running worklog (`CHANGELOG.md`, `[Unreleased]`) → `CLAUDE.md`
+  (stack + commands) → the `.claude/rules/` module for what you touch.
 - **Carry existing work forward.** The top of `in-progress.md` is the live task with its next step —
   continue it; do NOT open a parallel track for work already queued.
 - **Keep the plan and worklog current in the SAME change as the code.** Shipped-but-unlogged = not done.
@@ -117,8 +118,9 @@ declared in the use-case layer) implemented by an **adapter** at the edge.
 ### MUST NOT — hard guardrails
 
 For Claude Code these are enforced by `.claude/settings.json`. **That permission gate binds only
-Claude** — for every other tool these are advisory doctrine, and the only cross-tool enforcement is
-whatever the repo has wired server-side (branch protection + required CI). Honor them as absolute:
+Claude** — for every other tool these are advisory doctrine, and **this repo currently has no
+server-side enforcement at all** (no branch protection, no required checks — see "Enforcement — the
+honest version"). Nothing but your own compliance stops these. Honor them as absolute:
 
 - **NEVER** force-push, `git reset --hard` a shared branch, delete branches/tags, or rewrite published
   history.
@@ -141,7 +143,7 @@ whatever the repo has wired server-side (branch protection + required CI). Honor
 |---|---|
 | The overall plan (initiatives) | `docs/claude/roadmap.md` |
 | What to work on now | `docs/claude/in-progress.md` |
-| What landed recently | `docs/claude/worklog.md` (or `CHANGELOG.md` `[Unreleased]`) |
+| What landed recently | `CHANGELOG.md`, `[Unreleased]` section |
 | How to work (process) | `.claude/rules/workflow.md`, `quality-bar.md`, `git-workflow.md`, `documentation.md` |
 | Architecture premise | `.claude/rules/clean-architecture.md` |
 | Code / tests / errors | `.claude/rules/code-style.md`, `testing.md`, `error-handling.md` |
@@ -162,13 +164,23 @@ model at all:
 - For every other tool, the guardrails above are **doc-level MUST-NOT prose** — always in context (the
   `MIRROR` block is mirrored into each tool's native rules file), but advisory. A determined or
   confused agent can still run the command.
-- **The only cross-tool enforcement is server-side:** branch protection on the default branch (blocks
-  force-push and direct pushes no matter who typed them) and **required CI status checks** (test,
-  typecheck, lint, the architecture-boundary check, secret scan) that block a merge regardless of tool.
-  This repo ships a starter CI workflow at `scripts/templates/ci-verify.yml` and a pre-commit sample
-  at `scripts/templates/pre-commit`; **turn them on and mark the CI checks required** — until you do,
-  the only backstop against a non-Claude agent is the prose above. Do not assume a gate you have not
-  wired.
+- **CI is real and runs on every PR, but nothing it reports can block a merge.**
+  `.github/workflows/ci.yml` runs `typecheck`, `lint` (which also runs `check:sql-arrays`), `arch`,
+  `db-drift`, `test`, `integration` (against real Postgres + Redis) and `docker-build` for both
+  images, on self-hosted runners. Those checks are informative, not gating.
+- **There is no branch protection and there are no required status checks.** This repository is
+  private on GitHub's **Free** plan, where `/branches/main/protection` and `/rulesets` both return
+  `403 Upgrade to GitHub Pro or make this repository public`. Nothing server-side blocks a
+  force-push, a direct push to `main`, or a merge on red. Verified 2026-08-31.
+- **What that means in practice:** the strongest guardrail against a non-Claude agent is the prose
+  above plus whoever is reading the PR. A red check is a stop sign, not a wall — do not merge past
+  one because "CI isn't required anyway". A pre-commit hook may be installed locally
+  (`scripts/templates/pre-commit` is the sample), but it is machine-local and `--no-verify` skips it.
+- **Making the repo public would enable protection and rulesets**, and would also remove the 2,000
+  Actions-minutes/month cap that took CI down in August. It is a one-way door with its own
+  consequences — untrusted PRs would then be able to run workflows on the self-hosted runners, one of
+  which has access to the host Docker daemon — so it is the operator's call, not an agent's.
+- **Do not assume a gate you have not verified.** If you are about to rely on one, check it.
 
 ## The rules, in full — inlined for AGENTS.md-native tools
 
@@ -176,7 +188,9 @@ The complete text of every `.claude/rules/` module is reproduced below by `scrip
 tool that reads AGENTS.md but cannot follow `CLAUDE.md`'s `@`-imports (Codex and others) still gets the
 entire ruleset from this one file. The bodies live once under `.claude/rules/`; this block is a generated
 rendering of them. **Do not edit between the markers** — edit the modules and re-run `sh
-scripts/sync-agents.sh` (`--check` fails CI if this block drifts).
+scripts/sync-agents.sh`. `--check` reports drift, but **no CI job runs it** — if you edit a rule
+module and skip the regen, the provider mirrors silently go stale and every non-Claude agent reads
+the old text. Run the regen in the same commit.
 
 <!-- PANOPLY:RULES:BEGIN — generated from .claude/rules/*.md by scripts/sync-agents.sh. Edit the modules, not here. -->
 
@@ -526,6 +540,11 @@ Every endpoint should have behavior coverage in the same change. Plexo has no ro
 - Browser validation when UI or endpoint wiring changes: `pnpm test:e2e`.
 - Full typecheck: `pnpm typecheck`.
 - Lint: `pnpm lint`.
+- Array-bind gate: `pnpm check:sql-arrays`. Interpolating a JS array into a `sql` template does not
+  bind an array — Drizzle expands it to a row constructor, so `ANY(${ids}::uuid[])` fails at runtime
+  and typechecks clean. Use `sqlArray(values, type)` from `packages/agent/src/sql-array.ts`.
+- Architecture boundaries: `pnpm arch:check`. It reads `.dependency-cruiser-baseline.json`, a ratchet
+  of known violations — delete the entries your change fixes, and never regenerate the baseline.
 
 ---
 

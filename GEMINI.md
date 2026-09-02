@@ -10,9 +10,8 @@
 **Before writing anything, open `AGENTS.md` at the repo root and read it fully.** The short version:
 
 - **Read, in order:** `docs/claude/roadmap.md` (the plan) → `docs/claude/in-progress.md` (the queue +
-  the exact next step) → the running worklog (`docs/claude/worklog.md` or the `CHANGELOG`
-  `[Unreleased]` section) → `CLAUDE.md` (stack + commands) → the `.claude/rules/` module for what you
-  touch.
+  the exact next step) → the running worklog (`CHANGELOG.md`, `[Unreleased]`) → `CLAUDE.md`
+  (stack + commands) → the `.claude/rules/` module for what you touch.
 - **Carry existing work forward.** The top of `in-progress.md` is the live task with its next step —
   continue it; do NOT open a parallel track for work already queued.
 - **Keep the plan and worklog current in the SAME change as the code.** Shipped-but-unlogged = not done.
@@ -22,8 +21,9 @@
 ### MUST NOT — hard guardrails
 
 For Claude Code these are enforced by `.claude/settings.json`. **That permission gate binds only
-Claude** — for every other tool these are advisory doctrine, and the only cross-tool enforcement is
-whatever the repo has wired server-side (branch protection + required CI). Honor them as absolute:
+Claude** — for every other tool these are advisory doctrine, and **this repo currently has no
+server-side enforcement at all** (no branch protection, no required checks — see "Enforcement — the
+honest version"). Nothing but your own compliance stops these. Honor them as absolute:
 
 - **NEVER** force-push, `git reset --hard` a shared branch, delete branches/tags, or rewrite published
   history.
@@ -387,6 +387,11 @@ Every endpoint should have behavior coverage in the same change. Plexo has no ro
 - Browser validation when UI or endpoint wiring changes: `pnpm test:e2e`.
 - Full typecheck: `pnpm typecheck`.
 - Lint: `pnpm lint`.
+- Array-bind gate: `pnpm check:sql-arrays`. Interpolating a JS array into a `sql` template does not
+  bind an array — Drizzle expands it to a row constructor, so `ANY(${ids}::uuid[])` fails at runtime
+  and typechecks clean. Use `sqlArray(values, type)` from `packages/agent/src/sql-array.ts`.
+- Architecture boundaries: `pnpm arch:check`. It reads `.dependency-cruiser-baseline.json`, a ratchet
+  of known violations — delete the entries your change fixes, and never regenerate the baseline.
 
 ---
 

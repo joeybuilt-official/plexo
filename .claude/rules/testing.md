@@ -38,3 +38,8 @@ Every endpoint should have behavior coverage in the same change. Plexo has no ro
 - Browser validation when UI or endpoint wiring changes: `pnpm test:e2e`.
 - Full typecheck: `pnpm typecheck`.
 - Lint: `pnpm lint`.
+- Array-bind gate: `pnpm check:sql-arrays`. Interpolating a JS array into a `sql` template does not
+  bind an array — Drizzle expands it to a row constructor, so `ANY(${ids}::uuid[])` fails at runtime
+  and typechecks clean. Use `sqlArray(values, type)` from `packages/agent/src/sql-array.ts`.
+- Architecture boundaries: `pnpm arch:check`. It reads `.dependency-cruiser-baseline.json`, a ratchet
+  of known violations — delete the entries your change fixes, and never regenerate the baseline.
