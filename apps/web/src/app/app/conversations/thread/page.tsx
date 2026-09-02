@@ -13,9 +13,6 @@ import {
     Bot,
     User,
     MessageCircle,
-    CheckCircle,
-    XCircle,
-    Clock,
     Loader2,
     Layers,
 } from 'lucide-react'
@@ -46,12 +43,6 @@ const SOURCE_LABEL: Record<string, { icon: string; label: string }> = {
     dashboard: { icon: '🖥', label: 'Dashboard' },
     api: { icon: '🔗', label: 'API' },
     widget: { icon: '💬', label: 'Widget' },
-}
-
-const STATUS_CFG = {
-    complete: { icon: CheckCircle, cls: 'text-azure', label: 'Completed' },
-    failed: { icon: XCircle, cls: 'text-red', label: 'Failed' },
-    pending: { icon: Clock, cls: 'text-amber', label: 'Pending' },
 }
 
 // ── Single turn view ──────────────────────────────────────────────────────────

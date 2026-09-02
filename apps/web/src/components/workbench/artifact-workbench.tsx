@@ -259,13 +259,15 @@ export function ArtifactWorkbench({
         setIsLoadingFile(false)
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!selectedFile) return
         const last = fileWrites[fileWrites.length - 1]
         if (last && last.path === selectedFile) {
             openFile(selectedFile)
         }
+        // Intentionally fires only when a NEW write arrives (length change),
+        // not when selectedFile or openFile identity changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fileWrites.length])
 
     // ── Clear state when task changes ─────────────────────────────────────────

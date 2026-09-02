@@ -38,6 +38,7 @@ function LogoStrip({ items, columns = 5 }: { items: LogoItem[]; columns?: number
                     }
                     title={item.name}>
                     {item.logo ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- small decorative marquee logo; already lazy/async, next/image adds no value and would churn the public-route visual baseline
                         <img src={`/logos/${item.logo}`} alt={item.name} loading="lazy" decoding="async"
                             className={`${item.widthClass ?? 'h-5'} opacity-50 group-hover:opacity-90 transition-opacity dark:invert`} />
                     ) : (

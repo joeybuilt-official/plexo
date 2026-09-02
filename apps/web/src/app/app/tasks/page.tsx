@@ -296,7 +296,7 @@ export default function TasksPage() {
         dedupingInterval: 60_000,
         revalidateOnFocus: true,
     })
-    const sprints = sprintsData?.items ?? []
+    const sprints = useMemo(() => sprintsData?.items ?? [], [sprintsData])
 
     const tasksKey = useMemo(() => {
         if (!workspaceId) return null
@@ -319,7 +319,7 @@ export default function TasksPage() {
         revalidateOnFocus: true,
         keepPreviousData: true,
     })
-    const tasks = tasksData?.items ?? []
+    const tasks = useMemo(() => tasksData?.items ?? [], [tasksData])
     const loading = isLoading && !tasksData
     const refreshing = isValidating && !isLoading
 

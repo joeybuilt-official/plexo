@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // Raw task_steps row as emitted by GET /api/v1/tasks/:id/steps/stream
 // ({ type: 'step', data: <row> }). Mirrors packages/db taskSteps columns.

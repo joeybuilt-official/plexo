@@ -305,7 +305,7 @@ function AgentsContent() {
         await fetch(`${API}/api/v1/behavior/${WS_ID}/rules/${id}`, { method: 'DELETE' })
         setRules(prev => prev.filter(r => r.id !== id))
         setRefreshTick(t => t + 1)
-    }, [WS_ID])
+    }, [WS_ID, confirmAction])
 
     const handleRuleAdd = useCallback(async (partial: Partial<BehaviorRule>) => {
         if (!WS_ID) return

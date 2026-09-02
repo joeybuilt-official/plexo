@@ -232,6 +232,7 @@ export function CommandPalette() {
                                             data-index={idx}
                                             onClick={() => navigate(item)}
                                             onMouseEnter={() => setSelectedIndex(idx)}
+                                            role="option"
                                             className={`flex w-full items-center gap-3 rounded px-3 py-2 text-sm transition-colors ${
                                                 idx === selectedIndex
                                                     ? 'bg-surface-2 text-text-primary'

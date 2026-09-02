@@ -60,7 +60,7 @@ export function AnalyticsPreviewModal() {
         function handler(e: KeyboardEvent) { if (e.key === 'Escape') handleConfirm() }
         document.addEventListener('keydown', handler)
         return () => document.removeEventListener('keydown', handler)
-    }) // eslint-disable-line react-hooks/exhaustive-deps
+    })
 
     const trapRef = useFocusTrap<HTMLDivElement>(true)
 

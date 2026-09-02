@@ -18,7 +18,7 @@
 //   `javascript:` / `data:` / other schemes are treated as plain text.
 
 import { findPlexoAction, type PlexoActionEntry } from './plexo-actions'
-import { findPlexoPath, type PlexoPathEntry } from './plexo-paths'
+import { findPlexoPath } from './plexo-paths'
 import { matchProviderByUrl, type ApiKeyProvider } from './api-key-providers'
 
 export type EnrichedSegment =

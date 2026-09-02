@@ -3,7 +3,7 @@
 
 "use client"
 
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ModeSelection } from '@plexo/ui/components/onboarding/ModeSelection'
 import { InstanceConnect } from '@plexo/ui/components/onboarding/InstanceConnect'

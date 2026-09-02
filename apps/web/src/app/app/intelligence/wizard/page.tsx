@@ -28,7 +28,7 @@ import Link from 'next/link'
 import {
     Loader2, CheckCircle2, XCircle, HelpCircle, Wand2, Database,
     Network, DollarSign, Sparkles, ArrowRight, ArrowLeft,
-    Search, Check, Circle,
+    Search, Check,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 import {

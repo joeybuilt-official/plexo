@@ -148,7 +148,7 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
 
     // ── Filter state ─────────────────────────────────────────────────────────
     const lf = useListFilter(FILTER_KEYS, 'newest')
-    const { search, filterValues, hasFilters, clearAll } = lf
+    const { search, filterValues, clearAll } = lf
 
     // ── Phase 8: SWR-backed live first page ──────────────────────────────────
     // SWR dedupes overlapping navigations and revalidates on window focus. A

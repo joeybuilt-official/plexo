@@ -19,7 +19,6 @@ import {
     Clock,
     Loader2,
 } from 'lucide-react'
-import { useWorkspace } from '@web/context/workspace'
 
 const API = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
 
@@ -57,7 +56,6 @@ export default function ConversationDetailPage() {
     const params = useParams()
     const router = useRouter()
     const id = params.id as string
-    const { workspaceId } = useWorkspace()
     const [conv, setConv] = useState<Conversation | null>(null)
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)

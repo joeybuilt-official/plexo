@@ -41,6 +41,9 @@ export function ParallelStatusPanel() {
         void fetchStatus()
         const t = setInterval(fetchStatus, 5000)
         return () => clearInterval(t)
+        // fetchStatus is recreated each render and only reads workspaceId, which
+        // is already a dependency; this stays a mount / workspace-change poll.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workspaceId])
 
     const claimBatch = async () => {

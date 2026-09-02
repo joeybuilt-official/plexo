@@ -100,7 +100,6 @@ export function WorkspaceProvider({
         if (storedId && storedId !== workspaceId) setWorkspaceId(storedId)
         if (cachedName && !workspaceName) setWorkspaceNameRaw(cachedName)
         if (cachedUserName && !userName) setUserName(cachedUserName)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     // Persist userName to localStorage for warm cache on next load

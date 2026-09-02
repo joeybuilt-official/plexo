@@ -160,6 +160,9 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                 fetchRepos()
             }
         })
+        // fetchRepos is recreated each render and only reads workspaceId, which
+        // is already a dependency; this stays a mount / workspace-change effect.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workspaceId])
 
     async function fetchRepos() {

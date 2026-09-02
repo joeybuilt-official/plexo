@@ -23,7 +23,6 @@ function wrap(method: 'GET' | 'POST') {
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             const stack = err instanceof Error ? err.stack : undefined
-            // eslint-disable-next-line no-console
             console.error(JSON.stringify({ level: 'error', ns: 'auth.route', method, url: req.url, msg, stack }))
             return new Response(JSON.stringify({ error: 'auth_handler_failure', message: msg }), {
                 status: 500,

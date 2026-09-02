@@ -86,11 +86,7 @@ function ServiceBadge({ name, health }: { name: string; health: ServiceHealth })
     )
 }
 
-function RouteRow({ check, result, wsId }: { check: RouteCheck; result: { ok: boolean; status: number; latencyMs: number } | null; wsId: string }) {
-    const url = check.requiresWorkspace && wsId
-        ? `${API_BASE}${check.route}?workspaceId=${wsId}`
-        : `${API_BASE}${check.route}`
-
+function RouteRow({ check, result, wsId: _wsId }: { check: RouteCheck; result: { ok: boolean; status: number; latencyMs: number } | null; wsId: string }) {
     return (
         <tr className="border-b border-border-subtle">
             <td className="py-2 pr-4 text-sm text-text-secondary">{check.label}</td>

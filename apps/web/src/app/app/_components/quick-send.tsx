@@ -22,7 +22,6 @@ export function QuickSend() {
     const router = useRouter()
     const [text, setText] = useState('')
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-    const [taskId, setTaskId] = useState<string | null>(null)
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
@@ -291,6 +290,7 @@ export function QuickSend() {
                         {pastedImages.map((img) => (
                             <div key={img.id} className="relative group">
                                 {img.kind === 'image' ? (
+                                    // eslint-disable-next-line @next/next/no-img-element -- data: URI paste preview; next/image cannot optimize a data URL
                                     <img src={img.dataUrl} alt={img.name} className="h-14 w-14 rounded-sm border border-border object-cover" />
                                 ) : (
                                     <div className="h-14 w-20 rounded-sm border border-border/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-1 text-center">
@@ -413,12 +413,6 @@ export function QuickSend() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {status === 'sent' && taskId && (
-                            <Link href={`/app/tasks/${taskId}`} className="flex items-center gap-1.5 text-azure hover:text-azure-400 transition-colors bg-azure/10 px-2.5 py-1.5 rounded-sm border border-azure/20 text-[11px] font-medium tracking-wide">
-                                <span>✓ Task queued</span>
-                                <span>View task →</span>
-                            </Link>
-                        )}
                         {status === 'error' && (
                             <span className="text-red-400 bg-red-dim px-2.5 py-1.5 rounded-sm border border-red-900/50 flex items-center gap-1.5 text-[11px] font-medium">
                                 Failed.

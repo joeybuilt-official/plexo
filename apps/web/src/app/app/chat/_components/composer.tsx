@@ -4,7 +4,7 @@
 'use client'
 
 import { forwardRef, useState } from 'react'
-import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText, ChevronDown, ChevronUp, Cpu, MessageSquareText, Brain } from 'lucide-react'
+import { Send, RefreshCw, Mic, MicOff, Volume2, Image as ImageIcon, X, FileText, ChevronDown, ChevronUp, MessageSquareText, Brain } from 'lucide-react'
 import type { PastedImage, PastedDocument } from '@web/lib/attachments'
 
 export interface ProviderModelOption {

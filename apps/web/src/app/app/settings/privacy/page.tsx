@@ -238,35 +238,6 @@ function RegenerateModal({ open, onClose, onConfirm, loading }: {
     )
 }
 
-// ── Payload links ─────────────────────────────────────────────────────────────
-
-function PayloadLinks({
-    onViewError,
-    onViewUsage,
-}: {
-    onViewError: () => void
-    onViewUsage: () => void
-}) {
-    return (
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-            <button
-                onClick={onViewError}
-                className="text-xs text-azure hover:underline flex items-center gap-1"
-            >
-                See exactly what gets sent →
-            </button>
-            <a
-                href={ANALYTICS_MD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-text-muted hover:text-text-secondary flex items-center gap-1"
-            >
-                How this data is used <ExternalLink className="h-3 w-3" />
-            </a>
-        </div>
-    )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PrivacyPage() {

@@ -8,6 +8,17 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "react-hooks/set-state-in-effect": "off",
+      // A leading underscore marks a binding as deliberately unused (an
+      // unused arg kept for signature/position, a discarded destructure, a
+      // caught error we ignore). Honor that convention instead of warning;
+      // every other unused binding stays a warning, and `--max-warnings 0`
+      // in the lint script turns that into a hard gate.
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+        destructuredArrayIgnorePattern: "^_",
+      }],
       // Ban shadcn-style Tailwind tokens that don't resolve in our @theme.
       // Canonical vocab lives in src/app/globals.css — use
       // text-text-primary, bg-surface-1, border-border, text-text-muted, etc.

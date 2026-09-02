@@ -10,7 +10,6 @@ import {
     BookOpen, Plus, Trash2, Edit, RefreshCw, Save, AlertCircle,
     Check, X, ChevronDown, ChevronRight,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { useWorkspace } from '@web/context/workspace'
 import { useFocusTrap } from '@web/hooks/use-focus-trap'
 
@@ -57,7 +56,6 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { name: '', description: '', content: '', priority: 'normal', tags: '', ttl: '' }
 const PRIORITY_ORDER: Priority[] = ['critical', 'high', 'normal', 'low', 'background']
-const BUDGET_LIMIT = 51200
 
 // ── Primitive components ──────────────────────────────────────────────────────
 

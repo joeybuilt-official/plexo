@@ -11,7 +11,6 @@ import {
     ZapOff,
     RefreshCw,
     AlertCircle,
-    Package,
     ChevronDown,
     ChevronRight,
     Circle,

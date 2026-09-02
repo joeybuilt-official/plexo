@@ -338,7 +338,6 @@ export function getCategoryDef(id: string): CategoryDef {
 
 /** Category-specific planner system prompt prefix */
 export function categoryPlannerPrompt(category: string): string {
-    const def = getCategoryDef(category)
     const prompts: Record<ProjectCategory, string> = {
         code: `You are a sprint planning system for software development. Given a repository and a feature/change request, decompose the work into independent coding tasks that can be executed in parallel by separate AI agents.
 

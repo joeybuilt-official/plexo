@@ -1,6 +1,6 @@
 import { X, Copy, Check, Download, FileDown, ChevronDown, Loader2, History, AlertTriangle, Share2, Link2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useFocusTrap } from '@web/hooks/use-focus-trap'
 
 import type { TaskAsset } from '@web/app/app/chat/_components/types'
