@@ -45,6 +45,15 @@ jobs:
       # into a `::type[]` cast renders a ROW constructor and fails at runtime.
       # Three call sites shipped that way and swallowed the error.
       - run: pnpm check:sql-arrays
+      # AGENTS.md claimed `--check` gated mirror drift. It did not, so a rule
+      # edit without a regen silently staled the copies Cursor/Cline/Windsurf/
+      # Copilot/Gemini/aider read. Now it does.
+      - run: sh scripts/sync-agents.sh --check
+      # AGENTS.md also cited `scripts/check-docs.sh` as a required gate and
+      # `docs/claude/worklog.md` as the worklog; neither ever existed, and the
+      # docs described three apps deleted in 282e1f5. Docs make falsifiable
+      # claims about the filesystem — this falsifies them.
+      - run: sh scripts/check-doc-refs.sh
 
   arch:
     # Clean Architecture boundary gate (ADR 0001). `--ignore-known` holds a

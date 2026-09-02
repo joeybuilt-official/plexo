@@ -4,7 +4,7 @@
 
 ## Placement
 
-- Route and page entrypoints live under `apps/web/src/app/` or `apps/hub/src/app/`.
+- Route and page entrypoints live under `apps/web/src/app/`.
 - Generic React primitives live under `packages/ui/src/components/` and `apps/web/src/components/ui/`.
 - Product-aware web components live under `apps/web/src/components/` and route-local `_components/` folders.
 - Pages wire data to components and own route loading/error/empty states. Keep business decisions out of them.

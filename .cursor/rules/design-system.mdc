@@ -7,7 +7,7 @@ alwaysApply: true
 
 # UI Design System
 
-> Applies to Plexo web, Hub, shared React, and Flutter surfaces. The dominant reference is the existing Plexo token system; no external design reference was selected.
+> Applies to Plexo web, shared React, and Flutter surfaces. The dominant reference is the existing Plexo token system; no external design reference was selected.
 
 ## Visual language
 

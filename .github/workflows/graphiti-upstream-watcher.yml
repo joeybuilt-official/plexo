@@ -73,7 +73,11 @@ jobs:
             services/graphiti-sidecar/requirements.txt
           git add services/graphiti-sidecar/requirements.txt
           git commit -m "chore(graphiti-core): bump ${{ steps.detect.outputs.pinned }} → ${{ steps.detect.outputs.latest }}"
-          git push origin "$BRANCH"
+          # NOTE: the push moved BELOW the probe deliberately. It used to run
+          # here, so when "Build sidecar image at new pin" failed — as it did
+          # every day from 2026-08-30 — the branch was already pushed and the
+          # `gh pr create` step downstream never ran. Result: a fresh orphan
+          # branch daily, no PR, no signal. Push only after the probe passes.
 
       - name: Build sidecar image at new pin
         if: steps.detect.outputs.needs_bump == 'true'
@@ -104,6 +108,10 @@ jobs:
           PLEXO_SERVICE_KEY: ${{ secrets.PROBE_PLEXO_SERVICE_KEY }}
           PROBE_KUZU_SOURCE: /tmp/graphiti-snapshot.tgz
         run: ./services/graphiti-sidecar/test/snapshot-probe.sh
+
+      - name: Push branch (only after the probe passed)
+        if: steps.detect.outputs.needs_bump == 'true'
+        run: git push origin "chore/graphiti-core-${{ steps.detect.outputs.latest }}"
 
       - name: Open PR with probe result
         if: steps.detect.outputs.needs_bump == 'true'

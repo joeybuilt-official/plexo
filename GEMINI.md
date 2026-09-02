@@ -596,7 +596,7 @@ Use one only when all three hold: the payload is opaque or third-party-shaped, y
 
 ## Placement
 
-- Route and page entrypoints live under `apps/web/src/app/` or `apps/hub/src/app/`.
+- Route and page entrypoints live under `apps/web/src/app/`.
 - Generic React primitives live under `packages/ui/src/components/` and `apps/web/src/components/ui/`.
 - Product-aware web components live under `apps/web/src/components/` and route-local `_components/` folders.
 - Pages wire data to components and own route loading/error/empty states. Keep business decisions out of them.
@@ -625,7 +625,7 @@ Every asynchronous page, form, upload, and background save has visible loading, 
 
 # UI Design System
 
-> Applies to Plexo web, Hub, shared React, and Flutter surfaces. The dominant reference is the existing Plexo token system; no external design reference was selected.
+> Applies to Plexo web, shared React, and Flutter surfaces. The dominant reference is the existing Plexo token system; no external design reference was selected.
 
 ## Visual language
 
