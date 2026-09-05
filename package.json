@@ -138,7 +138,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "arch:check": "dependency-cruiser --config .dependency-cruiser.js --ignore-known .dependency-cruiser-baseline.json packages/auth/src packages/domain/src packages/db/src packages/sdk/src packages/logger/src packages/storage/src packages/queue/src packages/mcp-server/src packages/agent/src apps/api/src",
+    "arch:check": "dependency-cruiser --config .dependency-cruiser.js --ignore-known .dependency-cruiser-baseline.json packages/auth/src packages/domain/src packages/db/src packages/sdk/src packages/logger/src packages/storage/src packages/queue/src packages/mcp-server/src packages/agent/src apps/api/src packages/session-fabric/src extensions/core/fonto-bridge/src extensions/core/fylo-bridge/src extensions/core/koforje-bridge/src extensions/core/levio-bridge/src extensions/core/nexalog-bridge/src extensions/core/research-agent/src",
     "arch:baseline": "dependency-cruiser --config .dependency-cruiser.js --output-type baseline packages/auth/src packages/domain/src packages/db/src packages/sdk/src packages/logger/src packages/storage/src packages/queue/src packages/mcp-server/src packages/agent/src apps/api/src > .dependency-cruiser-baseline.json",
     "test": "turbo test",
     "test:unit": "vitest run tests/unit",

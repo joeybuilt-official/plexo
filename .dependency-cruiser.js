@@ -18,6 +18,21 @@ module.exports = {
             to: { path: '(drizzle-orm|(^|/)express/|packages/(agent|api|db|queue|logger|storage|session-fabric|mcp-server|ui|sdk)/)' },
         },
         {
+            name: 'session-fabric-imports-outer',
+            comment:
+                'packages/session-fabric is framework-free runner policy — no ORM, no HTTP framework, '
+                + 'no vendor SDK, no outer package. clean-architecture.md names it a home for shared core '
+                + 'policy, and it was built with zero external dependencies on purpose; this rule is what '
+                + 'keeps that true. It holds today with nothing baselined.',
+            severity: 'error',
+            from: { path: '^packages/session-fabric/src/' },
+            to: {
+                path:
+                    '(drizzle-orm|(^|/)express/|^@anthropic-ai/|^openai$|^ai$'
+                    + '|packages/(agent|api|db|queue|logger|storage|mcp-server|ui)/)',
+            },
+        },
+        {
             name: 'db-imports-agent-or-api',
             comment: 'packages/db is an inner adapter — must not depend on agent/api/apps',
             severity: 'error',
