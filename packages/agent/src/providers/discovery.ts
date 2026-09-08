@@ -7,24 +7,32 @@
  * Discovers what each configured provider can do (chat, embeddings,
  * which models) by probing endpoints. Results are cached in the
  * provider_instances.capabilities JSONB column.
+ *
+ * Persistence sits behind `ProviderDiscoveryStore`
+ * (`../provider-discovery.ports.js`); the drizzle adapter is
+ * `../provider-discovery.repository.js`.
  */
 
 import pino from 'pino'
-import { eq } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { providerInstances } from '@plexo/db'
 import { EMBEDDING_CAPABLE_PROVIDERS, DEFAULT_EMBEDDING_MODELS } from '../embeddings/adapters.js'
 import { OllamaAdapter } from '../ollama/adapter.js'
 import { decrypt } from '../connections/crypto-util.js'
+import { DrizzleProviderDiscoveryStore } from '../provider-discovery.repository.js'
+import type { ProviderDiscoveryStore, ProviderCapabilities } from '../provider-discovery.ports.js'
 
 const logger = pino({ name: 'provider:discovery' })
 
-export interface ProviderCapabilities {
-    supportsChat: boolean
-    supportsEmbeddings: boolean
-    chatModels: string[]
-    embeddingModels: string[]
-    discoveryError: string | null
+// Declared on the port so it does not have to import its consumer; re-exported
+// here so every existing importer keeps its path.
+export type { ProviderCapabilities } from '../provider-discovery.ports.js'
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: ProviderDiscoveryStore = new DrizzleProviderDiscoveryStore()
+
+/** Swap the discovery store (e.g. an in-memory fake in unit tests). */
+export function setProviderDiscoveryStore(next: ProviderDiscoveryStore): void {
+    store = next
 }
 
 /**
@@ -145,7 +153,7 @@ export async function discoverCapabilities(instance: {
  * Refresh capabilities for a single provider instance and update the DB.
  */
 export async function refreshInstanceCapabilities(instanceId: string): Promise<ProviderCapabilities> {
-    const [row] = await db.select().from(providerInstances).where(eq(providerInstances.id, instanceId)).limit(1)
+    const row = await store.getInstance(instanceId)
     if (!row) throw new Error(`Provider instance ${instanceId} not found`)
 
     const caps = await discoverCapabilities({
@@ -156,13 +164,7 @@ export async function refreshInstanceCapabilities(instanceId: string): Promise<P
         managed: row.managed,
     })
 
-    await db.update(providerInstances)
-        .set({
-            capabilities: caps,
-            lastDiscoveredAt: new Date(),
-            updatedAt: new Date(),
-        })
-        .where(eq(providerInstances.id, instanceId))
+    await store.saveCapabilities(instanceId, caps, new Date())
 
     return caps
 }
@@ -171,9 +173,7 @@ export async function refreshInstanceCapabilities(instanceId: string): Promise<P
  * Refresh capabilities for all provider instances in a workspace.
  */
 export async function refreshWorkspaceCapabilities(workspaceId: string): Promise<void> {
-    const instances = await db.select()
-        .from(providerInstances)
-        .where(eq(providerInstances.workspaceId, workspaceId))
+    const instances = await store.listWorkspaceInstances(workspaceId)
 
     for (const inst of instances) {
         try {
