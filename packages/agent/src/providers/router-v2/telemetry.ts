@@ -12,12 +12,24 @@
  *
  * Event schema is the one-way door called out in plan.md Phase 3.
  * `alternatives_considered` is ALWAYS emitted per operator decision C2.
+ *
+ * Persistence sits behind `RoutingEventStore` (`../../routing-events.ports.js`);
+ * the drizzle adapter is `../../routing-events.repository.js`.
  */
 
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
+import { DrizzleRoutingEventStore } from '../../routing-events.repository.js'
+import type { RoutingEventStore } from '../../routing-events.ports.js'
 import type { Alternative, SelectionResult } from './selector.js'
 import type { TaskType } from '../registry.js'
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: RoutingEventStore = new DrizzleRoutingEventStore()
+
+/** Swap the routing-event store (e.g. an in-memory fake in unit tests). */
+export function setRoutingEventStore(next: RoutingEventStore): void {
+    store = next
+}
 
 export interface RoutedEvent {
     event: 'model.routed'
@@ -82,21 +94,17 @@ export function setRoutedEventMetricsHook(fn: (evt: RoutedEvent) => void): void 
 
 async function persistRoutedEvent(evt: RoutedEvent): Promise<void> {
     try {
-        await db.execute(sql`
-            INSERT INTO routing_events
-                (workspace_id, task_id, task_type, provider, model, fallback_engaged, selector_duration_ms, shadow_model_choice, model_routed)
-            VALUES (
-                ${evt.workspaceId ?? null},
-                ${evt.taskId ?? null},
-                ${evt.taskType},
-                ${evt.chosen?.provider ?? null},
-                ${evt.chosen?.model ?? null},
-                ${evt.fallbackEngaged},
-                ${Math.round(evt.selectorDurationMs)},
-                ${null},
-                ${evt.modelRouted}
-            )
-        `)
+        await store.append({
+            workspaceId: evt.workspaceId ?? null,
+            taskId: evt.taskId ?? null,
+            taskType: evt.taskType,
+            provider: evt.chosen?.provider ?? null,
+            model: evt.chosen?.model ?? null,
+            fallbackEngaged: evt.fallbackEngaged,
+            selectorDurationMs: Math.round(evt.selectorDurationMs),
+            shadowModelChoice: null,
+            modelRouted: evt.modelRouted,
+        })
     } catch {
         // Telemetry must never break routing. Console line above already captured it.
     }
