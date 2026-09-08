@@ -13,7 +13,9 @@
  *
  * Lives in `@plexo/agent` (not `apps/api`) so the executor can import
  * it without inverting the package dep direction. Same pattern as the
- * cost-gate sister module in this package.
+ * cost-gate sister module in this package. Persistence sits behind
+ * `ChainResolverStore` (`../chain-resolver.ports.js`); the drizzle
+ * adapter is `../chain-resolver.repository.js`.
  *
  * Process-local 60s cache mirrors the intelligence-cache TTL. Every
  * PATCH /chains route in `apps/api/src/routes/intelligence.ts` calls
@@ -21,14 +23,16 @@
  * see their changes within one resolver lookup.
  */
 
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
+import { DrizzleChainResolverStore } from '../chain-resolver.repository.js'
+import type { ChainResolverStore } from '../chain-resolver.ports.js'
 
-function dbRows<T>(result: unknown): T[] {
-    if (result !== null && typeof result === 'object' && 'rows' in result && Array.isArray((result as { rows: unknown }).rows)) {
-        return (result as { rows: T[] }).rows
-    }
-    return Array.isArray(result) ? (result as T[]) : []
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: ChainResolverStore = new DrizzleChainResolverStore()
+
+/** Swap the routing-chain store (e.g. an in-memory fake in unit tests). */
+export function setChainResolverStore(next: ChainResolverStore): void {
+    store = next
 }
 
 export type ChainTaskType =
@@ -74,41 +78,18 @@ export function getChainResolverCacheStats(): { size: number; keys: string[] } {
     return { size: cache.size, keys: Array.from(cache.keys()) }
 }
 
-interface ChainRow {
-    id: string
-    task_type: string
-    provider_id: string
-    provider_type: string | null
-    model_id: string
-    position: number
-}
-
 async function loadChains(workspaceId: string): Promise<WorkspaceChains> {
     const out: WorkspaceChains = {}
     try {
-        const result = await db.execute(sql`
-            SELECT
-                rc.id,
-                rc.task_type,
-                rc.provider_id,
-                rc.model_id,
-                rc.position,
-                pi.provider_type
-            FROM routing_chains rc
-            LEFT JOIN provider_instances pi ON pi.id = rc.provider_id
-            WHERE rc.workspace_id = ${workspaceId}::uuid
-            ORDER BY rc.task_type, rc.position
-        `)
-        const rows: ChainRow[] = dbRows<ChainRow>(result)
-        for (const row of rows) {
-            const tier = row.task_type as ChainTaskType
+        for (const row of await store.loadWorkspaceChains(workspaceId)) {
+            const tier = row.taskType as ChainTaskType
             if (!out[tier]) out[tier] = []
             out[tier]!.push({
-                id: String(row.id),
-                providerId: String(row.provider_id),
-                providerType: String(row.provider_type ?? ''),
-                modelId: String(row.model_id),
-                position: Number(row.position),
+                id: row.id,
+                providerId: row.providerId,
+                providerType: row.providerType ?? '',
+                modelId: row.modelId,
+                position: row.position,
             })
         }
     } catch {
