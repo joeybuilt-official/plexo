@@ -7,16 +7,37 @@
  * Operates on the provider_instances table. Consumed by the Intelligence
  * page API routes (Phase 4+). Does NOT replace the existing vault/arbiter
  * system — both coexist during the transition period.
+ *
+ * Persistence sits behind `ProviderInstanceStore`
+ * (`../provider-instances.ports.js`); the drizzle adapter is
+ * `../provider-instances.repository.js`.
  */
 
-import { eq, and, asc, sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { providerInstances } from '@plexo/db'
-import { discoverCapabilities, type ProviderCapabilities } from './discovery.js'
+import { discoverCapabilities } from './discovery.js'
 import { invalidateSettingsCache } from './settings-from-instances.js'
+import { DrizzleProviderInstanceStore } from '../provider-instances.repository.js'
+import type {
+    ProviderInstanceStore,
+    ProviderInstanceRow,
+    PreferenceOrderUpdate,
+    ModelCompatStatus,
+} from '../provider-instances.ports.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'provider:instances' })
+
+// Declared on the port so it does not have to import its consumer; re-exported
+// here so every existing importer keeps its path.
+export type { ProviderInstanceRow, ModelCompatStatus } from '../provider-instances.ports.js'
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: ProviderInstanceStore = new DrizzleProviderInstanceStore()
+
+/** Swap the provider-instance store (e.g. an in-memory fake in unit tests). */
+export function setProviderInstanceStore(next: ProviderInstanceStore): void {
+    store = next
+}
 
 export interface ProviderInstanceInput {
     nickname: string
@@ -27,48 +48,18 @@ export interface ProviderInstanceInput {
     managed?: boolean
 }
 
-export type ModelCompatStatus = 'native' | 'repair' | 'failed' | null
-
-export interface ProviderInstanceRow {
-    id: string
-    workspaceId: string
-    nickname: string
-    providerType: string
-    endpointUrl: string | null
-    encryptedKey: string | null
-    capabilities: ProviderCapabilities
-    preferenceOrder: number
-    managed: boolean
-    enabled: boolean
-    selectedModel: string | null
-    createdAt: Date
-    updatedAt: Date
-    lastDiscoveredAt: Date | null
-    modelCompatStatus: ModelCompatStatus
-    modelCompatValidatedAt: Date | null
-}
-
 /**
  * List all provider instances for a workspace, ordered by preference.
  */
 export async function listProviders(workspaceId: string): Promise<ProviderInstanceRow[]> {
-    const rows = await db.select()
-        .from(providerInstances)
-        .where(eq(providerInstances.workspaceId, workspaceId))
-        .orderBy(asc(providerInstances.preferenceOrder))
-
-    return rows as ProviderInstanceRow[]
+    return store.listByWorkspace(workspaceId)
 }
 
 /**
  * Get a single provider instance.
  */
 export async function getProvider(instanceId: string): Promise<ProviderInstanceRow | null> {
-    const [row] = await db.select()
-        .from(providerInstances)
-        .where(eq(providerInstances.id, instanceId))
-        .limit(1)
-    return (row as ProviderInstanceRow) ?? null
+    return store.getById(instanceId)
 }
 
 /**
@@ -76,13 +67,8 @@ export async function getProvider(instanceId: string): Promise<ProviderInstanceR
  * Automatically discovers capabilities and sets preference order to last.
  */
 export async function addProvider(workspaceId: string, input: ProviderInstanceInput): Promise<ProviderInstanceRow> {
-    // Get next preference order
-    const [maxRow] = await db.execute<{ max_order: string }>(sql`
-        SELECT COALESCE(MAX(preference_order), -1) AS max_order
-        FROM provider_instances
-        WHERE workspace_id = ${workspaceId}::uuid
-    `)
-    const nextOrder = Number(maxRow?.max_order ?? -1) + 1
+    // A new provider goes last.
+    const nextOrder = (await store.maxPreferenceOrder(workspaceId) ?? -1) + 1
 
     // Discover capabilities before inserting
     const caps = await discoverCapabilities({
@@ -93,7 +79,7 @@ export async function addProvider(workspaceId: string, input: ProviderInstanceIn
         managed: input.managed ?? false,
     })
 
-    const [row] = await db.insert(providerInstances).values({
+    const row = await store.insert({
         workspaceId,
         nickname: input.nickname,
         providerType: input.providerType,
@@ -104,10 +90,10 @@ export async function addProvider(workspaceId: string, input: ProviderInstanceIn
         capabilities: caps,
         preferenceOrder: nextOrder,
         lastDiscoveredAt: new Date(),
-    }).returning()
+    })
 
     invalidateSettingsCache(workspaceId)
-    return row as ProviderInstanceRow
+    return row
 }
 
 /**
@@ -122,27 +108,21 @@ export async function updateProvider(instanceId: string, updates: Partial<{
     modelCompatStatus: ModelCompatStatus
     modelCompatValidatedAt: Date | null
 }>): Promise<ProviderInstanceRow | null> {
-    const [row] = await db.update(providerInstances)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(eq(providerInstances.id, instanceId))
-        .returning()
-    if (row) invalidateSettingsCache((row as ProviderInstanceRow).workspaceId)
-    return (row as ProviderInstanceRow) ?? null
+    const row = await store.update(instanceId, { ...updates, updatedAt: new Date() })
+    if (row) invalidateSettingsCache(row.workspaceId)
+    return row
 }
 
 /**
  * Remove a provider instance. Rejects managed providers.
  */
 export async function removeProvider(instanceId: string): Promise<void> {
-    const [row] = await db.select({ managed: providerInstances.managed, workspaceId: providerInstances.workspaceId })
-        .from(providerInstances)
-        .where(eq(providerInstances.id, instanceId))
-        .limit(1)
+    const row = await store.getOwnership(instanceId)
 
     if (!row) throw new Error(`Provider instance ${instanceId} not found`)
     if (row.managed) throw new Error('Cannot remove the managed provider. It is a built-in default.')
 
-    await db.delete(providerInstances).where(eq(providerInstances.id, instanceId))
+    await store.delete(instanceId)
     invalidateSettingsCache(row.workspaceId)
 }
 
@@ -156,17 +136,12 @@ export async function reorderProviders(workspaceId: string, orderedIds: string[]
         // (loadSettingsFromInstances sorts by it), so every reorder — regardless
         // of UI capability — must persist it. The capability-specific columns
         // are kept for UI sort stability within the Thinking / Memory sections.
-        const updates: Record<string, unknown> = { updatedAt: new Date(), preferenceOrder: i }
-        if (capability === 'chat') updates.chatPreferenceOrder = i
-        else if (capability === 'embedding') updates.embeddingPreferenceOrder = i
-        else { updates.chatPreferenceOrder = i; updates.embeddingPreferenceOrder = i }
+        const order: PreferenceOrderUpdate = { updatedAt: new Date(), preferenceOrder: i }
+        if (capability === 'chat') order.chatPreferenceOrder = i
+        else if (capability === 'embedding') order.embeddingPreferenceOrder = i
+        else { order.chatPreferenceOrder = i; order.embeddingPreferenceOrder = i }
 
-        await db.update(providerInstances)
-            .set(updates)
-            .where(and(
-                eq(providerInstances.id, orderedIds[i]!),
-                eq(providerInstances.workspaceId, workspaceId),
-            ))
+        await store.setPreferenceOrder(workspaceId, orderedIds[i]!, order)
     }
     invalidateSettingsCache(workspaceId)
 }
