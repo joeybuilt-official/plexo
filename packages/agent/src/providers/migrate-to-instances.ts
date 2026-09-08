@@ -7,15 +7,30 @@
  * Reads workspaces.settings.vault + arbiter and creates ProviderInstance rows
  * for each configured provider. Idempotent — skips workspaces that already
  * have non-managed instances.
+ *
+ * Still live: `GET /api/v1/workspaces/:id/providers` calls `needsMigration`
+ * and runs this on first access.
+ *
+ * Persistence sits behind `ProviderMigrationStore`
+ * (`../provider-migration.ports.js`); the drizzle adapter is
+ * `../provider-migration.repository.js`.
  */
 
-import { eq, sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { workspaces } from '@plexo/db'
 import { addProvider } from './instances.js'
+import { DrizzleProviderMigrationStore } from '../provider-migration.repository.js'
+import type { ProviderMigrationStore } from '../provider-migration.ports.js'
 import pino from 'pino'
 
 const logger = pino({ name: 'provider:migrate' })
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: ProviderMigrationStore = new DrizzleProviderMigrationStore()
+
+/** Swap the migration store (e.g. an in-memory fake in unit tests). */
+export function setProviderMigrationStore(next: ProviderMigrationStore): void {
+    store = next
+}
 
 export interface MigrationResult {
     workspaceId: string
@@ -32,30 +47,19 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
 
     try {
         // Check if already migrated (has non-managed instances)
-        const [countRow] = await db.execute<{ count: string }>(sql`
-            SELECT COUNT(*) AS count FROM provider_instances
-            WHERE workspace_id = ${workspaceId}::uuid AND managed = false
-        `)
-        if (Number(countRow?.count ?? 0) > 0) {
+        if (await store.hasUnmanagedInstances(workspaceId)) {
             return result
         }
 
-        // Load vault/arbiter from workspace settings
-        const [ws] = await db.select({ settings: workspaces.settings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
+        const legacy = await store.getLegacyProviderConfig(workspaceId)
+        if (!legacy) return result
 
-        const settings = ws?.settings as Record<string, unknown> | null
-        if (!settings) return result
-
-        const vault = (settings.vault ?? {}) as Record<string, Record<string, unknown>>
-        const arbiter = (settings.arbiter ?? {}) as Record<string, unknown>
-        const arbiterProviders = (arbiter.providers ?? {}) as Record<string, Record<string, unknown>>
-        const fallbackChain = ((arbiter.fallbackChain ?? arbiter.fallbackOrder ?? []) as string[])
+        const { vault, arbiter } = legacy
+        const arbiterProviders = arbiter.providers ?? {}
+        const fallbackChain = arbiter.fallbackChain ?? arbiter.fallbackOrder ?? []
 
         // Build ordered list of providers to migrate
-        const primary = (arbiter.primaryProvider ?? arbiter.primary ?? '') as string
+        const primary = arbiter.primaryProvider ?? arbiter.primary ?? ''
         const ordered = primary ? [primary, ...fallbackChain.filter(k => k !== primary)] : fallbackChain
         const seen = new Set<string>()
 
@@ -67,11 +71,11 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
             const vaultEntry = vault[key]
             if (!vaultEntry) continue
 
-            const status = vaultEntry.status as string | undefined
+            const status = vaultEntry.status
             if (status === 'unconfigured' && !vaultEntry.apiKey && !vaultEntry.baseUrl) continue
 
             const providerConfig = arbiterProviders[key] ?? {}
-            const selectedModel = (providerConfig.selectedModel ?? providerConfig.defaultModel) as string | undefined
+            const selectedModel = providerConfig.selectedModel ?? providerConfig.defaultModel
 
             // Determine nickname
             const nicknames: Record<string, string> = {
@@ -84,12 +88,12 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
             try {
                 // Encrypt key for the new table (it's already encrypted in vault, but with old format)
                 // We store the encrypted key as-is since it uses the same workspace-scoped encryption
-                const encryptedKey = vaultEntry.apiKey as string | undefined
+                const encryptedKey = vaultEntry.apiKey
 
                 await addProvider(workspaceId, {
                     nickname,
                     providerType: key,
-                    endpointUrl: (vaultEntry.baseUrl as string) || null,
+                    endpointUrl: vaultEntry.baseUrl || null,
                     encryptedKey: encryptedKey || null,
                     selectedModel: selectedModel || null,
                 })
@@ -120,9 +124,5 @@ export async function migrateWorkspaceProviders(workspaceId: string): Promise<Mi
  * Check if a workspace needs migration.
  */
 export async function needsMigration(workspaceId: string): Promise<boolean> {
-    const [countRow] = await db.execute<{ count: string }>(sql`
-        SELECT COUNT(*) AS count FROM provider_instances
-        WHERE workspace_id = ${workspaceId}::uuid
-    `)
-    return Number(countRow?.count ?? 0) === 0
+    return !(await store.hasAnyInstances(workspaceId))
 }
