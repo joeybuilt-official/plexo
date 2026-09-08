@@ -1,12 +1,32 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
+/**
+ * Model knowledge base sync — pulls the Portkey-AI open-source model registry
+ * (pricing + capabilities) and stores what the router needs to score a model.
+ *
+ * Live on two paths: the daily cron in `apps/api/src/cron.ts`, and the admin
+ * `POST /api/v1/models/refresh` route.
+ *
+ * Persistence sits behind `ModelKnowledgeStore`
+ * (`../model-knowledge.ports.js`); the drizzle adapter is
+ * `../model-knowledge.repository.js`.
+ */
+
 import pino from 'pino'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { modelsKnowledge } from '@plexo/db'
+import { DrizzleModelKnowledgeStore } from '../model-knowledge.repository.js'
+import type { ModelKnowledgeStore } from '../model-knowledge.ports.js'
 
 const logger = pino({ name: 'knowledge-sync' })
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: ModelKnowledgeStore = new DrizzleModelKnowledgeStore()
+
+/** Swap the knowledge store (e.g. an in-memory fake in unit tests). */
+export function setModelKnowledgeStore(next: ModelKnowledgeStore): void {
+    store = next
+}
 
 export interface ModelKnowledge {
     id: string
@@ -111,39 +131,17 @@ export async function syncModelKnowledge() {
             }
         }
 
-        // Paginated upserts to bound memory/connection usage (GAP-004)
-        // One INSERT ... VALUES (...),(...),... ON CONFLICT DO UPDATE per batch
-        // instead of N individual statements.
-        const BATCH_SIZE = 50
-        for (let i = 0; i < records.length; i += BATCH_SIZE) {
-            const batch = records.slice(i, i + BATCH_SIZE)
-            // A6 cutover: dual-write per-token rates to both real + numeric.
-            await db.insert(modelsKnowledge)
-                .values(batch.map(record => ({
-                    id: record.id,
-                    provider: record.provider,
-                    modelId: record.modelId,
-                    contextWindow: record.contextWindow,
-                    costPerMIn: record.costPerMIn,
-                    costPerMInNumeric: String(record.costPerMIn),
-                    costPerMOut: record.costPerMOut,
-                    costPerMOutNumeric: String(record.costPerMOut),
-                    strengths: record.strengths,
-                    lastSyncedAt: new Date(),
-                })))
-                .onConflictDoUpdate({
-                    target: modelsKnowledge.id,
-                    set: {
-                        contextWindow: sql`excluded.context_window`,
-                        costPerMIn: sql`excluded.cost_per_m_in`,
-                        costPerMInNumeric: sql`excluded.cost_per_m_in_numeric`,
-                        costPerMOut: sql`excluded.cost_per_m_out`,
-                        costPerMOutNumeric: sql`excluded.cost_per_m_out_numeric`,
-                        strengths: sql`excluded.strengths`,
-                        lastSyncedAt: sql`excluded.last_synced_at`,
-                    },
-                })
-        }
+        const syncedAt = new Date()
+        await store.upsertAll(records.map(record => ({
+            id: record.id,
+            provider: record.provider,
+            modelId: record.modelId,
+            contextWindow: record.contextWindow,
+            costPerMIn: record.costPerMIn,
+            costPerMOut: record.costPerMOut,
+            strengths: record.strengths,
+            lastSyncedAt: syncedAt,
+        })))
 
         logger.info({ count: records.length, providers: ALLOWED_PROVIDERS.length }, 'Portkey models synced to knowledge base')
     } catch (err) {
