@@ -7,16 +7,28 @@
  * This is the canonical routing path. Reads provider_instances,
  * decrypts API keys, and produces a WorkspaceAISettings object
  * that the LLM and embedding routers consume.
+ *
+ * Persistence sits behind `WorkspaceSettingsStore`
+ * (`../workspace-settings.ports.js`); the drizzle adapter is
+ * `../workspace-settings.repository.js`.
  */
 
-import { eq, and, asc, isNull, isNotNull } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { providerInstances, workspaces } from '@plexo/db'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from './registry.js'
+import { DrizzleWorkspaceSettingsStore } from '../workspace-settings.repository.js'
+import type { WorkspaceSettingsStore } from '../workspace-settings.ports.js'
 import { createHmac, createDecipheriv } from 'crypto'
 import pino from 'pino'
 
 const logger = pino({ name: 'provider:settings' })
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let store: WorkspaceSettingsStore = new DrizzleWorkspaceSettingsStore()
+
+/** Swap the settings store (e.g. an in-memory fake in unit tests). */
+export function setWorkspaceSettingsStore(next: WorkspaceSettingsStore): void {
+    store = next
+}
 
 // ── Inline decryption (same algorithm as apps/api/src/crypto.ts) ─────────
 
@@ -84,24 +96,20 @@ export interface BalanceExhaustedProvider {
 }
 
 /**
- * Mark every enabled instance of `providerType` in a workspace as balance-
- * exhausted (funds-depleted). Idempotent: only sets the timestamp on rows where
- * it's still NULL, so the "first seen" time is preserved across repeated
- * failures. Fire-and-forget from the router failure path — never throws.
+ * Mark every instance of `providerType` in a workspace as balance-exhausted
+ * (funds-depleted). Idempotent: only sets the timestamp on rows where it's
+ * still NULL, so the "first seen" time is preserved across repeated failures.
+ * Fire-and-forget from the router failure path — never throws.
+ *
+ * Not filtered by `enabled`: this comment used to say "enabled" while the
+ * query never checked it. The query is unchanged; the comment now matches it.
  */
 export async function markProviderBalanceExhausted(workspaceId: string, providerType: string): Promise<void> {
     try {
-        const res = await db.update(providerInstances)
-            .set({ balanceExhaustedAt: new Date() })
-            .where(and(
-                eq(providerInstances.workspaceId, workspaceId),
-                eq(providerInstances.providerType, providerType),
-                isNull(providerInstances.balanceExhaustedAt),
-            ))
-            .returning({ id: providerInstances.id })
-        if (res.length > 0) {
+        const marked = await store.markBalanceExhausted(workspaceId, providerType, new Date())
+        if (marked > 0) {
             invalidateSettingsCache(workspaceId)
-            logger.warn({ workspaceId, providerType, marked: res.length }, 'provider marked balance-exhausted — pulled from routing chain')
+            logger.warn({ workspaceId, providerType, marked }, 'provider marked balance-exhausted — pulled from routing chain')
         }
     } catch (err) {
         logger.warn({ workspaceId, providerType, err: err instanceof Error ? err.message : String(err) }, 'markProviderBalanceExhausted failed (non-fatal)')
@@ -110,27 +118,13 @@ export async function markProviderBalanceExhausted(workspaceId: string, provider
 
 /** Clear the balance-exhausted flag for a provider (operator dismissal → re-arm). */
 export async function clearProviderBalanceExhausted(workspaceId: string, providerType: string): Promise<void> {
-    await db.update(providerInstances)
-        .set({ balanceExhaustedAt: null })
-        .where(and(
-            eq(providerInstances.workspaceId, workspaceId),
-            eq(providerInstances.providerType, providerType),
-        ))
+    await store.clearBalanceExhausted(workspaceId, providerType)
     invalidateSettingsCache(workspaceId)
 }
 
 /** List the workspace's currently balance-exhausted providers (for the site-wide notice). */
 export async function listBalanceExhaustedProviders(workspaceId: string): Promise<BalanceExhaustedProvider[]> {
-    const rows = await db.select({
-        providerType: providerInstances.providerType,
-        nickname: providerInstances.nickname,
-        exhaustedAt: providerInstances.balanceExhaustedAt,
-    })
-        .from(providerInstances)
-        .where(and(
-            eq(providerInstances.workspaceId, workspaceId),
-            isNotNull(providerInstances.balanceExhaustedAt),
-        ))
+    const rows = await store.listBalanceExhausted(workspaceId)
     const out: BalanceExhaustedProvider[] = []
     const seen = new Set<string>()
     for (const r of rows) {
@@ -161,10 +155,7 @@ export async function loadSettingsFromInstances(workspaceId: string): Promise<Wo
 
 /** Uncached read — DB + decrypt every call. Use loadSettingsFromInstances. */
 async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<WorkspaceAISettings | null> {
-    const rows = await db.select()
-        .from(providerInstances)
-        .where(eq(providerInstances.workspaceId, workspaceId))
-        .orderBy(asc(providerInstances.preferenceOrder))
+    const rows = await store.listInstances(workspaceId)
 
     if (rows.length === 0) return null
 
@@ -203,7 +194,7 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
             // fallback chain independently. buildModel's `custom_*` branch
             // serves it via its OpenAI-compatible /v1 endpoint (Ollama and
             // LM Studio both expose one).
-            const caps = row.capabilities as { chatModels?: string[] } | null
+            const caps = row.capabilities
             const instanceKey = `custom_${key}_${row.id.slice(0, 8)}` as ProviderKey
             providers[instanceKey] = {
                 provider: instanceKey,
@@ -215,7 +206,7 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
                 model: row.selectedModel ?? caps?.chatModels?.[0] ?? undefined,
                 enabled: true,
                 displayName: row.nickname,
-                capabilities: (row.capabilities as Record<string, unknown>) ?? undefined,
+                capabilities: row.capabilities ?? undefined,
             } as AIProviderConfig
             chain.push(instanceKey)
             if (!primaryProvider) primaryProvider = instanceKey
@@ -235,7 +226,7 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
                 enabled: true,
                 // Pass through discovered capabilities so vision model finder
                 // can check all available models, not just the selected one.
-                capabilities: (row.capabilities as Record<string, unknown>) ?? undefined,
+                capabilities: row.capabilities ?? undefined,
             } as AIProviderConfig
         }
 
@@ -249,15 +240,8 @@ async function loadSettingsFromInstancesUncached(workspaceId: string): Promise<W
     // Currently we read `judgeModel` (pinned model for the quality judge).
     let judgeModel: WorkspaceAISettings['judgeModel'] | undefined
     try {
-        const wsRow = await db.select({ intelligenceSettings: workspaces.intelligenceSettings })
-            .from(workspaces)
-            .where(eq(workspaces.id, workspaceId))
-            .limit(1)
-        const intel = (wsRow[0]?.intelligenceSettings ?? {}) as Record<string, unknown>
-        const j = intel.judgeModel as { provider?: string; model?: string } | undefined
-        if (j?.provider && j.model) {
-            judgeModel = { provider: j.provider as ProviderKey, model: j.model }
-        }
+        const j = await store.getJudgeModel(workspaceId)
+        if (j) judgeModel = { provider: j.provider as ProviderKey, model: j.model }
     } catch (err) {
         logger.warn({ workspaceId, err: err instanceof Error ? err.message : String(err) }, 'failed to load intelligence_settings.judgeModel')
     }
