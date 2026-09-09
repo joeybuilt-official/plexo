@@ -9,12 +9,13 @@
  */
 
 import { db, modelsKnowledge } from '@plexo/db'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type {
     ModelKnowledgeStore,
     ModelKnowledgeRecord,
     ModelCatalogStore,
     ModelCandidate,
+    ModelReliabilityStore,
 } from './model-knowledge.ports.js'
 
 /**
@@ -88,5 +89,26 @@ export class DrizzleModelCatalogStore implements ModelCatalogStore {
             .from(modelsKnowledge)
             .orderBy(modelsKnowledge.costPerMIn)
             .limit(limit)
+    }
+}
+
+export class DrizzleModelReliabilityStore implements ModelReliabilityStore {
+    async getReliability(modelId: string): Promise<number | null> {
+        const [row] = await db.select({ score: modelsKnowledge.reliabilityScore })
+            .from(modelsKnowledge)
+            .where(eq(modelsKnowledge.modelId, modelId))
+            .limit(1)
+        return row?.score ?? null
+    }
+
+    async adjustReliability(modelId: string, delta: number, floor: number, ceil: number): Promise<void> {
+        await db.execute(sql`
+            UPDATE models_knowledge
+            SET reliability_score = GREATEST(
+                ${floor},
+                LEAST(${ceil}, reliability_score + ${delta})
+            )
+            WHERE model_id = ${modelId}
+        `)
     }
 }

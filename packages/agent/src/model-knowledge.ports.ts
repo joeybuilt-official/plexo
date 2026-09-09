@@ -60,3 +60,21 @@ export interface ModelCatalogStore {
     /** Cheapest-first models, unfiltered — the partial-match fallback pool. */
     listCheapest(limit: number): Promise<ModelCandidate[]>
 }
+
+/**
+ * Reliability side of the same table. The ensemble judge reads a model's
+ * stored score to weight its vote, and nudges it after a verdict.
+ */
+export interface ModelReliabilityStore {
+    /**
+     * The model's stored reliability score, or `null` when the catalog has no
+     * row for it. The caller decides what an unknown model is worth.
+     */
+    getReliability(modelId: string): Promise<number | null>
+    /**
+     * Add `delta` to the model's score, clamped to `[floor, ceil]`. The bounds
+     * are the caller's policy, not the adapter's, so they are passed in rather
+     * than baked into the statement. A model with no row is a no-op.
+     */
+    adjustReliability(modelId: string, delta: number, floor: number, ceil: number): Promise<void>
+}

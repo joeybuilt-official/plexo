@@ -30,9 +30,8 @@ import { resolveModelFromEnv, buildModel } from '../providers/registry.js'
 import { PIN_SKIPPABLE_ERROR } from '../providers/pin-skippable.js'
 import type { ProviderKey } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
-import { eq, sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { modelsKnowledge } from '@plexo/db'
+import { DrizzleModelReliabilityStore } from '../model-knowledge.repository.js'
+import type { ModelReliabilityStore } from '../model-knowledge.ports.js'
 
 const logger = pino({ name: 'quality-judge' })
 
@@ -157,16 +156,25 @@ async function discoverOllamaModels(baseUrl: string, ensembleSize: number): Prom
 
 // ── Per-model reliability weights ─────────────────────────────────────────────
 
+// ── Composition root + test seam ───────────────────────────────────
+
+let reliability: ModelReliabilityStore = new DrizzleModelReliabilityStore()
+
+/** Swap the reliability store (e.g. an in-memory fake in unit tests). */
+export function setModelReliabilityStore(next: ModelReliabilityStore): void {
+    reliability = next
+}
+
+/** What an unknown model's vote is worth: full weight, no penalty for being new. */
+const DEFAULT_MODEL_WEIGHT = 1.0
+
+
 async function getModelWeight(modelId: string): Promise<number> {
     try {
         const baseId = modelId.split(':')[0] ?? modelId
-        const [row] = await db.select({ score: modelsKnowledge.reliabilityScore })
-            .from(modelsKnowledge)
-            .where(eq(modelsKnowledge.modelId, baseId))
-            .limit(1)
-        return row?.score ?? 1.0
+        return await reliability.getReliability(baseId) ?? DEFAULT_MODEL_WEIGHT
     } catch {
-        return 1.0
+        return DEFAULT_MODEL_WEIGHT
     }
 }
 
@@ -188,14 +196,7 @@ async function updateReliabilityScores(
             const dissented = dissenters.includes(v.modelId)
             const delta = dissented ? RELIABILITY_DISSENT_DELTA : RELIABILITY_AGREE_DELTA
             try {
-                await db.execute(sql`
-                    UPDATE models_knowledge
-                    SET reliability_score = GREATEST(
-                        ${RELIABILITY_FLOOR},
-                        LEAST(${RELIABILITY_CEIL}, reliability_score + ${delta})
-                    )
-                    WHERE model_id = ${baseId}
-                `)
+                await reliability.adjustReliability(baseId, delta, RELIABILITY_FLOOR, RELIABILITY_CEIL)
                 logger.debug({ model: baseId, delta, consensus: consensus.toFixed(3), dissented }, 'Reliability score nudged')
             } catch (err) {
                 logger.warn({ err, model: baseId }, 'Failed to update reliability score — skipping')
