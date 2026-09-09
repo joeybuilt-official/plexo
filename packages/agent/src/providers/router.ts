@@ -2,12 +2,24 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import { AnyLanguageModel, TaskType, ProviderKey, DEFAULT_MODEL_ROUTING } from './registry.js'
-import { sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { modelsKnowledge } from '@plexo/db'
 import { buildModel } from './registry.js'
 import { resolveChain, type ChainEntry, type ChainTaskType } from './chain-resolver.js'
+import { DrizzleModelCatalogStore } from '../model-knowledge.repository.js'
+import type { ModelCatalogStore } from '../model-knowledge.ports.js'
 import * as crypto from 'crypto'
+
+// ── Composition root + test seam ───────────────────────────────────
+
+let catalog: ModelCatalogStore = new DrizzleModelCatalogStore()
+
+/** Swap the model catalog (e.g. an in-memory fake in unit tests). */
+export function setModelCatalogStore(next: ModelCatalogStore): void {
+    catalog = next
+}
+
+/** Auto mode's candidate pool sizes: strict match, then partial-match fallback. */
+const AUTO_STRICT_LIMIT = 10
+const AUTO_PARTIAL_LIMIT = 20
 
 export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
 
@@ -225,12 +237,8 @@ export class IntelligentRouter {
         const requiredStrengths = ['planning', 'codeGeneration', 'verification'].includes(taskType)
             ? ['reasoning'] : ['speed']
 
-        // FUN-023: Use @> containment on the FULL required strengths array, not just [0]
-        const models = await db.select()
-            .from(modelsKnowledge)
-            .where(sql`${modelsKnowledge.strengths} @> ${JSON.stringify(requiredStrengths)}::jsonb`)
-            .orderBy(modelsKnowledge.costPerMIn) // Cheapest first
-            .limit(10)
+        // FUN-023: containment on the FULL required strengths array, not just [0]
+        const models = await catalog.findByStrengths(requiredStrengths, AUTO_STRICT_LIMIT)
 
         // Filter to models with actual credentials configured
         const usableModels = models.filter(m => {
@@ -243,10 +251,7 @@ export class IntelligentRouter {
 
         // FUN-023: If no model matches all strengths, fall back to best partial match
         if (!best) {
-            const partialModels = await db.select()
-                .from(modelsKnowledge)
-                .orderBy(modelsKnowledge.costPerMIn)
-                .limit(20)
+            const partialModels = await catalog.listCheapest(AUTO_PARTIAL_LIMIT)
 
             const usablePartials = partialModels.filter(m => {
                 if (this.vault[m.provider]?.apiKey) return true

@@ -1,77 +1,50 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { IntelligentRouter, RouterConfig, VaultConfig } from './router.js'
-import { db } from '@plexo/db'
+import { setModelCatalogStore } from './router.js'
+import type { ModelCatalogStore, ModelCandidate } from '../model-knowledge.ports.js'
 
-// Mocks
-vi.mock('@plexo/db', () => {
-    const allModels = [
-        { provider: 'anthropic', modelId: 'claude-3-5-sonnet', strengths: ['reasoning', 'coding'], costPerMIn: 3000, costPerMOut: 15000 },
-        { provider: 'groq', modelId: 'llama-3.1-8b-instant', strengths: ['speed', 'open-source'], costPerMIn: 50, costPerMOut: 50 },
-        { provider: 'openai', modelId: 'gpt-4o-mini', strengths: ['speed', 'reasoning'], costPerMIn: 150, costPerMOut: 600 }
-    ]
+/**
+ * Stage 3b: the router reads `models_knowledge` through `ModelCatalogStore`, so
+ * this is an in-memory catalog instead of the ~65 lines of chainable `db`
+ * stub + `sql` tagged-template capture + `drizzle-orm` re-export mock this
+ * file used to carry. `findByStrengths` implements the same containment the
+ * `@>` query does: EVERY required strength must be present.
+ */
+const CATALOG: ModelCandidate[] = [
+    { provider: 'anthropic', modelId: 'claude-3-5-sonnet', strengths: ['reasoning', 'coding'], costPerMIn: 3000, costPerMOut: 15000 },
+    { provider: 'groq', modelId: 'llama-3.1-8b-instant', strengths: ['speed', 'open-source'], costPerMIn: 50, costPerMOut: 50 },
+    { provider: 'openai', modelId: 'gpt-4o-mini', strengths: ['speed', 'reasoning'], costPerMIn: 150, costPerMOut: 600 },
+]
 
-    // Track the last required strengths captured from sql`` calls
-    let lastCapturedStrengths: string[] | null = null
-    let hasWhereClause = false
+const byCost = (a: ModelCandidate, b: ModelCandidate) => a.costPerMIn - b.costPerMIn
 
-    const chainable = {
-        select: vi.fn(() => { hasWhereClause = false; lastCapturedStrengths = null; return chainable }),
-        from: vi.fn(() => chainable),
-        where: vi.fn(() => {
-            hasWhereClause = true
-            return chainable
-        }),
-        orderBy: vi.fn(() => chainable),
-        limit: vi.fn(() => {
-            let result = allModels
-            if (hasWhereClause && lastCapturedStrengths) {
-                result = allModels.filter(m =>
-                    lastCapturedStrengths!.every(s => m.strengths.includes(s))
-                )
-            }
-            return Promise.resolve([...result])
-        })
-    }
+const fakeCatalog: ModelCatalogStore = {
+    async findByStrengths(requiredStrengths, limit) {
+        return CATALOG
+            .filter(m => requiredStrengths.every(s => m.strengths.includes(s)))
+            .sort(byCost)
+            .slice(0, limit)
+    },
+    async listCheapest(limit) {
+        return [...CATALOG].sort(byCost).slice(0, limit)
+    },
+}
 
-    // sql is used as a tagged template: sql`${col} @> ${val}::jsonb`
-    // Tagged templates receive (strings[], ...values) — capture the strengths JSON from values[1]
-    const sqlMock = vi.fn((strings: TemplateStringsArray, ..._values: any[]) => {
-        // values[1] is JSON.stringify(requiredStrengths) in the router's query
-        if (_values.length >= 2 && typeof _values[1] === 'string') {
-            try {
-                lastCapturedStrengths = JSON.parse(_values[1])
-            } catch { /* ignore */ }
-        }
-        return { __sql: true }
-    })
-
-    return {
-        db: chainable,
-        sql: sqlMock,
-        modelsKnowledge: { strengths: 'strengths', costPerMIn: 'costPerMIn' }
-    }
+beforeEach(() => {
+    setModelCatalogStore(fakeCatalog)
+    // The proxy case sets this and the old suite never cleared it, so every
+    // later test ran with an OpenRouter key in scope — which makes EVERY
+    // provider pass the router's "has credentials" filter regardless of the
+    // vault. Cleared per test; the proxy case sets it for itself.
+    delete process.env.OPENROUTER_API_KEY
 })
 
-// ADR-0045 Phase 2: source imports drizzle operators from 'drizzle-orm' now.
-// Mirror whatever operator stubs the @plexo/db mock defines so the fake db
-// still sees the same recognizable shapes (fall back to real drizzle otherwise).
-vi.mock('drizzle-orm', async (importOriginal) => {
-    const real = await importOriginal<Record<string, unknown>>()
-    const m = (await import('@plexo/db')) as Record<string, unknown>
-    const pick = (k: string): unknown => (k in m ? m[k] : real[k])
-    return {
-        ...real,
-        eq: pick('eq'), and: pick('and'), or: pick('or'), ne: pick('ne'),
-        desc: pick('desc'), asc: pick('asc'), inArray: pick('inArray'),
-        isNull: pick('isNull'), isNotNull: pick('isNotNull'), ilike: pick('ilike'),
-        lt: pick('lt'), lte: pick('lte'), gte: pick('gte'), count: pick('count'),
-        sql: pick('sql'),
-    }
+afterEach(() => {
+    delete process.env.OPENROUTER_API_KEY
 })
-
 
 vi.mock('./registry.js', async (importOriginal) => {
     const actual = await importOriginal() as any
@@ -138,7 +111,7 @@ describe('IntelligentRouter', () => {
         expect(meta.provider).toBe('openai')
     })
 
-    it('Mode 1: AUTO should arbitrate capabilities logically using db strengths', async () => {
+    it('Mode 1: AUTO picks the cheapest model that has the strengths AND usable credentials', async () => {
         const vault: VaultConfig = {
             groq: { apiKey: 'gsk_123' },
             anthropic: { apiKey: 'sk_ant_123' }
@@ -147,16 +120,35 @@ describe('IntelligentRouter', () => {
         
         const router = new IntelligentRouter(vault, config)
         
-        // Complex task requiring 'reasoning'
+        // Complex task requires 'reasoning'. The catalog has two reasoning
+        // models — openai/gpt-4o-mini is cheaper, but this vault holds no
+        // OpenAI key and no OpenRouter key, so anthropic is the cheapest
+        // USABLE one.
         const { meta: metaComplex } = await router.route('codeGeneration')
         expect(metaComplex.mode).toBe('auto')
-        // anthropic has reasoning and groq does not in our mock
         expect(metaComplex.provider).toBe('anthropic')
-        
-        // Simple task requires 'speed'
+
+        // Simple task requires 'speed'. groq is both usable and the cheapest.
         const { meta: metaSimple } = await router.route('summarization')
         expect(metaSimple.mode).toBe('auto')
-        // groq has speed in our mock, should be chosen
         expect(metaSimple.provider).toBe('groq')
+    })
+
+    it('Mode 1: AUTO prefers the cheaper of two usable models with the same strength', async () => {
+        // The old `db` stub returned rows in declaration order and never
+        // applied the query's ORDER BY, so cost ordering was invisible to this
+        // suite. With the catalog behind a port the fake sorts like the query
+        // does, and this is the case that proves it: both providers have
+        // 'reasoning' and both have keys, so only price decides.
+        const vault: VaultConfig = {
+            anthropic: { apiKey: 'sk-ant-123' },
+            openai: { apiKey: 'sk-proj-123' },
+        }
+        const router = new IntelligentRouter(vault, { inferenceMode: 'auto' })
+
+        const { meta } = await router.route('codeGeneration')
+
+        expect(meta.provider).toBe('openai')
+        expect(meta.id).toBe('gpt-4o-mini')
     })
 })

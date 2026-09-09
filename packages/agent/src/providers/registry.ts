@@ -3,9 +3,6 @@
 
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { buildSubscriptionFetch, resolveSubscriptionToken } from './subscription-fetch'
-import { eq, sql } from 'drizzle-orm'
-import { db } from '@plexo/db'
-import { modelsKnowledge } from '@plexo/db'
 import { openai, createOpenAI } from '@ai-sdk/openai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createMistral } from '@ai-sdk/mistral'
