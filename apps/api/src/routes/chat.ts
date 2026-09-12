@@ -19,7 +19,6 @@ import { Router, type Router as RouterType } from 'express'
 import { ulid } from 'ulid'
 import * as chatRepo from '../repositories/chat.repository.js'
 import * as workspacesRepo from '../repositories/workspaces.repository.js'
-import * as sprintsRepo from '../repositories/sprints.repository.js'
 import { logger } from '../logger.js'
 import { recordMemoryRecall } from '../lib/metrics.js'
 import { trackDelivery } from '../delivery-tracker.js'
@@ -43,7 +42,7 @@ import {
     getCrossSessionTurns,
 } from '../conversation-log.js'
 import { resolveSessionId as resolveUniversalSession, embedMessage as embedSessionMessage } from '../lib/session-resolver.js'
-import { buildConversationSystemPrompt, translateErrorForUser, nameProject } from '../channel-ai.js'
+import { buildConversationSystemPrompt, translateErrorForUser } from '../channel-ai.js'
 import { WEBCHAT_CLASSIFY_SYSTEM } from '@plexo/agent/prompts/build-system-prompt'
 import { buildTools, wireSubagentRunner } from '@plexo/agent/executor'
 import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
@@ -1467,16 +1466,12 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
 
 // ── POST /api/chat/execute-action ──────────────────────────────────────────────
 
-const VALID_CATEGORIES = new Set(['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'])
-
 chatRouter.post('/execute-action', async (req, res) => {
-    const { workspaceId, intent, description, sessionId: clientSessionId, category, repo, newSession } = req.body as {
+    const { workspaceId, intent, description, sessionId: clientSessionId, newSession } = req.body as {
         workspaceId?: string
         intent?: 'TASK' | 'PROJECT'
         description?: string
         sessionId?: string
-        category?: string
-        repo?: string   // owner/repo — required only for code category
         newSession?: boolean
     }
     let sessionId: string | undefined = clientSessionId
@@ -1520,13 +1515,15 @@ chatRouter.post('/execute-action', async (req, res) => {
         }
     }
 
-    // 'code' category requires a repo. If none supplied (chat flow), downgrade to 'general'
-    // so the sprint doesn't fail immediately inside the async runner.
-    const rawCategory = (category && VALID_CATEGORIES.has(category)) ? category : 'general'
-    const resolvedCategory = rawCategory === 'code' && !repo ? 'general' : rawCategory
-
     try {
-        if (intent === 'TASK') {
+        if (intent === 'TASK' || intent === 'PROJECT') {
+            // Both confirm-chip intents queue a background task. PROJECT used to
+            // create a `planning` sprint, but the sprint orchestrator was deleted
+            // in DD-6 (`packages/agent/src/sprint`), so a sprint now advances
+            // nothing — it would be a silent no-op. The executor plans multi-step
+            // work itself, so both intents go through the task queue, and the
+            // PROJECT branch previously 400'd ("intent must be TASK") because it
+            // was never implemented at all.
             const taskId = await pushTask({
                 workspaceId,
                 type: 'automation',
@@ -1539,7 +1536,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 },
                 priority: 2,
             })
-            logger.info({ workspaceId, taskId }, 'Webchat task explicitly confirmed and queued')
+            logger.info({ workspaceId, taskId, intent }, 'Webchat task explicitly confirmed and queued')
             // Every task must have an associated conversation row so the /app/conversations
             // view shows task-triggered interactions alongside chat turns.
             try {
@@ -1550,7 +1547,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                     message: description,
                     reply: null,
                     status: 'complete',
-                    intent: 'TASK',
+                    intent,
                     taskId,
                     messageEmbedding: _executeActionEmbedding,
                 })
@@ -1561,7 +1558,7 @@ chatRouter.post('/execute-action', async (req, res) => {
             audit(req, { workspaceId, userId: req.user?.id, action: 'task.create', resource: 'tasks', resourceId: taskId, metadata: { source: 'dashboard', via: 'chat' } })
             res.status(202).json({ taskId, status: 'queued' })
         } else {
-            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK' } })
+            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })
         }
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')
