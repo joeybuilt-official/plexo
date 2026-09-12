@@ -709,6 +709,11 @@ export function buildModel(
                 name: config.displayName ?? 'litellm',
                 baseURL: base,
                 headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+                // The gateway's `auto` router can pick reasoning models whose
+                // non-streamed answers arrive in `reasoning` with empty
+                // `content` — same rewrite rule as ollama_cloud. Without this
+                // the model's actual answer is dropped as an empty string.
+                fetch: ollamaCloudResilientFetch(),
                 supportsStructuredOutputs: true,
             })
             return gw(modelId)
@@ -1081,6 +1086,9 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
                 name: 'litellm',
                 baseURL: base,
                 headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+                // Same reasoning→content rewrite as ollama_cloud — the gateway's
+                // `auto` router may land simple prompts on a reasoning model.
+                fetch: ollamaCloudResilientFetch(),
                 supportsStructuredOutputs: true,
             })(modelId)
         }
@@ -1262,6 +1270,7 @@ export async function testProvider(
                     name: 'litellm',
                     baseURL: base,
                     headers,
+                    fetch: ollamaCloudResilientFetch(),
                     supportsStructuredOutputs: true,
                 })(modelId)
                 const ac = new AbortController()
