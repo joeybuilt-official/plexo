@@ -306,6 +306,10 @@ export const PROVIDER_DEFAULT_MODELS: Partial<Record<string, string>> = {
     cloudflare: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
     ollama: 'llama3.2',
     ollama_cloud: 'gpt-oss:20b-cloud',
+    // LiteLLM gateway: the operator's OpenAI-compatible router. The gateway
+    // owns model selection/fallback, so the default is its routing alias
+    // (e.g. `auto`) rather than a concrete model id.
+    litellm: 'auto',
     // Free tier default — works with any key, no credits required.
     // deepseek-chat-v3-0324:free is generally available regardless of OR privacy settings.
     openrouter: 'deepseek/deepseek-chat-v3-0324:free',
@@ -357,6 +361,10 @@ export const CHEAP_MODEL_BY_PROVIDER: Partial<Record<ProviderKey, string>> = {
     cloudflare: '@cf/meta/llama-3.1-8b-instruct',
     ollama: 'llama3.2',
     ollama_cloud: 'gpt-oss:20b-cloud',
+    // LiteLLM gateway: routing/budgets live behind the gateway, so the cheap
+    // target is its routing alias (`auto`) — LiteLLM's own cost-aware
+    // complexity router picks the cheapest sufficient model per request.
+    litellm: 'auto',
 }
 
 /**
@@ -664,6 +672,27 @@ export function buildModel(
                 'Use it through the media generation pipeline, not the chat router.',
             )
         }
+        case 'litellm': {
+            // LiteLLM/OpenAI-compatible gateway. The gateway owns model
+            // selection + fallback, so `modelId` is its routing alias (e.g.
+            // `auto`) and `config.baseUrl` is the gateway endpoint. Bearer key
+            // comes from the workspace vault like any other provider.
+            let base = (config.baseUrl ?? '').replace(/\/+$/, '')
+            if (!base) throw new Error('LiteLLM gateway requires a baseUrl')
+            // Same http→https upgrade rule as ollama/custom: only public hosts;
+            // LAN/tailnet gateways stay plaintext.
+            if (base.startsWith('http://') && !isPlaintextHttpHost(new URL(base).hostname)) {
+                base = base.replace('http://', 'https://')
+            }
+            if (!base.endsWith('/v1')) base += '/v1'
+            const gw = createOpenAICompatible({
+                name: config.displayName ?? 'litellm',
+                baseURL: base,
+                headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+                supportsStructuredOutputs: true,
+            })
+            return gw(modelId)
+        }
         default: {
             if (!providerKey.startsWith('custom_')) {
                 throw new Error(`Unknown provider: ${providerKey}`)
@@ -927,6 +956,9 @@ const DEFAULT_TEST_MODELS: Partial<Record<string, string>> = {
     cloudflare: '@cf/meta/llama-3.1-8b-instruct',
     ollama: 'llama3.2',
     ollama_cloud: 'gpt-oss:20b-cloud',
+    // LiteLLM gateway: the `auto` alias routes end-to-end, so a key check via
+    // a tiny generation through it is the cheapest full-path validation.
+    litellm: 'auto',
     // fal.ai: not a chat provider — smoke test validates the API key via
     // a lightweight GET to their status endpoint, not a model call.
     fal: 'fal-ai/flux/schnell',
@@ -1070,6 +1102,20 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             // used by testProvider, which has a dedicated fal branch that
             // validates the key via REST. This case should never be reached.
             throw new Error('fal.ai does not support OpenAI-compatible chat. Use testProvider() directly.')
+        }
+        case 'litellm': {
+            let base = (baseUrl ?? '').replace(/\/+$/, '')
+            if (!base) throw new Error('LiteLLM gateway requires a baseUrl')
+            if (base.startsWith('http://') && !isPlaintextHttpHost(new URL(base).hostname)) {
+                base = base.replace('http://', 'https://')
+            }
+            if (!base.endsWith('/v1')) base += '/v1'
+            return createOpenAICompatible({
+                name: 'litellm',
+                baseURL: base,
+                headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+                supportsStructuredOutputs: true,
+            })(modelId)
         }
         default: {
             if (!providerKey.startsWith('custom_')) {
@@ -1217,6 +1263,47 @@ export async function testProvider(
             } catch {
                 // Tags worked but generation failed — still report reachable
                 return { ok: true, message: `Reachable — ${models.length} cloud model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
+            return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
+        }
+    }
+
+    // ── LiteLLM gateway: probe /v1/models, then a tiny generation via the alias ──
+    if (providerKey === 'litellm') {
+        let base = (opts.baseUrl ?? '').replace(/\/+$/, '')
+        if (!base) return { ok: false, message: 'LiteLLM gateway requires a baseUrl', latencyMs: 0, model: '' }
+        if (base.startsWith('http://') && !isPlaintextHttpHost(new URL(base).hostname)) {
+            base = base.replace('http://', 'https://')
+        }
+        if (!base.endsWith('/v1')) base += '/v1'
+        try {
+            const headers: Record<string, string> = {}
+            if (opts.apiKey) headers['Authorization'] = `Bearer ${opts.apiKey}`
+            const res = await fetch(`${base}/models`, {
+                headers,
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+            if (!res.ok) return { ok: false, message: `Server returned ${res.status}`, latencyMs: Date.now() - start, model: '' }
+            const data = await res.json() as { data?: { id: string }[] }
+            const models = data.data ?? []
+            if (models.length === 0) return { ok: false, message: 'Connected but no models found on this gateway', latencyMs: Date.now() - start, model: '' }
+            const modelId = opts.model ?? (models.find(m => m.id === 'auto')?.id ?? models[0]!.id)
+            try {
+                const gw = createOpenAICompatible({
+                    name: 'litellm',
+                    baseURL: base,
+                    headers,
+                    supportsStructuredOutputs: true,
+                })(modelId)
+                const ac = new AbortController()
+                const timer = setTimeout(() => ac.abort(), Math.max(timeoutMs - (Date.now() - start), 5000))
+                await gt({ model: gw, prompt: 'Say "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                clearTimeout(timer)
+                return { ok: true, message: `Connected — ${models.length} model(s) available via gateway`, latencyMs: Date.now() - start, model: modelId }
+            } catch {
+                return { ok: true, message: `Reachable — ${models.length} model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
             }
         } catch (err) {
             const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'

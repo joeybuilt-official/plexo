@@ -104,11 +104,11 @@ describe('router-v2 manifest', () => {
         // permanent free chat fallback when paid providers are exhausted.
         const wideProvider = ['planning', 'extraction', 'classification', 'conversation', 'judging', 'summarization', 'codeGeneration']
         for (const t of wideProvider) {
-            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(8)
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(9)
         }
         const narrowProvider = ['verification', 'logAnalysis']
         for (const t of narrowProvider) {
-            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(7)
+            expect(Object.keys(MANIFEST[t as keyof typeof MANIFEST]).length).toBe(8)
         }
     })
 
@@ -162,9 +162,9 @@ describe('router-v2 manifest', () => {
         }
     })
 
-    it('judging row covers all 8 providers with priorScore ≥ 2', () => {
+    it('judging row covers all 9 providers with priorScore ≥ 2', () => {
         const row = MANIFEST.judging
-        expect(Object.keys(row).sort()).toEqual(['anthropic', 'cerebras', 'deepseek', 'google', 'groq', 'ollama', 'ollama_cloud', 'openai'])
+        expect(Object.keys(row).sort()).toEqual(['anthropic', 'cerebras', 'deepseek', 'google', 'groq', 'litellm', 'ollama', 'ollama_cloud', 'openai'])
         for (const e of Object.values(row)) {
             expect(e!.priorScore).toBeGreaterThanOrEqual(2)
         }

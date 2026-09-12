@@ -28,7 +28,7 @@ function isSafeProviderUrl(raw: string): boolean {
 
 const VALID_PROVIDERS = new Set<string>([
     'openrouter', 'anthropic', 'anthropic_subscription', 'openai', 'google',
-    'mistral', 'groq', 'xai', 'deepseek', 'ollama', 'ollama_cloud', 'fal',
+    'mistral', 'groq', 'xai', 'deepseek', 'ollama', 'ollama_cloud', 'litellm', 'fal',
 ])
 
 aiProvidersRouter.post('/test', async (req, res) => {

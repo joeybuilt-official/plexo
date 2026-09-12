@@ -26,6 +26,7 @@ const PROVIDER_LABELS: Record<string, string> = {
     cerebras: 'Cerebras',
     google: 'Google',
     ollama_cloud: 'Ollama Cloud',
+    litellm: 'LiteLLM Gateway',
 }
 
 /** Direct links to each provider's top-up / billing console, so "Add credit"

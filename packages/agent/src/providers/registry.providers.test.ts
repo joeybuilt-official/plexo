@@ -66,11 +66,19 @@ describe('provider registry whitelist', () => {
         const NON_CHAT_PROVIDERS = new Set(['fal'])
         for (const key of BUILTIN_PROVIDER_KEYS) {
             if (NON_CHAT_PROVIDERS.has(key)) continue
+            // litellm is an OpenAI-compatible gateway: it needs a base URL by
+            // design (like any custom OpenAI-compatible endpoint), so the test
+            // supplies a placeholder rather than asserting the layer is crazy.
+            const config = {
+                provider: key,
+                apiKey: 'test-key-not-used',
+                ...(key === 'litellm' ? { baseUrl: 'https://llm.example.com/v1' } : {}),
+            }
             expect(
                 () =>
                     buildModel(
                         key,
-                        { provider: key, apiKey: 'test-key-not-used' },
+                        config,
                         'summarization',
                         {
                             primaryProvider: key,
@@ -116,6 +124,9 @@ describe('provider registry whitelist', () => {
             'perplexity',
             'xai',
             'cloudflare',
+            'ollama',
+            'ollama_cloud',
+            'litellm',
             'fal',
         ]
         for (const key of UI_CATALOG_KEYS) {

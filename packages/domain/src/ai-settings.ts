@@ -33,6 +33,7 @@ export const BUILTIN_PROVIDER_KEYS = [
     'cloudflare',
     'ollama',
     'ollama_cloud',
+    'litellm',
     'fal',
 ] as const
 

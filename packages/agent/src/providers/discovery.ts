@@ -140,6 +140,37 @@ export async function discoverCapabilities(instance: {
     // Custom providers: assume chat, check embedding capability by type
     const supportsEmbeddings = EMBEDDING_CAPABLE_PROVIDERS.has(providerType)
     const defaults = DEFAULT_EMBEDDING_MODELS[providerType]
+
+    // LiteLLM/OpenAI-compatible gateway: probe /v1/models like a custom
+    // provider. Requires an endpoint URL (the gateway address); key optional
+    // for model listing but nearly always present.
+    if (providerType === 'litellm') {
+        if (!endpointUrl) {
+            return { supportsChat: true, supportsEmbeddings: false, chatModels: [], embeddingModels: [], discoveryError: 'No gateway endpoint URL configured' }
+        }
+        try {
+            let apiKey: string | undefined
+            if (instance.encryptedKey && instance.workspaceId) apiKey = decrypt(instance.encryptedKey, instance.workspaceId)
+            const { discoverModels } = await import('./discover-models.js')
+            const disco = await discoverModels('litellm', { apiKey, baseUrl: endpointUrl })
+            if (disco.ok) {
+                if (disco.models.length === 0) {
+                    return { supportsChat: true, supportsEmbeddings: false, chatModels: [], embeddingModels: [], discoveryError: 'No models exposed by the gateway' }
+                }
+                return {
+                    supportsChat: true,
+                    supportsEmbeddings: false,
+                    chatModels: disco.models.map(m => m.id),
+                    embeddingModels: [],
+                    discoveryError: null,
+                }
+            }
+            return { supportsChat: true, supportsEmbeddings: false, chatModels: [], embeddingModels: [], discoveryError: disco.error ?? 'No models exposed by the gateway' }
+        } catch (err) {
+            return { supportsChat: true, supportsEmbeddings: false, chatModels: [], embeddingModels: [], discoveryError: err instanceof Error ? err.message : 'Gateway discovery failed' }
+        }
+    }
+
     return {
         supportsChat: true,
         supportsEmbeddings,

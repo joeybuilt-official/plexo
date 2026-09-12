@@ -22,7 +22,7 @@ import {
     ArrowUp, ArrowDown, RefreshCw, Loader2,
     Zap, ExternalLink, Cloud, Brain, Sparkles,
     MessageSquare, Globe, Wind, ArrowLeftRight, Users,
-    Flame, Search, Bot, BookOpen, Cpu, Trash2,
+    Flame, Search, Bot, BookOpen, Cpu, Trash2, Server,
     CheckCircle2, AlertCircle, Circle, Link2, AlertTriangle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -390,6 +390,21 @@ const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
         sampleModels: ['gpt-oss:20b-cloud', 'llama3.2'],
         keyHint: 'Enter the API key for your Ollama Cloud account. Get one at ollama.com/settings/keys.',
         authType: 'api-key',
+    },
+    {
+        type: 'litellm',
+        name: 'LiteLLM Gateway',
+        icon: Server,
+        free: true,
+        pricing: 'Whatever the gateway is configured to spend.',
+        description: 'Route all model calls through an OpenAI-compatible gateway (LiteLLM). The gateway owns model selection, fallbacks, and budgets.',
+        bestFor: 'Centralizing routing, budgets, and spend logs behind one endpoint',
+        keyPrefix: '',
+        getKeyUrl: '',
+        docsUrl: 'https://docs.litellm.ai',
+        sampleModels: ['auto', 'qwen-max-plan', 'deepseek-chat'],
+        keyHint: 'Enter the gateway base URL (e.g. https://llm.example.com/v1) and a virtual key minted on the gateway.',
+        authType: 'base-url-and-key',
     },
     {
         type: 'fal',

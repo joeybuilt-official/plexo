@@ -88,6 +88,8 @@ export const PROVIDER_DEFAULT_MODEL_CLASS: Partial<Record<ProviderKey, string>> 
     // NB: the selector resolves the concrete model via resolveModelId (instance
     // config.model / overrides), not this map — this is documentation + parity.
     ollama: 'gemma3:4b',
+    // Documentation + parity only: the gateway's routing alias, not a concrete id.
+    litellm: 'auto',
 }
 
 /** Convenience for tests + downstream introspection. */
@@ -98,6 +100,11 @@ export const MANIFEST_PROVIDERS: ProviderKey[] = [
     'deepseek',
     'groq',
     'ollama_cloud',
+    // LiteLLM/OpenAI-compatible gateway. Quality is whatever the gateway's
+    // internal complexity router fronts (qwen/deepseek/…), so a mid prior
+    // (4) with no quirks is the honest static default — the gateway's own
+    // fallback/budget machinery does the operational work.
+    'litellm',
     // Local keyless permanent chat fallback (never preempts a funded paid provider).
     'ollama',
 ]
@@ -221,6 +228,25 @@ export const MANIFEST: ManifestTable = {
         ollama_cloud: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: ['ollama-cloud-managed-pool-rate-limit'], lastValidatedAt: '2026-06-08' },
         ollama: { priorScore: 2, capabilities: [...BASE, 'json-mode'], quirks: [], lastValidatedAt: '2026-07-15' },
     },
+}
+
+// LiteLLM gateway entry, applied uniformly across every task type. It is a
+// single uniform row rather than nine hand-copied ones because the gateway's
+// quality is *delegated*: its internal router fronts whatever the operator
+// has configured (qwen/deepseek/…), so per-task-type differentiation would be
+// fiction. priorScore 4 (strong, not best-in-class), tool-calling + streaming
+// + json-mode (OpenAI-compatible with structured outputs), no known quirks —
+// operational resilience lives behind the gateway, not in this table.
+const LITELLM_MANIFEST_ENTRY: ManifestEntry = {
+    priorScore: 4,
+    capabilities: [...BASE, 'json-mode', 'long-context-200k'],
+    quirks: [],
+    lastValidatedAt: '2026-09-11',
+}
+for (const taskType of Object.keys(MANIFEST) as TaskType[]) {
+    if (!MANIFEST[taskType]['litellm']) {
+        MANIFEST[taskType]['litellm'] = LITELLM_MANIFEST_ENTRY
+    }
 }
 
 /**

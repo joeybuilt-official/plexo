@@ -285,6 +285,16 @@ export async function discoverModels(
             case 'ollama_cloud':
                 return discoverOllama(providerType, baseUrl, apiKey)
 
+            case 'litellm':
+                // LiteLLM/OpenAI-compatible gateway — same /v1/models probe as
+                // a custom provider, requires the gateway baseUrl.
+                if (!baseUrl) return fallback('litellm', 'Gateway requires baseUrl')
+                {
+                    let b = baseUrl.replace(/\/+$/, '')
+                    if (!b.endsWith('/v1')) b += '/v1'
+                    return discoverOpenAICompatible('litellm', b, apiKey)
+                }
+
             // Static catalog only — no public list endpoint.
             case 'cloudflare':
             case 'voyage':
