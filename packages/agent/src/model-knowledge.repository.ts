@@ -13,8 +13,6 @@ import { eq, sql } from 'drizzle-orm'
 import type {
     ModelKnowledgeStore,
     ModelKnowledgeRecord,
-    ModelCatalogStore,
-    ModelCandidate,
     ModelReliabilityStore,
 } from './model-knowledge.ports.js'
 
@@ -56,39 +54,6 @@ export class DrizzleModelKnowledgeStore implements ModelKnowledgeStore {
                     },
                 })
         }
-    }
-}
-
-/**
- * Built per call, not hoisted to a module constant: a module-level constant
- * dereferences the drizzle table at IMPORT time, which throws in any test that
- * mocks `@plexo/db` without this table — before a single line of the test runs.
- */
-function candidateColumns() {
-    return {
-        provider: modelsKnowledge.provider,
-        modelId: modelsKnowledge.modelId,
-        strengths: modelsKnowledge.strengths,
-        costPerMIn: modelsKnowledge.costPerMIn,
-        costPerMOut: modelsKnowledge.costPerMOut,
-    }
-}
-
-export class DrizzleModelCatalogStore implements ModelCatalogStore {
-    async findByStrengths(requiredStrengths: string[], limit: number): Promise<ModelCandidate[]> {
-        // FUN-023: `@>` containment against the FULL required array, not just [0].
-        return db.select(candidateColumns())
-            .from(modelsKnowledge)
-            .where(sql`${modelsKnowledge.strengths} @> ${JSON.stringify(requiredStrengths)}::jsonb`)
-            .orderBy(modelsKnowledge.costPerMIn)
-            .limit(limit)
-    }
-
-    async listCheapest(limit: number): Promise<ModelCandidate[]> {
-        return db.select(candidateColumns())
-            .from(modelsKnowledge)
-            .orderBy(modelsKnowledge.costPerMIn)
-            .limit(limit)
     }
 }
 

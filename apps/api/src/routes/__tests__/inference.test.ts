@@ -34,7 +34,6 @@ vi.mock('@plexo/agent/providers/call-model', () => ({
 }))
 
 vi.mock('@plexo/agent/providers/registry', () => ({
-    resolveModel: vi.fn(),
     resolveModelFromEnv: vi.fn(() => ({ __mock: 'env-model' })),
 }))
 
@@ -56,7 +55,6 @@ vi.mock('@plexo/agent/providers/settings-from-instances', () => ({
 
 const { embed } = await import('@plexo/agent/memory/store')
 const { callModel } = await import('@plexo/agent/providers/call-model')
-const { resolveModel } = await import('@plexo/agent/providers/registry')
 const { routeAndCall } = await import('@plexo/agent/providers/router-v2')
 const { loadSettingsFromInstances } = await import('@plexo/agent/providers/settings-from-instances')
 const { inferenceRouter, backgroundLaneOverrideForAppId, backgroundModelForAppId } = await import('../inference.js')

@@ -122,36 +122,6 @@
   },
   {
     "type": "cycle",
-    "from": "packages/agent/src/providers/registry.ts",
-    "to": "packages/agent/src/providers/router.ts",
-    "unresolvedTo": "./router.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "not-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/agent/src/providers/router.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/agent/src/providers/registry.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "packages/db/src/schema.ts",
     "to": "packages/db/src/session-fabric-schema.ts",
     "unresolvedTo": "./session-fabric-schema",

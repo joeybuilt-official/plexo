@@ -32,6 +32,26 @@ export type {
     WorkspaceAISettings,
 } from '@plexo/domain/ai-settings'
 
+/**
+ * Routing mode for a workspace. Relocated here from the retired legacy
+ * `providers/router.ts` (IntelligentRouter, deleted in M3 of the LiteLLM
+ * gateway plan — ADR 0056). router-v2 (`routeAndCall`) is the live router;
+ * this union remains the persisted `inferenceMode` vocabulary.
+ */
+export type InferenceMode = 'auto' | 'byok' | 'proxy' | 'override' | 'auto-economy'
+
+/**
+ * Metadata about a resolved model: identity + the routing mode that produced
+ * it + static cost bounds. Relocated from the retired legacy router (M3).
+ */
+export interface ResolvedModelMeta {
+    id: string
+    provider: ProviderKey
+    mode: InferenceMode
+    costPerMIn: number
+    costPerMOut: number
+}
+
 // Per-call undici Agent for Anthropic. The process-wide global Pool can
 // accumulate stuck sockets under load (cron loops failing against unreachable
 // endpoints), so each Anthropic call gets a fresh dispatcher to avoid
@@ -714,59 +734,6 @@ export function buildModel(
             return custom(modelId)
         }
     }
-}
-
-import { IntelligentRouter, VaultConfig, RouterConfig } from './router.js'
-
-/**
- * Resolve the optimal model for a task type from workspace settings using 4-mode arbitration.
- * Returns both the model instance and its resolved metadata for attribution/cost tracking.
- */
-export async function resolveModel(
-    taskType: TaskType,
-    settings: WorkspaceAISettings,
-    workspaceId?: string,
-): Promise<{ model: AnyLanguageModel; meta: import('./router.js').ResolvedModelMeta }> {
-    
-    // Deconstruct WorkspaceAISettings into Vault and Config structures
-    const vault: VaultConfig = {}
-    const routerProviders: RouterConfig['providers'] = {}
-
-    for (const [key, p] of Object.entries(settings.providers)) {
-        if (!p) continue
-        vault[key] = {
-            apiKey: p.apiKey,
-            baseUrl: p.baseUrl
-        }
-        routerProviders[key] = {
-            selectedModel: p.model,
-            // Respect the user-level enable/disable toggle from arbiter; fall back to key/url existence only when field is absent
-            enabled: p.enabled !== undefined ? p.enabled : (p.apiKey !== undefined || p.baseUrl !== undefined),
-        }
-    }
-
-    const routerConfig: RouterConfig = {
-        inferenceMode: settings.inferenceMode ?? 'byok',
-        primaryProvider: settings.primaryProvider,
-        fallbackChain: settings.fallbackChain,
-        providers: routerProviders,
-        modelOverrides: settings.modelOverrides
-    }
-
-    const router = new IntelligentRouter(vault, routerConfig, workspaceId)
-    const { model, meta } = await router.route(taskType)
-    
-    // Analytics trace: clearly surface the selected model and reasoning
-    console.info(JSON.stringify({
-        event: 'router.arbitration.resolved',
-        taskType,
-        mode: meta.mode,
-        provider: meta.provider,
-        modelId: meta.id,
-        costBounds: { in: meta.costPerMIn, out: meta.costPerMOut }
-    }))
-    
-    return { model, meta }
 }
 
 /**

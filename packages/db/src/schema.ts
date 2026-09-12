@@ -1330,9 +1330,9 @@ export const providerInstances = pgTable('provider_instances', {
 // ── Routing Chains (Phase 2b — intelligence overhaul) ─────────────────────────
 //
 // Per-task-type ranked fallback chains. Each (workspace, task_type) row set
-// is the ordered list the IntelligentRouter walks. Smart-default seeded at
-// API container startup; user-edited via the chain editor in
-// `/app/settings/intelligence`. Idempotent via the unique index.
+// is the ordered list `chain-resolver` walks (consumed by `call-model`).
+// Smart-default seeded at API container startup; user-edited via the chain
+// editor in `/app/settings/intelligence`. Idempotent via the unique index.
 
 export const routingChains = pgTable('routing_chains', {
     id: uuid('id').defaultRandom().primaryKey(),

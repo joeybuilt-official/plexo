@@ -16,18 +16,19 @@
  *
  * ── Two routing experiences, only one is shippable right now ────────
  * Mode 1 (auto / byok / override) — BYOK: user adds their own provider
- * keys, Plexo's intelligent router picks between them by task type,
- * cost, latency. LIVE.
+ * keys, Plexo's router-v2 picks between them by task type, cost, latency.
+ * LIVE.
  *
  * Mode 2 (proxy) — Plexo-managed subscription: user pays a monthly
  * fee, Plexo routes everything on its own upstream keys with a quota.
  * COMING SOON — marked disabled + coming-soon badge in the UI below.
- * The executor's handleProxy path in
- * packages/agent/src/providers/router.ts:handleProxy still works for
- * any workspace that has `inferenceMode: 'proxy'` set manually (direct
- * DB edit or testing), so no one gets orphaned. We just don't let new
- * workspaces pick it from the UI until the subscription/billing infra
- * ships.
+ * The legacy `handleProxy` envelope (providers/router.ts, IntelligentRouter)
+ * that once served this mode is deleted (M3 of the LiteLLM gateway plan,
+ * ADR 0056). The managed-routing use case today is covered by a `litellm`
+ * provider instance pointed at an operator gateway with `selectedModel =
+ * 'auto'` — the gateway's own complexity router does the routing. A legacy
+ * workspace still storing `inferenceMode: 'proxy'` in the DB routes via its
+ * configured providers like byok (router-v2 never dispatched handleProxy).
  */
 
 import { useState } from 'react'

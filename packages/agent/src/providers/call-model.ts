@@ -25,8 +25,8 @@
  *     surface as `CALL_MODEL_PARSE`.
  *
  * What this helper does NOT own:
- *   - Model resolution. Caller passes an already-resolved `AnyLanguageModel`.
- *     `IntelligentRouter` / `chain-resolver` stay authoritative above.
+  *   - Model resolution. Caller passes an already-resolved `AnyLanguageModel`.
+  *     router-v2 (`routeAndCall`) / `chain-resolver` stay authoritative above.
  *   - `streamText`. Text only. Streaming stays on the executor's direct call
  *     for the chat hot path until a future phase.
  *   - Per-model quirk normalization (Anthropic tool mode, Gemini safety,

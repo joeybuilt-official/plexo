@@ -37,30 +37,6 @@ export interface ModelKnowledgeStore {
     upsertAll(records: ModelKnowledgeRecord[]): Promise<void>
 }
 
-/** One `models_knowledge` row as the router scores it. */
-export interface ModelCandidate {
-    provider: string
-    modelId: string
-    strengths: string[]
-    costPerMIn: number
-    costPerMOut: number
-}
-
-/**
- * Read side of the same table. Separate from `ModelKnowledgeStore` because the
- * consumers are: the sync writes, the router reads, and neither needs the
- * other's methods.
- */
-export interface ModelCatalogStore {
-    /**
-     * Cheapest-first models whose `strengths` contain EVERY entry of
-     * `requiredStrengths` (jsonb containment, not a first-element match).
-     */
-    findByStrengths(requiredStrengths: string[], limit: number): Promise<ModelCandidate[]>
-    /** Cheapest-first models, unfiltered — the partial-match fallback pool. */
-    listCheapest(limit: number): Promise<ModelCandidate[]>
-}
-
 /**
  * Reliability side of the same table. The ensemble judge reads a model's
  * stored score to weight its vote, and nudges it after a verdict.

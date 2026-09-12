@@ -72,7 +72,10 @@ export interface WorkspaceAISettings {
     providers: Partial<Record<ProviderKey, AIProviderConfig>>
     modelOverrides?: Partial<Record<TaskType, string>>
     /**
-     * Configuration for IntelligentRouter.
+     * Routing mode for the workspace, consumed by router-v2 (`routeAndCall`)
+     * and the provider registry's model resolution. (The legacy
+     * `IntelligentRouter` that originally owned this vocabulary was deleted in
+     * M3 of the LiteLLM gateway plan — ADR 0056; router-v2 is the live router.)
      *
      * `auto-economy` (B5): like `auto`, but mechanical task types
      * (classification / extraction / summarization / logAnalysis) resolve to a

@@ -10,7 +10,7 @@ import { WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/d
 import { ulid } from 'ulid'
 import { buildModel, PROVIDER_DEFAULT_MODELS, CHEAP_MODEL_BY_PROVIDER } from '../providers/registry.js'
 import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/router-v2/index.js'
-import type { ResolvedModelMeta } from '../providers/router.js'
+import type { ResolvedModelMeta } from '../providers/registry.js'
 import { modelSupportsVision, findVisionCapableModel } from '../providers/vision.js'
 import { assertAgentCostCeilingOk, CostCeilingExceededError, decideTaskDowngrade } from '../cost-gate.js'
 import { toMicro, addMicro, cmpMicro, fmtMicroUsd } from '../money.js'
@@ -1751,7 +1751,7 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         )
     }
 
-    // ── Model resolution via IntelligentRouter ──────────────────────────────────
+    // ── Model resolution via router-v2 (routeAndBuild) ──────────────────────
     // Tier routing: conversational tasks (short tool-free replies routed through
     // the task pipeline — e.g. "tell me the time", "what can you do") MUST NOT
     // hit the reasoning tier. deepseek-reasoner spends 30-90s on hidden CoT for
@@ -1819,7 +1819,7 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
             settings,
             doCall: async (m) => m,
         })
-        return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
+        return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/registry.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
     }))
 
     // ── Vision gate: swap to a vision-capable model when user attached images ──

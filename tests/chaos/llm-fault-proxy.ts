@@ -4,7 +4,7 @@
 /**
  * LLM Fault Proxy — thin HTTP proxy for injecting provider-level faults.
  *
- * Sits between Plexo's IntelligentRouter and real LLM APIs during chaos tests.
+  * Sits between Plexo's router-v2 (`routeAndCall`) and real LLM APIs during chaos tests.
  * No OSS chaos tool operates at HTTP-semantic level for LLM providers.
  *
  * Usage:
