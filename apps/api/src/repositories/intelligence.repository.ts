@@ -7,8 +7,8 @@
  * owns the workspaces.intelligence_settings JSONB reads/
  * writes (inference-mode, cost-ceiling, step-budget) and the routing_chains
  * read + atomic-replace transaction behind the intelligence routes. The route
- * keeps validation, the IntelligenceSettings cast, pgRows row-shaping, cache
- * invalidation, and the agent chain-resolver bust.
+ * keeps validation, the IntelligenceSettings cast, pgRows row-shaping, and
+ * cache invalidation.
  */
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@plexo/db'

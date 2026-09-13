@@ -213,18 +213,6 @@ async function loadChainsForWorkspace(workspaceId: string): Promise<Record<strin
     return out
 }
 
-async function invalidateAgentChainCache(workspaceId: string): Promise<void> {
-    // The router's chain-resolver lives in @plexo/agent and runs in the
-    // same process as the API. Bust its cache via a dynamic import so
-    // we don't pull the agent package at module load time.
-    try {
-        const mod = await import('@plexo/agent/providers/chain-resolver')
-        mod.invalidateChainResolver(workspaceId)
-    } catch (err) {
-        logger.warn({ err, workspaceId }, 'chain-resolver cache invalidation failed (non-fatal)')
-    }
-}
-
 // GET /:workspaceId/chains
 router.get('/:workspaceId/chains', async (req: any, res: any) => {
     const workspaceId = getWorkspaceId(req)
@@ -267,7 +255,6 @@ router.patch('/:workspaceId/chains/:taskType', async (req: any, res: any) => {
         // so a mid-sequence failure doesn't leave a partial chain.
         await intelligenceRepo.replaceChain(workspaceId, taskType, entries as Array<{ providerId: string; modelId: string }>)
         invalidateIntelligenceSettings(workspaceId)
-        await invalidateAgentChainCache(workspaceId)
         return res.json({ ok: true, taskType, length: entries.length })
     } catch (err) {
         logger.error({ err, workspaceId, taskType }, 'Failed to write chain')
@@ -286,7 +273,6 @@ router.post('/:workspaceId/chains/:taskType/reset', async (req: any, res: any) =
     try {
         const { rowsInserted } = await resetWorkspaceTaskChain(workspaceId, taskType)
         invalidateIntelligenceSettings(workspaceId)
-        await invalidateAgentChainCache(workspaceId)
         return res.json({ ok: true, taskType, rowsInserted })
     } catch (err) {
         logger.error({ err, workspaceId, taskType }, 'Failed to reset chain')

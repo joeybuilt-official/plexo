@@ -14,7 +14,6 @@ export default defineConfig({
             '@plexo/agent/prompts/build-system-prompt': resolve(root, 'packages/agent/src/prompts/build-system-prompt.ts'),
             '@plexo/agent/providers/router-v2': resolve(root, 'packages/agent/src/providers/router-v2/index.ts'),
             '@plexo/agent/providers/registry': resolve(root, 'packages/agent/src/providers/registry.ts'),
-            '@plexo/agent/providers/chain-resolver': resolve(root, 'packages/agent/src/providers/chain-resolver.ts'),
             '@plexo/agent/providers/knowledge': resolve(root, 'packages/agent/src/providers/knowledge.ts'),
             '@plexo/agent/providers/call-model': resolve(root, 'packages/agent/src/providers/call-model.ts'),
             '@plexo/agent/providers/vision': resolve(root, 'packages/agent/src/providers/vision.ts'),

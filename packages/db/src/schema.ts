@@ -1330,9 +1330,13 @@ export const providerInstances = pgTable('provider_instances', {
 // ── Routing Chains (Phase 2b — intelligence overhaul) ─────────────────────────
 //
 // Per-task-type ranked fallback chains. Each (workspace, task_type) row set
-// is the ordered list `chain-resolver` walks (consumed by `call-model`).
-// Smart-default seeded at API container startup; user-edited via the chain
-// editor in `/app/settings/intelligence`. Idempotent via the unique index.
+// is edited via the chain editor in `/app/settings/intelligence` and read by
+// the intelligence dashboard. NOTE: the legacy `chain-resolver` that walked
+// these rows is deleted (LiteLLM-gateway M3) — the live router (router-v2 /
+// `routeAndCall`) selects from the workspace provider chain
+// (`primaryProvider` → `fallbackChain`), so these rows are currently a
+// configuration/analytics surface, not a routing input. Smart-default seeded
+// at API container startup. Idempotent via the unique index.
 
 export const routingChains = pgTable('routing_chains', {
     id: uuid('id').defaultRandom().primaryKey(),

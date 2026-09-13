@@ -7,8 +7,7 @@
  * Mounts the intelligence router on a tiny express instance and drives
  * the GET/PATCH/POST chain handlers via fetch. All external I/O (db
  * reads + writes, intelligence-cache, intelligence-spend, cost-enforcement,
- * seed-routing-chains, chain-resolver) is stubbed via vi.mock so the
- * suite is hermetic.
+ * seed-routing-chains) is stubbed via vi.mock so the suite is hermetic.
  */
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
@@ -25,7 +24,6 @@ const ctl = {
     executedSql: [] as any[],
     invalidatedSettings: [] as string[],
     invalidatedSpend: [] as string[],
-    invalidatedChainCache: [] as string[],
     cleared: [] as string[],
     resetCalls: [] as Array<{ ws: string; tt: string }>,
 }
@@ -114,10 +112,6 @@ vi.mock('../../lib/seed-routing-chains.js', () => ({
     }),
 }))
 
-vi.mock('@plexo/agent/providers/chain-resolver', () => ({
-    invalidateChainResolver: vi.fn((id: string) => { ctl.invalidatedChainCache.push(id) }),
-}))
-
 let server: Server | null = null
 let baseUrl: string
 
@@ -125,7 +119,6 @@ beforeEach(async () => {
     ctl.executedSql = []
     ctl.invalidatedSettings = []
     ctl.invalidatedSpend = []
-    ctl.invalidatedChainCache = []
     ctl.cleared = []
     ctl.resetCalls = []
     if (!server) {
@@ -178,7 +171,6 @@ describe('PATCH /api/v1/intelligence/:workspaceId/chains/:taskType', () => {
         expect(body.ok).toBe(true)
         expect(body.length).toBe(2)
         expect(ctl.invalidatedSettings).toContain(WS)
-        expect(ctl.invalidatedChainCache).toContain(WS)
         // 1 DELETE + 2 INSERTs
         expect(ctl.executedSql.length).toBeGreaterThanOrEqual(3)
     })
@@ -232,7 +224,6 @@ describe('POST /api/v1/intelligence/:workspaceId/chains/:taskType/reset', () => 
         expect(body.rowsInserted).toBe(3)
         expect(ctl.resetCalls).toEqual([{ ws: WS, tt: 'codeGeneration' }])
         expect(ctl.invalidatedSettings).toContain(WS)
-        expect(ctl.invalidatedChainCache).toContain(WS)
     })
 
     it('rejects unknown task types', async () => {

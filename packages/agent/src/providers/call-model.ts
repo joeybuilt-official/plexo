@@ -26,14 +26,14 @@
  *
  * What this helper does NOT own:
   *   - Model resolution. Caller passes an already-resolved `AnyLanguageModel`.
-  *     router-v2 (`routeAndCall`) / `chain-resolver` stay authoritative above.
+ *     router-v2 (`routeAndCall`) stays authoritative above.
  *   - `streamText`. Text only. Streaming stays on the executor's direct call
  *     for the chat hot path until a future phase.
  *   - Per-model quirk normalization (Anthropic tool mode, Gemini safety,
  *     deepseek-reasoner chain-of-thought delay). Future commits as needed.
  *
- * Sister modules: `cost-gate.ts`, `chain-resolver.ts`. Same sub-module
- * layout convention inside `packages/agent/src/`.
+ * Sister module: `cost-gate.ts`. Same sub-module layout convention inside
+ * `packages/agent/src/`.
  */
 
 /* eslint-disable @typescript-eslint/no-deprecated -- generateText+Output migration is a separate phase; generateObject is still the supported structured-output entry point in ai@6 */

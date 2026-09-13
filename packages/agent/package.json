@@ -50,7 +50,6 @@
     "./tasks/terminal-fail": "./src/tasks/terminal-fail.ts",
     "./tasks/reflect": "./src/tasks/reflect.ts",
     "./providers/registry": "./src/providers/registry.ts",
-    "./providers/chain-resolver": "./src/providers/chain-resolver.ts",
     "./providers/instances": "./src/providers/instances.ts",
     "./providers/discovery": "./src/providers/discovery.ts",
     "./providers/discover-models": "./src/providers/discover-models.ts",
