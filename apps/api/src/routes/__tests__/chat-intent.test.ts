@@ -8,21 +8,23 @@ describe('preClassifyIntent', () => {
     // The regression: a build request phrased as a question must NOT be
     // treated as conversation. It carries a task verb, so it defers to the LLM
     // classifier (which routes it to TASK/PROJECT) — never a chat reply.
-    it('"Build me a simple web-based flappy bird game?" → needsLlm (has task verb), not conversation', () => {
-        const r = preClassifyIntent('Build me a simple web-based flappy bird game?')
-        expect(r.kind).toBe('needsLlm')
-        expect(r).toMatchObject({ hasTaskVerb: true })
-    })
-
-    it('build/create/write requests carry a task verb (defer to LLM, not chat)', () => {
+    it('a software deliverable is decided TASK here (never deferred to the LLM, which labeled it CONVERSATION)', () => {
         for (const m of [
+            'Build me a simple web-based flappy bird game?',
             'create a landing page for my startup?',
             'write a python script to rename files',
             'make me a todo app',
+            'make a snake game',
         ]) {
             const r = preClassifyIntent(m)
-            expect(r.kind, m).toBe('needsLlm')
-            expect(r, m).toMatchObject({ hasTaskVerb: true })
+            expect(r.kind, m).toBe('task')
+            expect(r, m).toMatchObject({ isComplex: false })
+        }
+    })
+
+    it('a software noun without a deliverable verb still defers (a question is not a build)', () => {
+        for (const m of ['what is a flappy bird game?', 'how does a web app work']) {
+            expect(preClassifyIntent(m).kind, m).toBe('conversation')
         }
     })
 

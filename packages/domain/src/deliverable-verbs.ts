@@ -34,6 +34,55 @@ export function hasDeliverableVerb(text: string): boolean {
 }
 
 /**
+ * Software / interactive artifacts — a `game`, `app`, `website`, `script`,
+ * `dashboard`, or a request naming a web/programming technology. A request that
+ * asks for one of these must execute as a TASK (so `write_asset` runs and the
+ * user gets something to view), never be handed to an LLM classifier that can
+ * label it CONVERSATION and reply with raw code in chat and no artifact.
+ *
+ * Deliberately excludes content nouns (`post`, `blog`, `caption`, `email`,
+ * `haiku`, `logo`, `song`) so short creative writing stays conversational — the
+ * contract the webchat classifier prompt documents. A word-boundary match keeps
+ * `app` out of `apples` and `api` out of `capital`.
+ */
+export const SOFTWARE_ARTIFACT_RE =
+    /\b(game|games|app|apps|application|web\s?app|website|web\s?site|web\s?page|webpage|landing\s+page|home\s?page|dashboard|widget|component|script|program|codebase|cli|api|bot|simulator|calculator|converter|tracker|editor|playground|frontend|front-?end|backend|back-?end|html|css|javascript|typescript|python|react|vue|svelte|node\.?js|sql|snake|tetris|pong|flappy\s+bird|platformer|todo\s+app|to-?do\s+app)\b/i
+
+/**
+ * Content nouns that name a written deliverable rather than a software one.
+ * Their presence flips a request back to the conversational lane even when a
+ * software word appears incidentally — "write a blog post about our app" is a
+ * blog post (chat/short-content), not an app build. Mirrors the classifier
+ * prompt's "short creative writing stays CONVERSATION" contract.
+ */
+export const CONTENT_NOUN_RE =
+    /\b(post|blog|blogpost|article|caption|captions|email|e-?mail|newsletter|essay|poem|haiku|song|lyrics|tweet|thread|tagline|slogan|copy)\b/i
+
+/** True when the text names a software / interactive artifact to be built. */
+export function requestsSoftwareArtifact(text: string): boolean {
+    return SOFTWARE_ARTIFACT_RE.test(text) && !CONTENT_NOUN_RE.test(text)
+}
+
+/**
+ * A self-contained software-deliverable request — the exact shape that must
+ * execute as a TASK with `write_asset`, not be answered in chat. Requires a
+ * deliverable verb AND a software-artifact noun, and no content noun:
+ *   "make a snake game"          → true
+ *   "build a landing page"       → true
+ *   "write a python script"      → true
+ *   "write me a haiku"           → false (no software noun)
+ *   "write a blog post about our app" → false (content noun wins)
+ *   "what is a web app?"         → false (no deliverable verb)
+ *
+ * Shared by the chat pre-classifier (so it is decided TASK before the LLM can
+ * label it CONVERSATION) and the chat route (so it takes the queue path where
+ * `write_asset` runs and a taskId is returned). One predicate, one place.
+ */
+export function isSoftwareDeliverableRequest(text: string): boolean {
+    return hasDeliverableVerb(text) && requestsSoftwareArtifact(text)
+}
+
+/**
  * A short, self-contained deliverable request — "make a snake game", "write a
  * haiku", "draft a cold email". These are exactly the one-step, model-knows-it
  * tasks that must go straight to `write_asset` and must NOT be misclassified as

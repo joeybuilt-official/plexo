@@ -598,6 +598,8 @@ describe('chat handler fastpath vs full path', () => {
         // DD-3: the default coding path is a single streaming streamText call
         // with the full toolset (code + workspace tools), NOT the queue. The
         // model drives multi-turn tool use inline over the same response.
+        // NOTE: a software deliverable is no longer inline (it must queue for
+        // write_asset) — this uses a non-software TASK to exercise the inline path.
         ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
         setupInlineReply('Built it: wrote src/foo.ts and ran tests.')
 
@@ -605,7 +607,7 @@ describe('chat handler fastpath vs full path', () => {
         const { req, res, getPayload } = makeReqRes({
             workspaceId,
             sessionId: 'sess-1',
-            message: 'create an HTML snake game for me please',
+            message: 'review the Q4 budget report and summarize the findings',
         })
 
         await handler(req, res)
@@ -621,6 +623,26 @@ describe('chat handler fastpath vs full path', () => {
         }
     })
 
+    it('default TASK that is a SOFTWARE DELIVERABLE (no background) queues — write_asset needs the queue', async () => {
+        // The regression this guards: a deliverable routed inline gets no
+        // write_asset (excluded from INLINE_CODE_TOOLS), so no artifact/outcome.
+        ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
+        ctl.pushTask.mockResolvedValue('task-snake-deliverable')
+
+        const handler = await getHandler()
+        const { req, res, getPayload } = makeReqRes({
+            workspaceId,
+            sessionId: 'sess-1',
+            message: 'make a snake game',
+        })
+
+        await handler(req, res)
+        const payload = getPayload()
+        expect(ctl.pushTask).toHaveBeenCalledTimes(1)
+        expect(payload.status).toBe('task_queued')
+        expect(payload.taskId).toBe('task-snake-deliverable')
+    })
+
     it('inline streaming toolset includes workspace tools (web_search/memory_query) alongside code tools', async () => {
         ctl.generateText.mockImplementation(async () => ({ text: 'TASK SIMPLE', usage: { inputTokens: 5, outputTokens: 3 } }))
         setupInlineReply('Done.')
@@ -629,7 +651,7 @@ describe('chat handler fastpath vs full path', () => {
         const { req, res } = makeReqRes({
             workspaceId,
             sessionId: 'sess-1',
-            message: 'create an HTML snake game for me please',
+            message: 'review the Q4 budget report and summarize the findings',
         })
 
         await handler(req, res)
@@ -646,7 +668,7 @@ describe('chat handler fastpath vs full path', () => {
         const { req, res } = makeReqRes({
             workspaceId,
             sessionId: 'sess-1',
-            message: 'create an HTML snake game for me please',
+            message: 'review the Q4 budget report and summarize the findings',
         })
 
         await handler(req, res)

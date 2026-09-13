@@ -48,6 +48,7 @@ import { buildTools, wireSubagentRunner } from '@plexo/agent/executor'
 import type { ExecutionContext, StepEvent } from '@plexo/agent/types'
 import { getTelegramToken } from './telegram.js'
 import { preClassifyIntent } from './chat-intent.js'
+import { isSoftwareDeliverableRequest } from '@plexo/domain'
 import { validateImages } from '../application/chat/validateImages.js'
 import { resolveHeuristicIntent, parseClassifyResponse } from '../application/chat/classifyIntent.js'
 import { persistTurn } from '../application/chat/persistTurn.js'
@@ -83,7 +84,7 @@ const INLINE_CODE_TOOLS = ['read_file', 'write_file', 'edit_file', 'grep', 'glob
 // application/chat/sessionLock.ts so the chain semantics are unit-testable.
 import { withSessionLock } from '../application/chat/sessionLock.js'
 
-/** Build fallback options with auth-failure notification for a workspace. */
+/** Build fallback options for a workspace: auth-failure + fallback indication. */
 function fallbackOpts(workspaceId: string): FallbackOptions {
     return {
         workspaceId,
@@ -93,6 +94,28 @@ function fallbackOpts(workspaceId: string): FallbackOptions {
                 type: 'provider_auth_error',
                 provider,
                 message: `API key for "${provider}" is invalid or expired. Update it in Settings → AI Providers.`,
+            })
+        },
+        // ADR 0012: "degradation is logged, not hidden." A fallback is an
+        // operator-relevant event, not a silent internal retry — record it and
+        // surface it to the client so the UI can show which provider actually
+        // served the call and which ones were skipped/bypassed.
+        onFallbackEngaged: (info) => {
+            logger.warn({
+                workspaceId: info.workspaceId ?? workspaceId,
+                taskType: info.taskType,
+                primary: info.primary,
+                used: info.used,
+                skipped: info.skipped,
+                lastError: info.lastError,
+            }, 'Provider fallback engaged — primary failed, served by chain fallback')
+            emitToWorkspace(workspaceId, {
+                type: 'provider_fallback',
+                primary: info.primary,
+                used: info.used,
+                skipped: info.skipped,
+                taskType: info.taskType,
+                message: `Primary provider "${info.primary}" failed; "${info.used}" served this call.`,
             })
         },
     }
@@ -787,7 +810,17 @@ chatRouter.post('/message', async (req, res) => {
             }
         }
 
-        logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
+        // A self-contained software deliverable must run on the TASK QUEUE, not
+        // the inline chat loop: the inline toolset deliberately excludes
+        // `write_asset`/`task_complete` (they are queue-specific), so an inline
+        // deliverable returns a text reply with no artifact/outcome and no
+        // taskId. `preClassifyIntent` already forced `intent = TASK` for these;
+        // decide the route from the same shared predicate so chat, the executor,
+        // and the planner agree. Decided here (post-classification) so a
+        // `forceConversation` or explicit CONVERSATION still wins.
+        const isDeliverableTask = intent === 'TASK' && isSoftwareDeliverableRequest(trimmedMsg)
+
+        logger.info({ workspaceId, intent, isDeliverableTask, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
 
         // Persist a pending row BEFORE any heavy model call so a throw/abort mid-turn
         // can never make the conversation vanish. Terminal sites below backfill it in
@@ -843,11 +876,13 @@ chatRouter.post('/message', async (req, res) => {
         }
 
         // ── Inline streaming agent loop ──────────────────────────────────────
-        // Default path for CONVERSATION *and* TASK-without-background. The model
-        // gets the full toolset (code tools + workspace tools + MCP tools) and
-        // can multi-turn over a single SSE response up to INLINE_STEP_LIMIT
-        // steps. The async task queue is opt-in via `background: true`.
-        if (intent === 'CONVERSATION' || (intent === 'TASK' && !background)) {
+        // Default path for CONVERSATION *and* non-deliverable TASK-without-
+        // background. The model gets the full toolset (code tools + workspace
+        // tools + MCP tools) and can multi-turn over a single SSE response up to
+        // INLINE_STEP_LIMIT steps. The async task queue is opt-in via
+        // `background: true` — and mandatory for a software deliverable, which
+        // needs `write_asset` (see `isDeliverableTask` above).
+        if (!isDeliverableTask && (intent === 'CONVERSATION' || (intent === 'TASK' && !background))) {
             // ── Correction feedback loop: detect and record user corrections ──
             try {
                 const { hasCorrectionIntent, recordCorrection } = await import('@plexo/agent/memory/corrections')
@@ -1346,32 +1381,38 @@ For service integrations, provide direct links: [Connect Gmail](/connections?hig
         }
 
 
-        // Background task queue: OPT-IN only (background: true). The default
-        // coding path is the inline streaming loop above. When the caller asks
-        // for background, queue to the async executor and return a taskId for
-        // polling via /api/chat/reply/:taskId.
-        // PROJECT: still show one confirm because it spins up a full multi-step sprint.
-        if (intent === 'TASK' && background) {
-            // Synthesize a clean task description from conversation context
+        // Background task queue: opt-in via `background: true`, and ALWAYS for
+        // a software deliverable (which needs `write_asset`/`task_complete` —
+        // tools the inline loop does not carry). Queues to the async executor
+        // and returns a taskId for polling via /api/chat/reply/:taskId.
+        // PROJECT: still shows one confirm because it spins up a multi-step sprint.
+        if (intent === 'TASK' && (background || isDeliverableTask)) {
+            // Synthesize a clean task description from conversation context.
+            // Skipped for a self-contained deliverable: the user's message is
+            // already short and specific, and a lossy rewrite risks dropping the
+            // deliverable noun the executor's fast path keys on (it would also
+            // buy an extra 20s+ gateway call before queueing).
             let cleanDescription = trimmedMsg
-            try {
-                const synth = await routeAndCall({
-                    workspaceId,
-                    taskType: 'summarization',
-                    settings: aiSettings,
-                    doCall: async (model) => generateText({
-                        model,
-                        system: 'You are a task description synthesizer. Given a conversation, output a single clear, specific, third-person task description in one sentence (max 150 chars) that captures what the user wants the agent to accomplish. No preamble, no quotes, just the description.',
-                        messages: [
-                            ...textHistory,
-                            { role: 'user' as const, content: trimmedMsg },
-                        ],
-                        abortSignal: AbortSignal.timeout(8_000),
-                    }),
-                    opts: fallbackOpts(workspaceId),
-                })
-                if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
-            } catch { /* use raw message as fallback */ }
+            if (!isDeliverableTask) {
+                try {
+                    const synth = await routeAndCall({
+                        workspaceId,
+                        taskType: 'summarization',
+                        settings: aiSettings,
+                        doCall: async (model) => generateText({
+                            model,
+                            system: 'You are a task description synthesizer. Given a conversation, output a single clear, specific, third-person task description in one sentence (max 150 chars) that captures what the user wants the agent to accomplish. No preamble, no quotes, just the description.',
+                            messages: [
+                                ...textHistory,
+                                { role: 'user' as const, content: trimmedMsg },
+                            ],
+                            abortSignal: AbortSignal.timeout(8_000),
+                        }),
+                        opts: fallbackOpts(workspaceId),
+                    })
+                    if (synth.text?.trim()) cleanDescription = synth.text.trim().replace(/^"|"$/g, '')
+                } catch { /* use raw message as fallback */ }
+            }
 
             // Store the user's CLEAN request in description/message so the
             // task page renders just the ask. The executor loads SCL context

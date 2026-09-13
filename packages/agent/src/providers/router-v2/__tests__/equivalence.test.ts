@@ -196,6 +196,44 @@ describe('router-v2 manifest', () => {
 // Selector
 
 describe('router-v2 selector', () => {
+    it('chainPreference dictates the fallback order (ADR 0012 Failure 3), overriding manifest score', () => {
+        // deepseek has the LOWER manifest prior for conversation than anthropic,
+        // but the operator's chain says deepseek is the fallback — so when the
+        // primary (anthropic) is excluded/failed, deepseek must be next, not
+        // whichever provider the scorer prefers.
+        const settings = baseSettings({
+            primaryProvider: 'anthropic',
+            fallbackChain: ['deepseek', 'openai'],
+        })
+        const r = selectModel({
+            workspaceId: 'ws-chain',
+            taskType: 'conversation',
+            availableProviders: [
+                { provider: 'deepseek', config: settings.providers.deepseek! },
+                { provider: 'openai', config: settings.providers.openai! },
+            ],
+            settings,
+            chainPreference: ['anthropic', 'deepseek', 'openai'],
+        })
+        expect(r.chosen).not.toBeNull()
+        expect(r.chosen!.provider).toBe('deepseek')
+    })
+
+    it('without chainPreference the same pool is scored (first pick unchanged)', () => {
+        const settings = baseSettings({ primaryProvider: 'anthropic', fallbackChain: ['deepseek', 'openai'] })
+        const r = selectModel({
+            workspaceId: 'ws-chain-2',
+            taskType: 'conversation',
+            availableProviders: [
+                { provider: 'deepseek', config: settings.providers.deepseek! },
+                { provider: 'openai', config: settings.providers.openai! },
+            ],
+            settings,
+        })
+        // No chain preference ⇒ normal score order (openai prior 5 > deepseek 3).
+        expect(r.chosen!.provider).toBe('openai')
+    })
+
     it('cold-start: stats empty → manifest priors win (best priorScore)', () => {
         const r = selectModel({
             workspaceId: 'ws-1',
@@ -443,6 +481,9 @@ describe('router-v2 error-classifier', () => {
         ['Bad Request', 'unknown-4xx'],
         ['AI_APICallError: Bad Request', 'unknown-4xx'],
         ['400 status code (no body)', 'unknown-4xx'],
+        // A model that cannot serve the call SHAPE cascades with a specific class.
+        ['registry.ollama.ai/library/gemma3:4b does not support tools', 'capability-mismatch'],
+        ['Tool use is not supported by this model', 'capability-mismatch'],
     ]
 
     for (const [msg, expected] of cases) {
@@ -484,6 +525,13 @@ describe('router-v2 error-classifier', () => {
             "invalid JSON schema for response_format: 'ExtractedEntities': /properties/extracted_entities/items: `additionalProperties:false` must be set on every object",
         ))
         expect(c.class).toBe('parse-malformed')
+        expect(c.shouldFallback).toBe(true)
+        expect(c.suggestedAction).toBe('fallback-next')
+    })
+
+    it('capability-mismatch (tools asked of a tool-less model) → fallback-next, not retry-same or fail-hard', () => {
+        const c = classifyError(new Error('registry.ollama.ai/library/gemma3:4b does not support tools'))
+        expect(c.class).toBe('capability-mismatch')
         expect(c.shouldFallback).toBe(true)
         expect(c.suggestedAction).toBe('fallback-next')
     })

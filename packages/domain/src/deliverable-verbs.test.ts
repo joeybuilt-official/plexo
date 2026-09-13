@@ -8,7 +8,12 @@
  * its tools (including write_asset) were stripped.
  */
 import { describe, it, expect } from 'vitest'
-import { hasDeliverableVerb, isSelfContainedDeliverable } from './deliverable-verbs.js'
+import {
+    hasDeliverableVerb,
+    isSelfContainedDeliverable,
+    requestsSoftwareArtifact,
+    isSoftwareDeliverableRequest,
+} from './deliverable-verbs.js'
 
 describe('hasDeliverableVerb', () => {
     it('recognizes the verbs that were missing (the bug)', () => {
@@ -45,5 +50,47 @@ describe('isSelfContainedDeliverable', () => {
     it('is false for empty / conversational', () => {
         expect(isSelfContainedDeliverable('')).toBe(false)
         expect(isSelfContainedDeliverable('thanks!')).toBe(false)
+    })
+})
+
+describe('requestsSoftwareArtifact', () => {
+    it('recognizes software/interactive nouns', () => {
+        for (const t of [
+            'make a snake game',
+            'build a landing page',
+            'write a python script',
+            'create a dashboard',
+            'build me a todo app',
+        ]) {
+            expect(requestsSoftwareArtifact(t), t).toBe(true)
+        }
+    })
+    it('does not fire on content nouns even when a software word appears', () => {
+        for (const t of [
+            'write a blog post about our app',
+            'write me a haiku',
+            'draft a cold email',
+            'write 3 instagram captions',
+        ]) {
+            expect(requestsSoftwareArtifact(t), t).toBe(false)
+        }
+    })
+    it('respects word boundaries (no substring matches)', () => {
+        expect(requestsSoftwareArtifact('the capital of France')).toBe(false) // no 'app'/'api' substring fire
+        expect(requestsSoftwareArtifact('apples are tasty')).toBe(false) // 'app' not inside 'apples'
+    })
+})
+
+describe('isSoftwareDeliverableRequest (the chat-routing predicate)', () => {
+    it('true only when BOTH a deliverable verb and a software noun are present', () => {
+        expect(isSoftwareDeliverableRequest('make a snake game')).toBe(true)
+        expect(isSoftwareDeliverableRequest('build a landing page')).toBe(true)
+        expect(isSoftwareDeliverableRequest('write a python script')).toBe(true)
+        // noun but no verb → conversational
+        expect(isSoftwareDeliverableRequest('what is a web app?')).toBe(false)
+        expect(isSoftwareDeliverableRequest('the history of video games')).toBe(false)
+        // verb but content noun → conversational
+        expect(isSoftwareDeliverableRequest('write a blog post about our app')).toBe(false)
+        expect(isSoftwareDeliverableRequest('write me a haiku')).toBe(false)
     })
 })

@@ -18,6 +18,7 @@ export type ErrorClass =
     | 'quota'
     | 'parse-malformed'
     | 'empty-output'
+    | 'capability-mismatch'
     | 'unknown-4xx'
     | 'unknown'
 
@@ -263,6 +264,26 @@ export function classifyError(err: unknown): Classification {
         msg.includes('structured')
     ) {
         return { class: 'parse-malformed', shouldFallback: true, suggestedAction: 'fallback-next' }
+    }
+
+    // Capability mismatch — the provider/model cannot serve the SHAPE of this
+    // call. The canonical case is a tool-bearing request routed to a model with
+    // no tool support: ollama answers `"registry.ollama.ai/library/gemma3:4b
+    // does not support tools"` with HTTP 400. It is NOT a transient fault and
+    // NOT a bad request from our side: the model is simply ineligible for this
+    // call, so the chain must advance to a model that can serve it. Matched
+    // BEFORE unknown-4xx (which also sees the 400) so the reason is specific
+    // and the candidate can be deprioritized for tool-bearing work.
+    if (
+        msg.includes('does not support tools') ||
+        msg.includes('does not support tool') ||
+        msg.includes('tool use is not supported') ||
+        msg.includes('tools are not supported') ||
+        msg.includes('tool calling is not supported') ||
+        msg.includes('function calling is not supported') ||
+        msg.includes('no tool support')
+    ) {
+        return { class: 'capability-mismatch', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
     // Generic provider request rejection — an HTTP 400 (or a bare "Bad Request")

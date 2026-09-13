@@ -13,7 +13,17 @@
  * The caller (chat.ts) keeps the LLM classifier and the `forceConversation`
  * gate; on an ambiguous message it should fail TOWARD execution when
  * `hasTaskVerb` is true rather than defaulting to chat.
+ *
+ * Deliverable rule: a message that asks for a SOFTWARE/INTERACTIVE artifact
+ * ("make a snake game", "build a landing page", "write a python script") is
+ * decided TASK here, before the LLM classifier runs. The classifier was
+ * observed labelling "make a snake game" as CONVERSATION (its verdict wins over
+ * the `execDefault`), which queued nothing and produced no artifact. The
+ * vocabulary lives in `@plexo/domain/deliverable-verbs` so chat, the executor,
+ * and the planner cannot drift apart again (the #199 regression).
  */
+
+import { isSoftwareDeliverableRequest } from '@plexo/domain'
 
 export type HeuristicIntent =
     | { kind: 'project' }
@@ -46,6 +56,14 @@ export function preClassifyIntent(message: string): HeuristicIntent {
     // Memory instructions take precedence over the conversation catch-all.
     const isObviousMemory = /^(remember|always|never|don't|dont)\s/i.test(lower)
     if (isObviousMemory) return { kind: 'memory' }
+
+    // Software deliverable — decided here so the LLM classifier can never
+    // downgrade "make a snake game" to CONVERSATION (which queues no task and
+    // writes no artifact). Requires a deliverable VERB and a software-artifact
+    // NOUN, so "what is a web app?" (verb-less) stays conversational.
+    if (isSoftwareDeliverableRequest(trimmedMsg)) {
+        return { kind: 'task', isComplex: false }
+    }
 
     const hasTaskVerb = TASK_VERB_RE.test(lower)
     const endsWithQuestion = /\?$/.test(trimmedMsg)

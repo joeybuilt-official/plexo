@@ -115,8 +115,9 @@ export class RouterV2CallError extends Error {
 
 function buildAvailable(settings: WorkspaceAISettings): AvailableProvider[] {
     const out: AvailableProvider[] = []
-    // Honor preference order: primary then fallbackChain — informational only;
-    // selector scores by manifest + stats, not by chain position.
+    // Order: primary then fallbackChain, then any other configured provider.
+    // The selector scores by manifest + stats for the FIRST pick; on cascade
+    // iterations it ranks by this chain order first (ADR 0012 Failure 3).
     const seen = new Set<ProviderKey>()
     const addIfEnabled = (key: ProviderKey) => {
         if (seen.has(key)) return
@@ -162,6 +163,11 @@ function cooldownMsForClass(c: ReturnType<typeof classifyError>): number {
         // A provider-specific 4xx rejection is not a client-wide fault; cool it
         // briefly and let the cascade try a different provider right away.
         case 'unknown-4xx': return COOLDOWN_TRANSIENT_MS
+        // A capability mismatch (e.g. a model without tool support asked to do
+        // tool calls) is a property of the model, not a transient fault. Cool
+        // briefly so this cascade advances now; the cooldown is short because
+        // the same model is perfectly eligible for non-tool calls.
+        case 'capability-mismatch': return COOLDOWN_TRANSIENT_MS
         default: return COOLDOWN_TRANSIENT_MS
     }
 }
@@ -238,7 +244,15 @@ async function routeAndCallInner<T>(input: RouteAndCallInput<T>): Promise<T> {
     while (cascadePos < MAX_CASCADE && available.length > 0) {
         if (abortSignal.aborted) throw new RouterV2TimeoutError()
         const selStart = Date.now()
-        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride })
+        // ADR 0012 Failure 3: the FIRST pick is "best per task" (Q1 hybrid
+        // scoring). Every FALLBACK (cascadePos > 0) is dictated by the
+        // workspace's configured chain — primary then fallbackChain — so the
+        // operator's order is honored instead of the scorer silently reordering
+        // it. Providers outside the chain still rank last (chainPos = MAX).
+        const chainPreference = cascadePos === 0
+            ? undefined
+            : (settings.primaryProvider ? [settings.primaryProvider, ...settings.fallbackChain] : settings.fallbackChain)
+        const sel = selectModel({ workspaceId, taskType, availableProviders: available, settings, modelIdOverride, chainPreference })
         const selDur = Date.now() - selStart
         if (cascadePos === 0) {
             firstSelection = sel

@@ -91,6 +91,17 @@ export interface SelectInput {
      * selector falls through to normal scoring. Default unset = no override.
      */
     modelIdOverride?: string
+    /**
+     * ADR 0012 pre-mortem Failure 3 — "operator preference is a hard input to
+     * the selector, not advisory… preference is honored, degradation is logged,
+     * not hidden." When provided (the workspace's configured order:
+     * primary → fallbackChain), candidates are ranked by their position here
+     * FIRST and by manifest/stats score WITHIN a position. Used by the cascade
+     * after the first pick fails, so a FALLBACK follows the operator's chain
+     * instead of the scorer silently reordering it. The first pick stays
+     * "best per task" (Q1 hybrid), so this is passed only on cascade iterations.
+     */
+    chainPreference?: readonly ProviderKey[]
 }
 
 /** Resolve the concrete model ID this candidate would call. */
@@ -110,6 +121,12 @@ interface Scored {
     score: number
     priorScore: number
     successRate: number
+    /**
+     * Position in the operator's configured chain, or `Number.MAX_SAFE_INTEGER`
+     * when the provider is not in it (a configured-but-extra provider). Used to
+     * make fallbacks follow the chain when `chainPreference` is supplied.
+     */
+    chainPos: number
     /** True iff the candidate is currently in cooldown. */
     cooling: boolean
     cooldownEndAt: number
@@ -183,8 +200,13 @@ function resolveForcedModel(
 }
 
 export function selectModel(input: SelectInput): SelectionResult {
-    const { workspaceId, taskType, availableProviders, settings, modelIdOverride } = input
+    const { workspaceId, taskType, availableProviders, settings, modelIdOverride, chainPreference } = input
     const now = Date.now()
+    const chainPosOf = (provider: ProviderKey): number => {
+        if (!chainPreference || chainPreference.length === 0) return Number.MAX_SAFE_INTEGER
+        const i = chainPreference.indexOf(provider)
+        return i === -1 ? Number.MAX_SAFE_INTEGER : i
+    }
 
     // D2 forced model: highest precedence, bypasses scoring. Falls through to
     // normal selection when the forced model isn't an available provider (e.g.
@@ -224,6 +246,7 @@ export function selectModel(input: SelectInput): SelectionResult {
             cooling,
             cooldownEndAt: stats.cooldownEndAt,
             score: 0,
+            chainPos: chainPosOf(ap.provider),
         }
         sc.score = scoreCandidate(sc)
         scoredAll.push(sc)
@@ -250,7 +273,16 @@ export function selectModel(input: SelectInput): SelectionResult {
     // Prefer non-cooling candidates first; fall through to cooling only when all are.
     const nonCooling = scoredAll.filter(c => !c.cooling)
     const pool = nonCooling.length > 0 ? nonCooling : scoredAll
-    pool.sort((a, b) => b.score - a.score)
+    // ADR 0012 Failure 3: when the caller supplies the workspace chain, rank by
+    // chain position first and score second — so a fallback follows the
+    // operator's configured order. Ties within one provider (only one candidate
+    // per provider today) would fall through to score. Without chainPreference
+    // (the first, "best per task" pick) this is byte-identical to before.
+    if (chainPreference && chainPreference.length > 0) {
+        pool.sort((a, b) => (a.chainPos - b.chainPos) || (b.score - a.score))
+    } else {
+        pool.sort((a, b) => b.score - a.score)
+    }
 
     const top = pool[0]!
     const next = pool.slice(1, 3)
