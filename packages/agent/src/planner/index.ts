@@ -23,6 +23,7 @@ import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResu
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { buildExecutionWaves } from '../utils/topo-sort.js'
 import { OUTBOUND_VERB_EXAMPLES } from '../one-way-door.js'
+import { hasDeliverableVerb } from '@plexo/domain'
 
 const logger = pino({ name: 'planner' })
 
@@ -326,12 +327,20 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
 
     const planSteps = raw.object.steps as PlanStep[]
     const planPhases = (raw.object.phases ?? []).map((p, i) => ({ index: i, label: p.label, description: p.description ?? undefined }))
-    const waves = computeWaves(planSteps, ctx.taskId, ctx.workspaceId)
-    const triageTier = computeTriageTier(planSteps, waves)
+
+    // Deterministic normalization: the planner prompt asks for `write_asset` on a
+    // self-contained deliverable, but the model can still emit `toolsRequired: []`.
+    // That is not cosmetic — the executor's `detectConversationalTask()` treats a
+    // 1-step, no-tools plan as CONVERSATION and strips every tool, so the model
+    // answers in chat and the user gets no artifact/link. Backfill the tool the
+    // model clearly intended so a produced deliverable is always saveable.
+    const normalizedSteps = normalizeDeliverableTools(planSteps, raw.object.goal)
+    const waves = computeWaves(normalizedSteps, ctx.taskId, ctx.workspaceId)
+    const triageTier = computeTriageTier(normalizedSteps, waves)
     const plan: ExecutionPlan = {
         taskId: ctx.taskId,
         goal: raw.object.goal,
-        steps: planSteps,
+        steps: normalizedSteps,
         oneWayDoors: (raw.object.oneWayDoors ?? []) as OneWayDoor[],
         estimatedDurationMs: raw.object.estimatedDurationMs ?? 0,
         confidenceScore: Math.min(1, Math.max(0, raw.object.confidenceScore ?? 0.5)),
@@ -342,4 +351,20 @@ CRITICAL: If the task involves ANY website, web service, social media platform, 
     }
 
     return { type: 'plan', plan }
+}
+
+/**
+ * Pure plan normalization. A single-step, tool-less plan whose goal is a
+ * deliverable request gets `write_asset` added — the one tool that turns model
+ * output into a viewable artifact. Multi-step plans and conversational goals
+ * are returned unchanged.
+ *
+ * Exported for tests; no I/O, no imports beyond the shared vocabulary.
+ */
+export function normalizeDeliverableTools(steps: PlanStep[], goal: string): PlanStep[] {
+    if (steps.length !== 1) return steps
+    const only = steps[0]!
+    if ((only.toolsRequired ?? []).length > 0) return steps
+    if (!hasDeliverableVerb(goal)) return steps
+    return [{ ...only, toolsRequired: ['write_asset'] }]
 }

@@ -201,7 +201,9 @@ function ChatContent() {
 
     useEffect(() => {
         if (!WS_ID) return
-        void fetch(`${API}/api/v1/agent/status`)
+        // Pass workspaceId — without it the server cannot resolve a model and
+        // always returns currentModel: null (the picker then shows nothing).
+        void fetch(`${API}/api/v1/agent/status?workspaceId=${encodeURIComponent(WS_ID)}`)
             .then(res => res.json())
             .then(data => setAgentModel((data as { currentModel?: string | null }).currentModel || null))
             .catch((err) => { console.error('[chat] agent status fetch failed', err) })
@@ -220,15 +222,20 @@ function ChatContent() {
             .then((data: { providers?: Array<{ nickname: string; providerType: string; enabled: boolean; selectedModel: string | null; capabilities?: { chatModels?: string[] } }> } | null) => {
                 if (cancelled || !data?.providers) return
                 const rows: ProviderModelOption[] = []
+                // The API returns providers in preference order, so the first
+                // enabled one is the workspace primary — the row the empty-value
+                // "Default (agent)" resolves to. Flag it so the composer can name it.
+                let primaryProviderType: string | null = null
                 for (const p of data.providers) {
                     if (!p.enabled) continue
+                    if (primaryProviderType === null) primaryProviderType = p.providerType
                     const models = p.capabilities?.chatModels ?? []
                     const seen = new Set<string>()
                     for (const m of models) {
                         const value = `${p.providerType}/${m}`
                         if (seen.has(value)) continue
                         seen.add(value)
-                        rows.push({ value, label: `${p.nickname || p.providerType} / ${m}` })
+                        rows.push({ value, label: `${p.nickname || p.providerType} / ${m}`, isDefault: p.providerType === primaryProviderType && m === p.selectedModel })
                     }
                     // Always include the provider's currently selected model even
                     // if it's missing from the discovered chatModels list.
@@ -236,7 +243,7 @@ function ChatContent() {
                         const value = `${p.providerType}/${p.selectedModel}`
                         if (!seen.has(value)) {
                             seen.add(value)
-                            rows.push({ value, label: `${p.nickname || p.providerType} / ${p.selectedModel}` })
+                            rows.push({ value, label: `${p.nickname || p.providerType} / ${p.selectedModel}`, isDefault: p.providerType === primaryProviderType })
                         }
                     }
                 }

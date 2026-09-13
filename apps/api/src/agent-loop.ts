@@ -22,6 +22,7 @@ import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
 import { emitTaskOutcome, emitReflectionEvent } from './analytics/events.js'
 import { trackError, trackEvent } from './event-tracker.js'
 import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from '@plexo/agent/providers/registry'
+import { hasDeliverableVerb } from '@plexo/domain'
 import { logger } from './logger.js'
 
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
@@ -891,12 +892,18 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             // Synthetic plan — no LLM call needed
             logger.info({ taskId: task.id }, 'Fast-path: skipping planner for simple task')
             emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: 1, confidence: 0.9 })
+            // A self-contained deliverable ("make a snake game") must declare the
+            // tool it will call, or the executor's detectConversationalTask() will
+            // see toolsRequired:[] and strip every tool — dumping the output into
+            // chat instead of saving an artifact. The shared vocabulary keeps this
+            // in lockstep with the executor + chat classifier.
+            const deliverableTools = hasDeliverableVerb(description) ? ['write_asset'] : []
             plannerResult = {
                 type: 'plan',
                 plan: {
                     taskId: task.id,
                     goal: description,
-                    steps: [{ stepNumber: 1, description, toolsRequired: [], verificationMethod: 'Review output', isOneWayDoor: false }],
+                    steps: [{ stepNumber: 1, description, toolsRequired: deliverableTools, verificationMethod: 'Review output', isOneWayDoor: false }],
                     oneWayDoors: [],
                     estimatedDurationMs: 30000,
                     confidenceScore: 0.9,

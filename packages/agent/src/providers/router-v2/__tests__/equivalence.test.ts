@@ -439,6 +439,10 @@ describe('router-v2 error-classifier', () => {
         ['No output generated. Check the stream for errors.', 'empty-output'],
         ['AI_NoOutputGeneratedError: No output generated', 'empty-output'],
         ['some unrelated bug', 'unknown'],
+        // A provider-specific 4xx rejection must cascade, not dead-end the task.
+        ['Bad Request', 'unknown-4xx'],
+        ['AI_APICallError: Bad Request', 'unknown-4xx'],
+        ['400 status code (no body)', 'unknown-4xx'],
     ]
 
     for (const [msg, expected] of cases) {
@@ -447,6 +451,12 @@ describe('router-v2 error-classifier', () => {
             expect(c.class).toBe(expected)
         })
     }
+
+    it('a provider 400 advances the cascade instead of fail-hard (E_UNKNOWN fix)', () => {
+        const c = classifyError(new Error('Bad Request'))
+        expect(c.shouldFallback).toBe(true)
+        expect(c.suggestedAction).toBe('fallback-next')
+    })
 
     it('non-Error thrown → unknown + fail-hard', () => {
         const c = classifyError('a string')

@@ -5,3 +5,4 @@
 // value objects, and domain types. No drizzle, no express, no IO. ADR-0045.
 export * from './work-kind'
 export * from './ai-settings'
+export * from './deliverable-verbs'

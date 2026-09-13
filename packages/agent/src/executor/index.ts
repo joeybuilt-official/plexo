@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { sql, eq, and } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import { tasks, taskSteps, artifacts, artifactVersions, installedConnections } from '@plexo/db'
-import { WORK_KINDS, inferKind, kindToLegacyType, type WorkKind } from '@plexo/domain'
+import { WORK_KINDS, inferKind, kindToLegacyType, hasDeliverableVerb, type WorkKind } from '@plexo/domain'
 import { ulid } from 'ulid'
 import { buildModel, PROVIDER_DEFAULT_MODELS, CHEAP_MODEL_BY_PROVIDER } from '../providers/registry.js'
 import { routeAndBuild, routeAndCall, RouterV2CallError } from '../providers/router-v2/index.js'
@@ -1141,14 +1141,19 @@ function defaultSettings(): WorkspaceAISettings {
 // The same predicate runs twice in executeTask — once hoisted to skip
 // expensive DB fetches, once in-place alongside the tool-set build. Both
 // call sites delegate to this function so the rules stay in one place.
-// Keep it pure: no DB, no I/O, no imports.
-const OPS_VERB_RE = /\b(deploy|build|create|write|fix|update|install|configure|set up|implement|migrate|generate|run|execute|send|push|pull|merge|commit|delete|remove|add|connect|integrate|schedule|monitor|restart|rebuild|analyze|audit|scan|test|optimize|refactor|list|show|get|fetch|check|read|search|find|lookup|query|trigger|enable|disable|toggle|open|close|merge|resolve|purge|redeploy)\b/
-
+// Keep it pure: no DB, no I/O, no imports beyond the shared vocabulary.
+//
+// The deliverable-verb check comes from @plexo/domain so this list can never
+// drift again from the chat classifier / fast-path planner. Before it was
+// centralized, "make a snake game" passed the chat classifier as TASK, got
+// queued, then this predicate called it CONVERSATION and stripped every tool
+// (including write_asset) — the model dumped code into the reply and no
+// artifact/link was produced.
 export function detectConversationalTask(plan: ExecutionPlan): boolean {
     if (plan.steps.length !== 1) return false
     if (plan.steps[0]!.toolsRequired.length !== 0) return false
     if (plan.goal.length >= 200) return false
-    if (OPS_VERB_RE.test(plan.goal.toLowerCase())) return false
+    if (hasDeliverableVerb(plan.goal)) return false
     return true
 }
 

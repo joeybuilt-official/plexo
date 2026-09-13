@@ -12,6 +12,12 @@ export interface ProviderModelOption {
     value: string
     /** Display label, e.g. `OpenAI / gpt-4o`. */
     label: string
+    /**
+     * True for the workspace's primary (highest-preference enabled) provider's
+     * selected model. The empty-value "Default (agent)" option resolves to this
+     * one, so we surface its name instead of an opaque placeholder.
+     */
+    isDefault?: boolean
 }
 
 interface ComposerProps {
@@ -64,6 +70,11 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     const [showSystemPrompt, setShowSystemPrompt] = useState(false)
     const hasModelPicker = modelOptions.length > 0 && onModelOverrideChange
     const hasSystemPromptControl = !!onSystemPromptOverrideChange
+    // Surface what "Default (agent)" actually routes to, so the picker is never
+    // an opaque placeholder. Falls back to the generic label when the workspace
+    // has no primary row yet.
+    const defaultOption = modelOptions.find((o) => o.isDefault)
+    const defaultLabel = defaultOption ? `Default (agent) — ${defaultOption.label}` : 'Default (agent)'
 
     return (
         <>
@@ -80,7 +91,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
                                 className="rounded-sm border border-border bg-surface-1 px-2 py-1 text-xs text-text-primary font-mono focus:outline-none focus:border-accent-dim disabled:opacity-50 max-w-[220px] truncate"
                                 aria-label="Model override"
                             >
-                                <option value="">Default (agent)</option>
+                                <option value="">{defaultLabel}</option>
                                 {modelOptions.map((opt) => (
                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                                 ))}

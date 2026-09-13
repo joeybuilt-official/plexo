@@ -18,6 +18,7 @@ export type ErrorClass =
     | 'quota'
     | 'parse-malformed'
     | 'empty-output'
+    | 'unknown-4xx'
     | 'unknown'
 
 export type SuggestedAction =
@@ -262,6 +263,24 @@ export function classifyError(err: unknown): Classification {
         msg.includes('structured')
     ) {
         return { class: 'parse-malformed', shouldFallback: true, suggestedAction: 'fallback-next' }
+    }
+
+    // Generic provider request rejection — an HTTP 400 (or a bare "Bad Request")
+    // that the provider returned for THIS request/model. It falls through every
+    // branch above to the fail-hard tail, which DEAD-ENDS the cascade: the whole
+    // task fails even though another provider would have served it. That is the
+    // exact bug behind a plain "Write me a joke" returning E_UNKNOWN when the
+    // router happened to pick a provider that 400'd. Treat as fallback-next — a
+    // provider-specific rejection is not a client-wide fault. Matched LAST (after
+    // the specific 4xx classes above) and by status token only, so auth/quota/
+    // rate-limit/context/parse keep their more precise handling.
+    if (
+        /\b400\b/.test(msg) ||
+        msg.includes('bad request') ||
+        msg.includes('invalid_request_error') ||
+        msg.includes('invalid request')
+    ) {
+        return { class: 'unknown-4xx', shouldFallback: true, suggestedAction: 'fallback-next' }
     }
 
     // Anything else — caller error or model produced bad output; do not advance.

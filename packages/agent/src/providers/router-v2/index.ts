@@ -159,6 +159,9 @@ function cooldownMsForClass(c: ReturnType<typeof classifyError>): number {
         case 'context-window': return COOLDOWN_TRANSIENT_MS
         case 'content-policy': return COOLDOWN_TRANSIENT_MS
         case 'parse-malformed': return COOLDOWN_TRANSIENT_MS
+        // A provider-specific 4xx rejection is not a client-wide fault; cool it
+        // briefly and let the cascade try a different provider right away.
+        case 'unknown-4xx': return COOLDOWN_TRANSIENT_MS
         default: return COOLDOWN_TRANSIENT_MS
     }
 }

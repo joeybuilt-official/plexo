@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./ai-settings": "./src/ai-settings.ts",
-    "./work-kind": "./src/work-kind.ts"
+    "./work-kind": "./src/work-kind.ts",
+    "./deliverable-verbs": "./src/deliverable-verbs.ts"
   },
   "main": null,
   "types": null,
