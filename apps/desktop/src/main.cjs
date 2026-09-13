@@ -45,9 +45,71 @@ function stopLocalBridge() {
 let tray = null;
 let isQuitting = false;
 
+// Resolve the app icon. electron-builder packages `build/icon.png` into the
+// app (see electron-builder.yml `files`); in `electron .` dev runs it sits at
+// ../build/icon.png. Return null when neither exists so callers can fall back
+// to a generated icon instead of a blank one.
+function resolveIconPath() {
+  const candidates = [
+    path.join(__dirname, '..', 'build', 'icon.png'), // packaged + dev
+    path.join(process.resourcesPath || '', 'build', 'icon.png'),
+  ];
+  for (const p of candidates) {
+    try { if (p && fs.existsSync(p)) return p; } catch {}
+  }
+  return null;
+}
+
+/** A 16x16 rounded dark tile with the blue Delta-Frame mark (triangle + three
+ *  vertex dots), as a last-resort icon. Built programmatically (BGRA) so it
+ *  never depends on a packaged asset. */
+function fallbackTrayIcon() {
+  const S = 16;
+  const buf = Buffer.alloc(S * S * 4); // BGRA
+  const put = (x, y, b, g, r, a) => {
+    if (x < 0 || y < 0 || x >= S || y >= S) return;
+    const o = (y * S + x) * 4;
+    buf[o] = b; buf[o + 1] = g; buf[o + 2] = r; buf[o + 3] = a;
+  };
+  const tile = [0x20, 0x15, 0x10, 255];   // #101520 (BGR)
+  const mark = [0xfc, 0xaa, 0x4d, 255];   // #4DAAFC (BGR)
+  const dx = 7.5, dy = 7.5;
+
+  // Delta-Frame geometry mapped from the 48-unit brand space (bbox x 12..36,
+  // y 10..34) into the 16px tile, bbox center (24,22) -> (8,8).
+  const s = 0.42, ox = 8, oy = 8;
+  const P = (px, py) => [ox + (px - 24) * s, oy + (py - 22) * s];
+  const [[ax, ay], [lx, ly], [rx, ry], [blx, bly], [brx, bry]] = [
+    P(24, 10), P(12, 34), P(36, 34), P(20, 34), P(28, 34),
+  ];
+  const segs = [[ax, ay, lx, ly], [ax, ay, rx, ry], [lx, ly, blx, bly], [rx, ry, brx, bry]];
+  const dots = [[ax, ay], [lx, ly], [rx, ry]];
+  const nearSeg = (x, y, [x1, y1, x2, y2]) => {
+    const vx = x2 - x1, vy = y2 - y1;
+    const t = Math.max(0, Math.min(1, ((x - x1) * vx + (y - y1) * vy) / (vx * vx + vy * vy)));
+    const px = x1 + t * vx, py = y1 + t * vy;
+    return Math.hypot(x - px, y - py) < 0.75;
+  };
+  const dotR = 1.35;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const cx = x + 0.5 - dx, cy = y + 0.5 - dy;
+      if (cx * cx + cy * cy > 62) continue; // rounded tile mask
+      const onMark =
+        segs.some((sg) => nearSeg(x + 0.5, y + 0.5, sg)) ||
+        dots.some(([px, py]) => Math.hypot(x + 0.5 - px, y + 0.5 - py) < dotR);
+      if (onMark) put(x, y, mark[0], mark[1], mark[2], mark[3]);
+      else put(x, y, tile[0], tile[1], tile[2], tile[3]);
+    }
+  }
+  return nativeImage.createFromBuffer(buf, { width: S, height: S });
+}
+
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  const iconPath = resolveIconPath();
+  let icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+  if (icon.isEmpty()) icon = fallbackTrayIcon();
+  icon = icon.resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('Plexo');
 
@@ -151,6 +213,7 @@ let mainWindow = null;
 let instanceOrigin = null; // origin of the connected instance, for nav gating
 
 function createWindow() {
+  const iconPath = resolveIconPath();
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -160,6 +223,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'Plexo',
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

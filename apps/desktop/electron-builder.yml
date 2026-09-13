@@ -9,9 +9,12 @@ directories:
   output: dist
   buildResources: build
 
-# Only ship what the app needs at runtime.
+# Only ship what the app needs at runtime. `build/icon.png` must be included:
+# the tray icon (main.cjs createTray) and the window icon load it from the app
+# directory at runtime, so excluding it left both blank and the tray empty.
 files:
   - src/**/*
+  - build/icon.png
   - package.json
   - "!**/*.map"
 
