@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for release builds: debug/profile manifests add this for the
+         Flutter tool, but without it here the shipped app cannot open any
+         network socket ("Can't reach <baseUrl>" on login). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Plexo"
         android:name="${applicationName}"
