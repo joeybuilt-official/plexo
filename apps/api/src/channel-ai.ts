@@ -17,9 +17,9 @@ import { modelSupportsVision, findVisionCapableModel, GROQ_FREE_VISION_MODEL } f
 import { enforceSmallestAction, forceConversationOverrideWithContext, isObviousTaskRequest } from '@plexo/agent/principles'
 import { emitClassifierDecision } from './analytics/events.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
-import { emitToWorkspace } from './sse-emitter.js'
 import { logger } from './logger.js'
 import { recordMemoryRecall } from './lib/metrics.js'
+import { buildProviderFallbackOpts } from './lib/provider-fallback-opts.js'
 import { getDecryptedBraveKey } from './routes/search.js'
 import { isSsrfTarget } from './utils/ssrf.js'
 import { buildConversationPrompt, buildClassifierPrompt } from '@plexo/agent/prompts/build-system-prompt'
@@ -668,17 +668,7 @@ export async function chatWithAI(
             return { role: m.role, content: m.content }
         })
 
-        const fallbackOpts = {
-            workspaceId,
-            onAuthFailure: (provider: string, error: unknown) => {
-                logger.warn({ workspaceId, provider, error }, 'Provider auth failed — removed from fallback chain')
-                emitToWorkspace(workspaceId, {
-                    type: 'provider_auth_error',
-                    provider,
-                    message: `API key for "${provider}" is invalid or expired. Update it in Settings → AI Providers.`,
-                })
-            },
-        }
+        const fallbackOpts = buildProviderFallbackOpts(workspaceId, 'channel')
 
         // Unified workspace tools — available from every channel.
         // Pre-resolve web-search keys here so the agent package stays secret-free.

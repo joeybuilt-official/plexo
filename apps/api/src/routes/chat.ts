@@ -58,6 +58,7 @@ import { ensureWorkspaceAccess } from '../middleware/workspace-access.js'
 import { audit } from '../audit.js'
 import { isTrivialMessage, buildTrivialSystemPrompt, FASTPATH_MODEL } from '../lib/trivial-message.js'
 import { getCachedToolSet } from '../lib/tool-set-cache.js'
+import { buildProviderFallbackOpts } from '../lib/provider-fallback-opts.js'
 import { describeToolCall } from '../utils/tool-labels.js'
 import type { FallbackOptions } from '@plexo/agent/providers/registry'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
@@ -86,39 +87,7 @@ import { withSessionLock } from '../application/chat/sessionLock.js'
 
 /** Build fallback options for a workspace: auth-failure + fallback indication. */
 function fallbackOpts(workspaceId: string): FallbackOptions {
-    return {
-        workspaceId,
-        onAuthFailure: (provider, error) => {
-            logger.warn({ workspaceId, provider, error }, 'Provider auth failed — removed from fallback chain')
-            emitToWorkspace(workspaceId, {
-                type: 'provider_auth_error',
-                provider,
-                message: `API key for "${provider}" is invalid or expired. Update it in Settings → AI Providers.`,
-            })
-        },
-        // ADR 0012: "degradation is logged, not hidden." A fallback is an
-        // operator-relevant event, not a silent internal retry — record it and
-        // surface it to the client so the UI can show which provider actually
-        // served the call and which ones were skipped/bypassed.
-        onFallbackEngaged: (info) => {
-            logger.warn({
-                workspaceId: info.workspaceId ?? workspaceId,
-                taskType: info.taskType,
-                primary: info.primary,
-                used: info.used,
-                skipped: info.skipped,
-                lastError: info.lastError,
-            }, 'Provider fallback engaged — primary failed, served by chain fallback')
-            emitToWorkspace(workspaceId, {
-                type: 'provider_fallback',
-                primary: info.primary,
-                used: info.used,
-                skipped: info.skipped,
-                taskType: info.taskType,
-                message: `Primary provider "${info.primary}" failed; "${info.used}" served this call.`,
-            })
-        },
-    }
+    return buildProviderFallbackOpts(workspaceId, 'webchat')
 }
 
 // ── Progress event helpers (for the agent-thinking panel) ────────────────────

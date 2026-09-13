@@ -34,6 +34,7 @@ import { buildConversationSystemPrompt } from '../channel-ai.js'
 import { UUID_RE } from '../validation.js'
 import { requireServiceKey } from '../middleware/service-key-auth.js'
 import { emitToWorkspace } from '../sse-emitter.js'
+import { buildProviderFallbackOpts } from '../lib/provider-fallback-opts.js'
 import type { FallbackOptions } from '@plexo/agent/providers/registry'
 import { hasInstructionIntent, persistInstruction, extractConversationMemory } from '@plexo/agent/memory/conversation-bridge'
 import type { Request, Response } from 'express'
@@ -57,17 +58,7 @@ function withSessionLock<T>(sessionKey: string, fn: () => Promise<T>): Promise<T
 }
 
 function fallbackOpts(workspaceId: string): FallbackOptions {
-    return {
-        workspaceId,
-        onAuthFailure: (provider, error) => {
-            logger.warn({ workspaceId, provider, error }, 'Provider auth failed — removed from fallback chain')
-            emitToWorkspace(workspaceId, {
-                type: 'provider_auth_error',
-                provider,
-                message: `API key for "${provider}" is invalid or expired. Update it in Settings > AI Providers.`,
-            })
-        },
-    }
+    return buildProviderFallbackOpts(workspaceId, 'app-transport')
 }
 
 // ── Auth: service key OR session ─────────────────────────────────────────────
