@@ -10,6 +10,7 @@ import "package:flutter/material.dart";
 import "../api/models.dart";
 import "../api/plexo_client.dart";
 import "../theme/tokens.dart";
+import "../widgets/plexo_mark.dart";
 
 enum _Mode { signIn, signUp }
 
@@ -112,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.hub_outlined, size: 44, color: scheme.primary),
+                    const Center(child: PlexoMark(size: 44, color: PlexoColor.accent)),
                     const SizedBox(height: PlexoSpace.s3),
                     Text("Plexo", style: text.headlineMedium, textAlign: TextAlign.center),
                     const SizedBox(height: PlexoSpace.s1),
