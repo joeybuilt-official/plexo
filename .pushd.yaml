@@ -16,7 +16,14 @@ builds:
       - printf '\nkotlin.jvm.target.validation.mode=warning\n' >> apps/mobile/android/gradle.properties
       - printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > /tmp/plexo-upload.jks
       - cd apps/mobile && flutter pub get
-      - cd apps/mobile && ANDROID_KEYSTORE_PATH=/tmp/plexo-upload.jks flutter build apk --release
+      # --build-number MUST be monotonic. The old Codemagic workflow set
+      # --build-number=$PROJECT_BUILD_NUMBER (an ever-increasing counter); this
+      # pushd build omitted it, so versionCode fell back to pubspec's +1 and
+      # every build shipped versionCode=1. Android refuses to install a LOWER
+      # versionCode over an already-installed app -> "App not installed".
+      # Use UTC epoch MINUTES: monotonic per build, and stays well under the
+      # Android/Play ceiling of 2,100,000,000 for centuries.
+      - cd apps/mobile && ANDROID_KEYSTORE_PATH=/tmp/plexo-upload.jks flutter build apk --release --build-number=$(($(date -u +%s)/60))
     artifacts:
       - apps/mobile/build/app/outputs/flutter-apk/app-release.apk
     deliver:
