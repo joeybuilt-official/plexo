@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plexo brand canvas (navy-black), matches --color-canvas #101520. -->
+<!-- Plexo brand canvas (navy-black); matches the web color-canvas token #101520. -->
 <resources>
     <color name="ic_launcher_background">#101520</color>
 </resources>
