@@ -4,17 +4,14 @@
 import React from 'react'
 
 /**
- * PlexoMark — Tesseract Frame brand mark (brand/README.md, V2 Geometric
- * Precision). Outer square + inner 45°-rotated square + four projection lines
- * + center node. The four lines map to Plexo's four primitives: agents,
- * memory, cognition, execution.
+ * PlexoMark — Delta Frame brand mark.
  *
- * Geometry mirrors `brand/plexo-symbol-on-dark.svg` (48-unit viewBox) so the
- * app, launcher, favicon, and desktop all render the same mark.
+ * Open triangle with gap in base, 3 dots at vertices.
+ * The gap reads as a threshold — an open platform.
  *
  * Props:
- *   idle    — default; projection lines shimmer in (500ms)
- *   working — agent processing; inner square rotates slowly (8s/rev)
+ *   idle    — default; subtle vertex-dot pulse (2.4s cycle)
+ *   working — agent processing; dots pulse faster, edges brighten
  */
 export function PlexoMark({
   className,
@@ -25,7 +22,7 @@ export function PlexoMark({
   idle?: boolean
   working?: boolean
 }) {
-  const mode = working ? 'tf-working' : idle ? 'tf-idle' : ''
+  const mode = working ? 'df-working' : idle ? 'df-idle' : ''
   return (
     <svg
       className={`plexo-mark ${mode} ${className || ''}`}
@@ -35,49 +32,46 @@ export function PlexoMark({
     >
       <style>
         {`
-          @keyframes tf-proj-draw {
-            from { opacity: 0; }
-            to   { opacity: 0.5; }
-          }
-          .tf-idle .tf-proj {
-            animation: tf-proj-draw 0.5s cubic-bezier(0.16,1,0.3,1) 0.2s both;
-          }
-          @keyframes tf-node-pulse {
+          @keyframes df-dot-pulse {
             0%, 100% { opacity: 0.7; }
             50%       { opacity: 1; }
           }
-          .tf-idle .tf-node {
-            animation: tf-node-pulse 2.4s ease-in-out 0.6s infinite;
+          @keyframes df-edge-draw {
+            from { stroke-dashoffset: 100; }
+            to   { stroke-dashoffset: 0; }
           }
-          /* Inner square rotates during agent work — 8s/rev, linear (per brand). */
-          @keyframes tf-spin {
-            from { transform: rotate(0deg); }
-            to   { transform: rotate(360deg); }
+          .df-idle .df-edge {
+            stroke-dasharray: 100; stroke-dashoffset: 100;
+            animation: df-edge-draw 0.5s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
           }
-          .tf-working .tf-inner {
-            transform-origin: 24px 24px;
-            animation: tf-spin 8s linear infinite;
+          .df-idle .df-dot {
+            animation: df-dot-pulse 2.4s ease-in-out 0.6s infinite;
           }
-          .tf-working .tf-proj { opacity: 0.5; }
+          @keyframes df-work-pulse {
+            0%, 100% { opacity: 0.6; r: 3; }
+            50%       { opacity: 1; r: 3.5; }
+          }
+          .df-working .df-dot {
+            animation: df-work-pulse 1s ease-in-out infinite;
+          }
+          .df-working .df-edge {
+            opacity: 0.9;
+          }
         `}
       </style>
       <g>
-        {/* Outer square */}
-        <rect x="8" y="8" width="32" height="32" stroke="currentColor" strokeWidth="1.5" />
-        {/* Projection lines (four corners of outer to nearest inner vertex) */}
-        <line className="tf-proj" x1="8" y1="8" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5" />
-        <line className="tf-proj" x1="40" y1="8" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5" />
-        <line className="tf-proj" x1="8" y1="40" x2="8" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5" />
-        <line className="tf-proj" x1="40" y1="40" x2="40" y2="24" stroke="currentColor" strokeWidth="0.75" opacity="0.5" />
-        {/* Inner rotated square (45deg) */}
-        <polygon
-          className="tf-inner"
-          points="24,8 40,24 24,40 8,24"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-        {/* Center node */}
-        <circle className="tf-node" cx="24" cy="24" r="2.5" fill="currentColor" />
+        {/* Left edge */}
+        <line className="df-edge" x1="24" y1="10" x2="12" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Right edge */}
+        <line className="df-edge" x1="24" y1="10" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base left segment */}
+        <line className="df-edge" x1="12" y1="34" x2="20" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Base right segment */}
+        <line className="df-edge" x1="28" y1="34" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        {/* Vertex dots */}
+        <circle className="df-dot" cx="24" cy="10" r="3" fill="currentColor"/>
+        <circle className="df-dot" cx="12" cy="34" r="3" fill="currentColor"/>
+        <circle className="df-dot" cx="36" cy="34" r="3" fill="currentColor"/>
       </g>
     </svg>
   )

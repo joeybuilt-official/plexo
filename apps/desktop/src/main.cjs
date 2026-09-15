@@ -60,9 +60,9 @@ function resolveIconPath() {
   return null;
 }
 
-/** A 16x16 rounded dark tile with the blue Tesseract Frame mark (outer square +
- *  rotated inner square + center node), as a last-resort icon. Built
- *  programmatically (BGRA) so it never depends on a packaged asset. */
+/** A 16x16 rounded dark tile with the blue Delta-Frame mark (triangle + three
+ *  vertex dots), as a last-resort icon. Built programmatically (BGRA) so it
+ *  never depends on a packaged asset. */
 function fallbackTrayIcon() {
   const S = 16;
   const buf = Buffer.alloc(S * S * 4); // BGRA
@@ -75,29 +75,29 @@ function fallbackTrayIcon() {
   const mark = [0xfc, 0xaa, 0x4d, 255];   // #4DAAFC (BGR)
   const dx = 7.5, dy = 7.5;
 
-  // Tesseract geometry mapped from the 512-unit brand space into the 16px tile.
-  // Outer square + rotated inner square (a diamond) + center node.
-  const s = 15 / 512, ox = 0.5, oy = 0.5;
-  const P = (px, py) => [ox + px * s, oy + py * s];
-  const outer = [P(86, 86), P(426, 86), P(426, 426), P(86, 426)];
-  const inner = [P(256, 86), P(426, 256), P(256, 426), P(86, 256)];
-  const nearSeg = (x, y, [x1, y1], [x2, y2]) => {
+  // Delta-Frame geometry mapped from the 48-unit brand space (bbox x 12..36,
+  // y 10..34) into the 16px tile, bbox center (24,22) -> (8,8).
+  const s = 0.42, ox = 8, oy = 8;
+  const P = (px, py) => [ox + (px - 24) * s, oy + (py - 22) * s];
+  const [[ax, ay], [lx, ly], [rx, ry], [blx, bly], [brx, bry]] = [
+    P(24, 10), P(12, 34), P(36, 34), P(20, 34), P(28, 34),
+  ];
+  const segs = [[ax, ay, lx, ly], [ax, ay, rx, ry], [lx, ly, blx, bly], [rx, ry, brx, bry]];
+  const dots = [[ax, ay], [lx, ly], [rx, ry]];
+  const nearSeg = (x, y, [x1, y1, x2, y2]) => {
     const vx = x2 - x1, vy = y2 - y1;
     const t = Math.max(0, Math.min(1, ((x - x1) * vx + (y - y1) * vy) / (vx * vx + vy * vy)));
-    return Math.hypot(x - (x1 + t * vx), y - (y1 + t * vy)) < 0.8;
+    const px = x1 + t * vx, py = y1 + t * vy;
+    return Math.hypot(x - px, y - py) < 0.75;
   };
-  const nearPoly = (x, y, poly) =>
-    poly.some((p, i) => nearSeg(x, y, p, poly[(i + 1) % poly.length]));
-  const [ncx, ncy] = P(256, 256);
-  const nodeR = Math.max(1.2, 28 * s);
+  const dotR = 1.35;
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const cx = x + 0.5 - dx, cy = y + 0.5 - dy;
       if (cx * cx + cy * cy > 62) continue; // rounded tile mask
       const onMark =
-        nearPoly(x + 0.5, y + 0.5, outer) ||
-        nearPoly(x + 0.5, y + 0.5, inner) ||
-        Math.hypot(x + 0.5 - ncx, y + 0.5 - ncy) < nodeR;
+        segs.some((sg) => nearSeg(x + 0.5, y + 0.5, sg)) ||
+        dots.some(([px, py]) => Math.hypot(x + 0.5 - px, y + 0.5 - py) < dotR);
       if (onMark) put(x, y, mark[0], mark[1], mark[2], mark[3]);
       else put(x, y, tile[0], tile[1], tile[2], tile[3]);
     }
