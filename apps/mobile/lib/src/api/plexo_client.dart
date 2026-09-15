@@ -9,7 +9,11 @@
 // session token via the `set-auth-token` response header; we persist it in
 // secure storage and send it as `Authorization: Bearer <token>` on every call.
 // All routes are same-origin under the instance base URL: /api/auth/* is the
-// better-auth handler, /api/v1/* is the proxied Plexo API.
+// better-auth handler, /api/v1/* is the Plexo API.
+//
+// The chat endpoint can switch to Server-Sent Events when the client advertises
+// `Accept: text/event-stream`; this client always sends `Accept: application/json`
+// so it gets the plain JSON contract its UI is built around.
 
 import "dart:convert";
 
@@ -24,13 +28,24 @@ class PlexoClient {
   final AuthStore _auth;
   final http.Client _http;
 
-  Uri _url(String path) => Uri.parse("${_auth.baseUrl}$path");
+  /// The instance the client is pointed at (for the Settings "server" row).
+  String get baseUrl => _auth.baseUrl;
+
+  /// The chat queue path can block on a description synthesis call before it
+  /// queues; the reply poll long-polls up to 25s. Both need headroom.
+  static const _chatTimeout = Duration(seconds: 60);
+  static const _pollTimeout = Duration(seconds: 40);
+
+  Uri _url(String path, [Map<String, String>? query]) =>
+      Uri.parse("${_auth.baseUrl}$path").replace(queryParameters: query);
 
   Map<String, String> _headers({bool json = false}) => {
         "Accept": "application/json",
         if (json) "Content-Type": "application/json",
         if (_auth.token != null) "Authorization": "Bearer ${_auth.token}",
       };
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
 
   /// Sign in with email + password against [baseUrl]. On success the bearer
   /// token (from the `set-auth-token` header, or the body `token` fallback) is
@@ -107,6 +122,174 @@ class PlexoClient {
       // Best-effort server revoke; local clear below is what matters.
     }
     await _auth.clear();
+  }
+
+  // ── Workspaces ──────────────────────────────────────────────────────────────
+
+  Future<List<Workspace>> listWorkspaces() async {
+    final json = await _getJson("/api/v1/workspaces", null);
+    final items = (json["items"] as List?) ?? const [];
+    return items
+        .whereType<Map>()
+        .map((m) => Workspace.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  // ── Tasks ───────────────────────────────────────────────────────────────────
+
+  Future<List<Task>> listTasks(String workspaceId, {String? status}) async {
+    final json = await _getJson("/api/v1/tasks", {
+      "workspaceId": workspaceId,
+      "status": ?status,
+      "limit": "50",
+    });
+    final items = (json["items"] as List?) ?? const [];
+    return items
+        .whereType<Map>()
+        .map((m) => Task.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  Future<TaskDetail> getTask(String taskId) async {
+    final json = await _getJson("/api/v1/tasks/$taskId", null);
+    return TaskDetail.fromJson(json);
+  }
+
+  Future<void> cancelTask(String taskId) async {
+    await _postJson("/api/v1/tasks/$taskId/cancel", const {});
+  }
+
+  Future<void> retryTask(String taskId) async {
+    await _postJson("/api/v1/tasks/$taskId/retry", const {});
+  }
+
+  // ── Conversations ───────────────────────────────────────────────────────────
+
+  Future<List<Conversation>> listConversations(String workspaceId) async {
+    final json = await _getJson("/api/v1/conversations", {
+      "workspaceId": workspaceId,
+      "limit": "50",
+    });
+    final items = (json["items"] as List?) ?? const [];
+    return items
+        .whereType<Map>()
+        .map((m) => Conversation.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  // ── Chat ────────────────────────────────────────────────────────────────────
+
+  /// Send a chat turn. Returns the parsed terminal result. Never throws for a
+  /// soft AI failure (`status: 'error'`) — that comes back as [ChatKind.error].
+  Future<ChatResult> sendMessage({
+    required String workspaceId,
+    required String message,
+    required String sessionId,
+    bool forceConversation = false,
+  }) async {
+    final json = await _postJson("/api/v1/chat/message", {
+      "workspaceId": workspaceId,
+      "message": message,
+      "sessionId": sessionId,
+      "newSession": true,
+      if (forceConversation) "forceConversation": true,
+    }, timeout: _chatTimeout);
+    return ChatResult.fromJson(json);
+  }
+
+  /// Queue a task from a confirmed action (the `confirm_action` follow-up).
+  Future<String?> executeAction({
+    required String workspaceId,
+    required String intent,
+    required String description,
+    required String sessionId,
+  }) async {
+    final json = await _postJson("/api/v1/chat/execute-action", {
+      "workspaceId": workspaceId,
+      "intent": intent,
+      "description": description,
+      "sessionId": sessionId,
+    });
+    return json["taskId"] as String?;
+  }
+
+  /// Poll for a queued task's reply. Long-polls up to ~25s server-side; a
+  /// `pending` status means "still running, poll again".
+  Future<String?> pollTaskReply(String taskId) async {
+    final json = await _getJson("/api/v1/chat/reply/$taskId", null, timeout: _pollTimeout);
+    final status = json["status"] as String?;
+    if (status == "pending") return null; // caller re-polls
+    return json["reply"] as String?;
+  }
+
+  // ── Transport ───────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> _getJson(
+    String path,
+    Map<String, String>? query, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final http.Response res;
+    try {
+      res = await _http.get(_url(path, query), headers: _headers()).timeout(timeout);
+    } catch (_) {
+      throw ApiException("Can't reach ${_auth.baseUrl}. Check your connection.");
+    }
+    return _decode(res, path);
+  }
+
+  Future<Map<String, dynamic>> _postJson(
+    String path,
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    final http.Response res;
+    try {
+      res = await _http
+          .post(_url(path), headers: _headers(json: true), body: jsonEncode(body))
+          .timeout(timeout);
+    } catch (_) {
+      throw ApiException("Can't reach ${_auth.baseUrl}. Check your connection.");
+    }
+    return _decode(res, path);
+  }
+
+  Map<String, dynamic> _decode(http.Response res, String path) {
+    Map<String, dynamic>? json;
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) json = Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      json = null;
+    }
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return json ?? <String, dynamic>{};
+    }
+    // Standard envelope: {error: {code, message}}. Some chat endpoints omit
+    // `message`; fall back to a status-based line.
+    final err = json?["error"];
+    String? code;
+    String? message;
+    if (err is Map) {
+      code = err["code"] as String?;
+      message = err["message"] as String?;
+    }
+    if (code == null && message == null) {
+      try {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map && decoded["message"] is String) {
+          message = decoded["message"] as String;
+        }
+      } catch (_) {}
+    }
+    final text = message ??
+        (res.statusCode == 401
+            ? "Your session expired. Sign in again."
+            : "Request failed (${res.statusCode}).");
+    if (res.statusCode == 401) {
+      throw ApiException(text, code: code, statusCode: res.statusCode);
+    }
+    throw ApiException(text, code: code, statusCode: res.statusCode);
   }
 
   Future<http.Response> _post(String path, Map<String, dynamic> body) async {

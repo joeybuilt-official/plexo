@@ -60,9 +60,9 @@ function resolveIconPath() {
   return null;
 }
 
-/** A 16x16 rounded dark tile with the blue Delta-Frame mark (triangle + three
- *  vertex dots), as a last-resort icon. Built programmatically (BGRA) so it
- *  never depends on a packaged asset. */
+/** A 16x16 rounded dark tile with the Delta-Frame mark (closed triangle +
+ *  three differently-colored vertex dots), as a last-resort icon. Built
+ *  programmatically (BGRA) so it never depends on a packaged asset. */
 function fallbackTrayIcon() {
   const S = 16;
   const buf = Buffer.alloc(S * S * 4); // BGRA
@@ -72,18 +72,26 @@ function fallbackTrayIcon() {
     buf[o] = b; buf[o + 1] = g; buf[o + 2] = r; buf[o + 3] = a;
   };
   const tile = [0x20, 0x15, 0x10, 255];   // #101520 (BGR)
-  const mark = [0xfc, 0xaa, 0x4d, 255];   // #4DAAFC (BGR)
+  const edge = [0xf0, 0xe8, 0xe2, 255];   // #E2E8F0 (BGR)
+  // Dot colors (BGR): accent blue #4DAAFC, signal green #10B981, amber #F59E0B.
+  const dotColors = [
+    [0xfc, 0xaa, 0x4d, 255],
+    [0x81, 0xb9, 0x10, 255],
+    [0x0b, 0x9e, 0xf5, 255],
+  ];
   const dx = 7.5, dy = 7.5;
 
-  // Delta-Frame geometry mapped from the 48-unit brand space (bbox x 12..36,
-  // y 10..34) into the 16px tile, bbox center (24,22) -> (8,8).
+  // Closed-triangle geometry mapped from the 48-unit brand space (bbox
+  // x 12..36, y 10..34) into the 16px tile, bbox center (24,22) -> (8,8).
   const s = 0.42, ox = 8, oy = 8;
   const P = (px, py) => [ox + (px - 24) * s, oy + (py - 22) * s];
-  const [[ax, ay], [lx, ly], [rx, ry], [blx, bly], [brx, bry]] = [
-    P(24, 10), P(12, 34), P(36, 34), P(20, 34), P(28, 34),
+  const apex = P(24, 10), left = P(12, 34), right = P(36, 34);
+  const segs = [
+    [apex[0], apex[1], left[0], left[1]],
+    [apex[0], apex[1], right[0], right[1]],
+    [left[0], left[1], right[0], right[1]], // closed base (no gap)
   ];
-  const segs = [[ax, ay, lx, ly], [ax, ay, rx, ry], [lx, ly, blx, bly], [rx, ry, brx, bry]];
-  const dots = [[ax, ay], [lx, ly], [rx, ry]];
+  const dots = [[apex, dotColors[0]], [left, dotColors[1]], [right, dotColors[2]]];
   const nearSeg = (x, y, [x1, y1, x2, y2]) => {
     const vx = x2 - x1, vy = y2 - y1;
     const t = Math.max(0, Math.min(1, ((x - x1) * vx + (y - y1) * vy) / (vx * vx + vy * vy)));
@@ -95,10 +103,10 @@ function fallbackTrayIcon() {
     for (let x = 0; x < S; x++) {
       const cx = x + 0.5 - dx, cy = y + 0.5 - dy;
       if (cx * cx + cy * cy > 62) continue; // rounded tile mask
-      const onMark =
-        segs.some((sg) => nearSeg(x + 0.5, y + 0.5, sg)) ||
-        dots.some(([px, py]) => Math.hypot(x + 0.5 - px, y + 0.5 - py) < dotR);
-      if (onMark) put(x, y, mark[0], mark[1], mark[2], mark[3]);
+      const onEdge = segs.some((sg) => nearSeg(x + 0.5, y + 0.5, sg));
+      const dot = dots.find(([[px, py]]) => Math.hypot(x + 0.5 - px, y + 0.5 - py) < dotR);
+      if (dot) put(x, y, dot[1][0], dot[1][1], dot[1][2], dot[1][3]);
+      else if (onEdge) put(x, y, edge[0], edge[1], edge[2], edge[3]);
       else put(x, y, tile[0], tile[1], tile[2], tile[3]);
     }
   }

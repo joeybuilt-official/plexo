@@ -6,8 +6,10 @@ import React from 'react'
 /**
  * PlexoMark — Delta Frame brand mark.
  *
- * Open triangle with gap in base, 3 dots at vertices.
- * The gap reads as a threshold — an open platform.
+ * Closed triangle (edges in `currentColor`) with three differently-colored
+ * vertex dots — accent blue, signal green, amber — echoing Plexo's primitives
+ * (agents / memory / execution). Edges inherit the surrounding text color so
+ * the mark sits on any surface; the dots stay brand-fixed.
  *
  * Props:
  *   idle    — default; subtle vertex-dot pulse (2.4s cycle)
@@ -48,8 +50,8 @@ export function PlexoMark({
             animation: df-dot-pulse 2.4s ease-in-out 0.6s infinite;
           }
           @keyframes df-work-pulse {
-            0%, 100% { opacity: 0.6; r: 3; }
-            50%       { opacity: 1; r: 3.5; }
+            0%, 100% { opacity: 0.6; }
+            50%       { opacity: 1; }
           }
           .df-working .df-dot {
             animation: df-work-pulse 1s ease-in-out infinite;
@@ -60,18 +62,18 @@ export function PlexoMark({
         `}
       </style>
       <g>
-        {/* Left edge */}
-        <line className="df-edge" x1="24" y1="10" x2="12" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Right edge */}
-        <line className="df-edge" x1="24" y1="10" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Base left segment */}
-        <line className="df-edge" x1="12" y1="34" x2="20" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Base right segment */}
-        <line className="df-edge" x1="28" y1="34" x2="36" y2="34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        {/* Vertex dots */}
-        <circle className="df-dot" cx="24" cy="10" r="3" fill="currentColor"/>
-        <circle className="df-dot" cx="12" cy="34" r="3" fill="currentColor"/>
-        <circle className="df-dot" cx="36" cy="34" r="3" fill="currentColor"/>
+        {/* Closed triangle outline (no base gap) */}
+        <polygon
+          className="df-edge"
+          points="24,10 36,34 12,34"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        {/* Vertex dots — distinct brand colors */}
+        <circle className="df-dot" cx="24" cy="10" r="3" fill="#4DAAFC" />
+        <circle className="df-dot" cx="12" cy="34" r="3" fill="#10B981" />
+        <circle className="df-dot" cx="36" cy="34" r="3" fill="#F59E0B" />
       </g>
     </svg>
   )

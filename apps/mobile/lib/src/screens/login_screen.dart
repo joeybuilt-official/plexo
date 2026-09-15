@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: PlexoMark(size: 44, color: PlexoColor.accent)),
+                    const Center(child: PlexoMark(size: 44, color: PlexoColor.textPrimary)),
                     const SizedBox(height: PlexoSpace.s3),
                     Text("Plexo", style: text.headlineMedium, textAlign: TextAlign.center),
                     const SizedBox(height: PlexoSpace.s1),
