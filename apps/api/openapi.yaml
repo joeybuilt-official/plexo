@@ -5,7 +5,7 @@ info:
   version: 0.8.0-beta.1
   license:
     name: MIT
-    url: https://www.gnu.org/licenses/agpl-3.0.html
+    url: https://opensource.org/licenses/MIT
   contact:
     name: Joeybuilt
     url: https://getplexo.com

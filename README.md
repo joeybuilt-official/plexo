@@ -187,7 +187,7 @@ Plexo is open source under MIT. Contributions are welcome.
 
 ## License
 
-[MIT](LICENSE) — Use, modify, and self-host freely with attribution. The Go gmessages sidecar subtree is the sole exception: it remains AGPL-3.0 because it links mautrix-gmessages. See [LICENSING.md](LICENSING.md).
+[MIT](LICENSE) — Use, modify, and self-host freely with attribution. The entire repository is MIT; there is no copyleft subtree. See [LICENSING.md](LICENSING.md).
 
 ---
 

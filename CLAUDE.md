@@ -8,10 +8,10 @@ Plexo is where I go to create, research, dream, build, etc. with AI. It has all 
 
 ## Tech Stack
 
-- **Language / runtime**: TypeScript on Node.js >=22; Python FastAPI graph sidecar; Go 1.25 gmessages sidecar; Dart 3.12.2 / Flutter mobile client
+- **Language / runtime**: TypeScript on Node.js >=22; Python FastAPI graph sidecar; Dart 3.12.2 / Flutter mobile client
 - **Package manager**: pnpm 10.30.3 (`pnpm-lock.yaml`)
 - **Client**: Next.js 16.2.6 + React 19.2.3 + Tailwind CSS 4 in `apps/web`; Flutter in `apps/mobile`; shared React components in `packages/ui`
-- **Server**: Express API in `apps/api`; FastAPI/Graphiti sidecar; Go gmessages sidecar; Vercel AI SDK provider adapters
+- **Server**: Express API in `apps/api`; FastAPI/Graphiti sidecar; Vercel AI SDK provider adapters
 - **Data**: PostgreSQL + pgvector through Drizzle (`packages/db`); FalkorDB/Graphiti; Redis/Valkey
 - **Workspace layout**: pnpm workspaces `apps/*`, `packages/*`, `extensions/core/*`, orchestrated by Turborepo
 
