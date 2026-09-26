@@ -1,0 +1,61 @@
+# Pre-merge gate for pull requests. Runs on GitHub-hosted `ubuntu-latest`.
+#
+# WHY THIS EXISTS SEPARATELY FROM ci.yml
+# -------------------------------------
+# ci.yml is push-only and runs on the self-hosted pool. That is deliberate and
+# must not change: this repo is PUBLIC, and for a `pull_request` event GitHub
+# resolves the workflow file from the PR's *merge commit* — so a fork controls
+# the job body, including `runs-on` and every `run:` step. Our `docker`-labelled
+# runner is uid=0 with /var/run/docker.sock mounted rw, which is host-root-
+# equivalent. Putting a PR trigger on ci.yml would hand an untrusted fork's
+# shell to the host. See the INVARIANT block in ci.yml.
+#
+# So PR gating lives here instead: on an ephemeral hosted VM where fork-supplied
+# code is contained by design. For public repos standard hosted runners are free
+# and unlimited (the 2,000-minute allowance meters private repos only), and
+# `ubuntu-latest` is 4 vCPU / 16 GB.
+#
+# INVARIANT: never add `pull_request_target` here, and never move this job onto
+# a `self-hosted` runner. Also never give it a `secrets.*` dependency — fork PRs
+# receive no secrets, so one would fail every outside contribution. That is also
+# why `integration` (needs a long-lived CI Postgres/Redis and CI_DATABASE_URL /
+# CI_REDIS_URL) stays push-only in ci.yml rather than being added here.
+#
+# The job is named `verify` to match nexalog and fonto, so one identical required
+# status check context works across all three public repos.
+#
+# WHAT IT RUNS
+# ------------
+# Only the portable checks from ci.yml — those with no `services:` block, no
+# `docker run`, and no secret. `lint` is deliberately NOT included here: it is
+# currently failing on main (36 dead doc references found by
+# scripts/check-doc-refs.sh), and requiring a red check would block every PR.
+# Fix lint on main, then add it here.
+name: PR gate
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # No `version:` input — action-setup v4 reads `packageManager` from
+      # package.json. Specifying both is a hard error ("Multiple versions of
+      # pnpm specified").
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # arch:check needs the SDK built first (same ordering as ci.yml's `arch`).
+      - run: pnpm --filter @joeybuilt/plexo-sdk build
+      - run: pnpm typecheck
+      - run: pnpm arch:check
+      - run: pnpm --filter @plexo/db db:check-drift
+      - run: pnpm test
+      - run: pnpm test:unit
