@@ -9,13 +9,6 @@ on:
       - 'apps/api/src/agent-loop.ts'
       - 'apps/api/src/parallel-executor.ts'
       - '.github/workflows/agent-regression.yml'
-  pull_request:
-    paths:
-      - 'packages/agent/**'
-      - 'packages/queue/**'
-      - 'apps/api/src/agent-loop.ts'
-      - 'apps/api/src/parallel-executor.ts'
-      - '.github/workflows/agent-regression.yml'
 
 jobs:
   regression:

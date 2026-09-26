@@ -32,14 +32,8 @@
 name: visual-regression
 
 on:
-  pull_request:
+  push:
     branches: [main]
-    paths:
-      - 'apps/**'
-      - 'packages/ui/**'
-      - 'tests/e2e/**'
-      - 'playwright.config.ts'
-      - '.github/workflows/visual-regression.yml'
   workflow_dispatch: {}
 
 concurrency:
