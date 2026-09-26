@@ -21,9 +21,11 @@
 ### MUST NOT — hard guardrails
 
 For Claude Code these are enforced by `.claude/settings.json`. **That permission gate binds only
-Claude** — for every other tool these are advisory doctrine, and **this repo currently has no
-server-side enforcement at all** (no branch protection, no required checks — see "Enforcement — the
-honest version"). Nothing but your own compliance stops these. Honor them as absolute:
+Claude** — for every other tool these are advisory doctrine. Server-side, `main` IS protected (PR +
+review required, no force-push, no deletion, admins included), so a direct push or history rewrite is
+blocked; but there are **no required status checks**, so nothing server-side stops these commands from
+running inside a PR. Nothing but your own compliance stops them at the point of execution. Honor them
+as absolute:
 
 - **NEVER** force-push, `git reset --hard` a shared branch, delete branches/tags, or rewrite published
   history.
