@@ -91,7 +91,7 @@ All commits must include a `Signed-off-by` line. This certifies you have the rig
 // Copyright (C) 2026 Joeybuilt LLC
 ```
 
-- Do not introduce copyleft (GPL/AGPL) dependencies into MIT-licensed packages; `apps/gmessages` is the sole AGPL carve-out.
+- Do not introduce copyleft (GPL/AGPL) dependencies into MIT-licensed packages; the entire repository is MIT, with no carve-out. See [LICENSING.md](LICENSING.md).
 - No TODOs merged to main.
 
 ## Reporting Bugs
