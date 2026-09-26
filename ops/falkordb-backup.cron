@@ -1,10 +1,10 @@
 # /etc/cron.d/falkordb-backup
 # Phase G nightly RDB snapshot. ADR 0030.
 #
-# This cron is auto-installed + path-templated by
-# `.github/workflows/deploy.yml` on every deploy (the committed file's
-# `/opt/joeybuilt/plexo` is rewritten to $DEPLOY_REPO at install time, so
-# operators no longer copy this manually).
+# This cron is auto-installed + path-templated by your deploy pipeline on every
+# deploy (the committed file's `@PLEXO_REPO_DIR@` placeholder is rewritten to
+# your checkout path at install time, so operators no longer copy this
+# manually). If you install it by hand, substitute @PLEXO_REPO_DIR@ below.
 #
 # This cron is now a SECONDARY safety net. The falkordb container's
 # in-process --save tiers in docker-compose.yml (3600/1, 300/100, 60/10000)
@@ -24,9 +24,10 @@
 #   AWS_SECRET_ACCESS_KEY=...
 #   AWS_DEFAULT_REGION=us-east-1
 #
-# Path to the script assumes the plexo repo is checked out at /opt/joeybuilt/plexo.
+# @PLEXO_REPO_DIR@ below is a placeholder — substitute your plexo checkout path
+# before installing (e.g. /usr/local/share/plexo).
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-30 3 * * * root /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_backup.sh >> /var/log/falkordb-backup.log 2>&1
-0  4 * * 0 root /opt/joeybuilt/plexo/services/graphiti-sidecar/scripts/falkordb_backup.sh --offhost-upload >> /var/log/falkordb-backup.log 2>&1
+30 3 * * * root @PLEXO_REPO_DIR@/services/graphiti-sidecar/scripts/falkordb_backup.sh >> /var/log/falkordb-backup.log 2>&1
+0  4 * * 0 root @PLEXO_REPO_DIR@/services/graphiti-sidecar/scripts/falkordb_backup.sh --offhost-upload >> /var/log/falkordb-backup.log 2>&1

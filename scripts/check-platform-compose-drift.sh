@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read-only drift check for the inline `plexo-gmessages` edit on the deploy
-# host at /srv/platform/infra/docker-compose.yml.
+# host at $PLEXO_PLATFORM_DIR/infra/docker-compose.yml.
 #
 # Pre-flight before PHASE-6-OPS §3.5 (persist plexo-gmessages to upstream
 # platform repo). The §3.5 workflow requires `git --no-pager diff` to match the
@@ -15,9 +15,11 @@
 # Usage:
 #   bash scripts/check-platform-compose-drift.sh
 #
-# Env overrides:
-#   PLEXO_DEPLOY_HOST  default root@<prod-server-ip>
-#   PLEXO_DEPLOY_KEY   default ~/.ssh/deploy-key
+# Required env (no baked-in infra identifiers — this repo is public):
+#   PLEXO_DEPLOY_HOST   ssh target (user@host) for the deploy host
+#   PLEXO_PLATFORM_DIR  absolute path of the platform repo on the deploy host
+# Optional env:
+#   PLEXO_DEPLOY_KEY    path to the SSH private key (default ~/.ssh/deploy-key)
 #
 # The former PLEXO_VPS_HOST / PLEXO_VPS_KEY names are still accepted as a
 # deprecated fallback; they will be removed in a future release.
@@ -27,8 +29,8 @@
 #   1  drift detected OR could not reach prod; full live diff dumped to stdout.
 #
 # Refreshing the baseline (if §3.5 lands and the file gets re-edited later):
-#   1. ssh -i ~/.ssh/deploy-key root@<prod-server-ip> \
-#        'cd /srv/platform && git --no-pager diff infra/docker-compose.yml' \
+#   1. ssh -i "$PLEXO_DEPLOY_KEY" "$PLEXO_DEPLOY_HOST" \
+#        "cd $PLEXO_PLATFORM_DIR && git --no-pager diff infra/docker-compose.yml" \
 #        > /tmp/platform-compose-diff.txt
 #   2. wc -l < /tmp/platform-compose-diff.txt   # → BASELINE_LINES
 #   3. sha256sum /tmp/platform-compose-diff.txt # → BASELINE_SHA256
@@ -36,11 +38,13 @@
 
 set -uo pipefail
 
-HOST="${PLEXO_DEPLOY_HOST:-${PLEXO_VPS_HOST:-root@<prod-server-ip>}}"
-KEY="${PLEXO_DEPLOY_KEY:-${PLEXO_VPS_KEY:-$HOME/.ssh/deploy-key}}"
+HOST="${PLEXO_DEPLOY_HOST:-${VPS_HOST:-}}"
+: "${HOST:?PLEXO_DEPLOY_HOST must be set (ssh user@host of the deploy host)}"
+KEY="${PLEXO_DEPLOY_KEY:-${VPS_KEY:-$HOME/.ssh/deploy-key}}"
+PLATFORM_DIR="${PLEXO_PLATFORM_DIR:?PLEXO_PLATFORM_DIR must be set (platform repo path on the deploy host)}"
 
 # Baseline captured 2026-05-06 evening — `git --no-pager diff infra/docker-compose.yml`
-# on /srv/platform; matches PHASE-6-OPS §3.5 verbatim block.
+# on $PLEXO_PLATFORM_DIR; matches PHASE-6-OPS §3.5 verbatim block.
 BASELINE_LINES=43
 BASELINE_SHA256="911d054c136ba01484bb966a8564bae906a4ae07957f4c0710f2322fa035639d"
 BASELINE_TS="2026-05-06T22:47Z (inline edit) / captured evening 2026-05-06"
@@ -52,9 +56,9 @@ warn() { echo "[drift-check] WARN: $1"; }
 fail() { echo "[drift-check] FAIL: $1" >&2; }
 
 # 1. Confirm the platform repo is reachable + on main.
-branch=$(ssh_run "cd /srv/platform && git rev-parse --abbrev-ref HEAD" 2>/dev/null)
+branch=$(ssh_run "cd $PLATFORM_DIR && git rev-parse --abbrev-ref HEAD" 2>/dev/null)
 if [ -z "$branch" ]; then
-    fail "could not reach /srv/platform on $HOST"
+    fail "could not reach $PLATFORM_DIR on $HOST"
     exit 1
 fi
 if [ "$branch" = "main" ]; then
@@ -66,7 +70,7 @@ fi
 # 2. Capture live diff.
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
-ssh_run "cd /srv/platform && git --no-pager diff infra/docker-compose.yml" > "$tmp" 2>/dev/null
+ssh_run "cd $PLATFORM_DIR && git --no-pager diff infra/docker-compose.yml" > "$tmp" 2>/dev/null
 
 live_lines=$(wc -l < "$tmp")
 live_sha=$(sha256sum "$tmp" | cut -d' ' -f1)

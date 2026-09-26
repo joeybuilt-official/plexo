@@ -8,11 +8,11 @@
 # (7 consecutive nights of zero unregistered labels per app) can be checked
 # without re-running the report.
 #
-# Host install (the server crontab — root):
-#   0 4 * * * /srv/plexo/ops/cardinality-watch.sh
+# Host install (the server crontab — root; substitute your checkout path):
+#   0 4 * * * <your-infra-dir>/plexo/ops/cardinality-watch.sh
 #
 # Output:
-#   /srv/plexo/data/cardinality-watch.log
+#   <your-infra-dir>/plexo/data/cardinality-watch.log (override with LOG_DIR)
 #     One block per night, fenced by a "==> YYYY-MM-DDTHH:MM:SSZ" header.
 #
 # Exit code: always 0 unless docker exec itself fails — schema findings are
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 CONTAINER="${CONTAINER:-service}"
-LOG_DIR="${LOG_DIR:-/srv/plexo/data}"
+LOG_DIR="${LOG_DIR:-/var/lib/plexo/ops}"
 LOG_FILE="${LOG_FILE:-${LOG_DIR}/cardinality-watch.log}"
 
 mkdir -p "${LOG_DIR}"

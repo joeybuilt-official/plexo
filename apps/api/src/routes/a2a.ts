@@ -24,7 +24,7 @@ import { isSsrfTarget, safeFetch } from '../utils/ssrf.js'
 
 export const a2aRouter: RouterType = Router()
 
-const PUBLIC_URL = process.env.PUBLIC_URL ?? 'https://getplexo.com'
+const PUBLIC_URL = process.env.PUBLIC_URL ?? 'https://app.example.com'
 
 // ── Agent Card builder ──────────────────────────────────────────────────────
 

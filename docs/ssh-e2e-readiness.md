@@ -27,7 +27,7 @@ From Telegram, send these messages to Plexobot:
 3. "Check disk space on my server"
    - Agent should use ssh__exec with `df -h`
 
-4. "List files in /opt/plexo"
+4. "List files in <your-plexo-checkout>"
    - Agent should use ssh__list_dir
 
 5. Verify in web UI: Settings → Connections shows the SSH connection
