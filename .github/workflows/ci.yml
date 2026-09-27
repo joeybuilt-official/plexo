@@ -99,10 +99,20 @@ jobs:
     # Every other gate was green, because no job here ever built an image. This
     # is that job. It builds only — publishing is a separate, credentialed step.
     #
-    # Runs on the one self-hosted runner that has the Docker socket, which is
-    # why it is back on pull_request: #161 had to restrict it to push events
-    # because no runner could build an image and GitHub-hosted minutes were
-    # exhausted, so it would have sat red on every PR.
+    # Runs on the one self-hosted runner that has the Docker socket. That runner
+    # is host-root-equivalent, so this job must stay on `push`-only triggers.
+    #
+    # INVARIANT: never add `pull_request` or `pull_request_target` to a workflow
+    # whose jobs run on `self-hosted`. This repo is public, so such a trigger
+    # hands any fork's code to a runner that can mount the host filesystem. Every
+    # PR-triggered workflow here must stay on GitHub-hosted runners — see
+    # changelog-check.yml for the pattern. Commit 95f8896 removed the
+    # PR triggers from the self-hosted workflows for exactly this reason.
+    #
+    # History: #161 restricted this job to push events because no runner could
+    # build an image and it would have sat red on every PR. The socket runner
+    # later made the build possible, but the trigger stayed on push — now for the
+    # security reason above, not the old capacity one.
     runs-on: [self-hosted, docker]
     timeout-minutes: 30
     strategy:

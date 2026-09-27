@@ -14,7 +14,7 @@
  * preserved verbatim: ownership filters use ownerId, member upserts stay
  * onConflictDoNothing, bridge lookups stay scoped by (workspaceId, name).
  */
-import { eq, inArray, and, sql } from 'drizzle-orm'
+import { eq, inArray, and, sql, asc } from 'drizzle-orm'
 import { db } from '@plexo/db'
 import {
     workspaces,
@@ -50,13 +50,62 @@ export async function countWorkspaces(): Promise<Array<{ count: number }>> {
 
 // ── workspace/ensure ─────────────────────────────────────────────────────────
 
-/** First workspace owned by a user (id + name), or undefined. */
-export async function getOwnedWorkspaceIdName(userId: string): Promise<{ id: string; name: string } | undefined> {
+// ── Owned-workspace resolution ───────────────────────────────────────────────
+
+/**
+ * Resolve the ONE workspace a user's apps should bind to: the OLDEST they own,
+ * or undefined if they own none.
+ *
+ * THIS MUST BE ORDERED. Both public resolvers below previously did a bare
+ * `WHERE owner_id = $user LIMIT 1`, so Postgres returned whichever row the
+ * planner happened to touch first — stable for a user with one workspace, but
+ * arbitrary and able to flip between calls once they own more than one. Two
+ * callers resolve through it, and both fail silently and destructively on a
+ * flip:
+ *
+ *   - `POST /auth/workspace/ensure` (getOwnedWorkspaceIdName) — apps resolve
+ *     their workspace through this on boot and on every OAuth reconnect, so a
+ *     flip rebinds the app to a workspace with no Google token in it and every
+ *     provider sync fails. Levio lost ~6 weeks of email + calendar sync this
+ *     way (2026-08-11 -> 2026-09-26): its operator owned both a hand-created
+ *     "Personal" workspace (holding the real connections — google-workspace,
+ *     google-drive, gmessages, github, telegram, deepgram) and an app-created
+ *     "Fylo" one (holding only auto-installed app profiles), and ensure()
+ *     resolved the latter.
+ *   - `POST /profiles/auto-attach-user` (getOwnedWorkspaceId) — a flip
+ *     auto-installs the app's connection row + bridge extension into the wrong
+ *     workspace, so that app's tools are invisible to the agent in the
+ *     workspace the user actually works in.
+ *
+ * Oldest-first is the CORRECT choice, not merely a deterministic one: the first
+ * workspace a user gets is the personal one they set up by hand, and it is the
+ * one that holds real connections and history (in the incident above, Personal
+ * held 1,383 conversations / 25,078 tasks / 11 connections against Fylo's
+ * 0 / 152 / 4). Later workspaces are created by apps calling ensure() with a
+ * `displayName` and hold only auto-installed app profiles. `id ASC` is a
+ * tiebreak for the (rare) same-instant case so the result is fully
+ * deterministic rather than merely stable-ish.
+ *
+ * No index on workspaces.owner_id and none added: the owned-workspace count per
+ * user is a handful at most, so an ordered scan of that tiny set is free, and
+ * both paths are get-or-create on boot/reconnect rather than a hot loop.
+ *
+ * Single source of truth on purpose — if the ordering policy is ever changed it
+ * must change for BOTH resolvers at once, or the two entry points disagree and
+ * the app-facing symptom returns in a new shape.
+ */
+async function resolveOwnedWorkspace(userId: string): Promise<{ id: string; name: string } | undefined> {
     const [existing] = await db.select({ id: workspaces.id, name: workspaces.name })
         .from(workspaces)
         .where(eq(workspaces.ownerId, userId))
+        .orderBy(asc(workspaces.createdAt), asc(workspaces.id))
         .limit(1)
     return existing
+}
+
+/** The workspace `workspace/ensure` resolves for a user (id + name). */
+export async function getOwnedWorkspaceIdName(userId: string): Promise<{ id: string; name: string } | undefined> {
+    return resolveOwnedWorkspace(userId)
 }
 
 /** Create a personal workspace; returns { workspaceId, name }. */
@@ -81,13 +130,14 @@ export async function insertOwnerMember(workspaceId: string, userId: string): Pr
 
 // ── profiles/auto-attach-user ────────────────────────────────────────────────
 
-/** First workspace ID owned by a user, or undefined. */
+/**
+ * The workspace `auto-attach-user` resolves for a user (id only).
+ *
+ * Same ordering contract as getOwnedWorkspaceIdName — see resolveOwnedWorkspace.
+ */
 export async function getOwnedWorkspaceId(userId: string): Promise<{ id: string } | undefined> {
-    const [existing] = await db.select({ id: workspaces.id })
-        .from(workspaces)
-        .where(eq(workspaces.ownerId, userId))
-        .limit(1)
-    return existing
+    const ws = await resolveOwnedWorkspace(userId)
+    return ws ? { id: ws.id } : undefined
 }
 
 /** Create a personal workspace; returns { id }. */
