@@ -23,27 +23,28 @@
 #   DEPLOY_HOST  (required) target host IP or hostname
 #   DEPLOY_USER  default root
 #   DEPLOY_KEY   (required) path to SSH private key
-#   DEPLOY_REPO  default /opt/plexo
+#   DEPLOY_REPO  (required) checkout path on the deploy host (e.g. your-infra-dir)
 #
 # The former VPS_HOST / VPS_USER / VPS_KEY / VPS_REPO names are still accepted
 # as a deprecated fallback; they will be removed in a future release.
-#   COMPOSE_DIR  default /opt/app/infra
+#   COMPOSE_DIR  (required) compose dir on the deploy host
 #   COMPOSE_BASE     default docker-compose.yml
 #   COMPOSE_OVERRIDE default docker-compose.prod.yml
-#   APP_DOMAIN   default getplexo.com
+#   APP_DOMAIN   (required) public app domain for the post-deploy health check
 
 set -euo pipefail
 
 DEPLOY_HOST="${DEPLOY_HOST:-${VPS_HOST:-}}"
 DEPLOY_USER="${DEPLOY_USER:-${VPS_USER:-root}}"
 DEPLOY_KEY="${DEPLOY_KEY:-${VPS_KEY:-}}"
-DEPLOY_REPO="${DEPLOY_REPO:-${VPS_REPO:-/opt/plexo}}"
+DEPLOY_REPO="${DEPLOY_REPO:-${VPS_REPO:-}}"
 : "${DEPLOY_HOST:?DEPLOY_HOST must be set (target host IP or hostname)}"
 : "${DEPLOY_KEY:?DEPLOY_KEY must be set (path to SSH private key)}"
-COMPOSE_DIR="${COMPOSE_DIR:-/opt/app/infra}"
+: "${DEPLOY_REPO:?DEPLOY_REPO must be set (checkout path on the deploy host)}"
+: "${COMPOSE_DIR:?COMPOSE_DIR must be set (compose dir on the deploy host)}"
 COMPOSE_BASE="${COMPOSE_BASE:-docker-compose.yml}"
 COMPOSE_OVERRIDE="${COMPOSE_OVERRIDE:-docker-compose.prod.yml}"
-APP_DOMAIN="${APP_DOMAIN:-getplexo.com}"
+: "${APP_DOMAIN:?APP_DOMAIN must be set (public app domain for the health check)}"
 
 ssh_run() {
   ssh -o StrictHostKeyChecking=no -i "$DEPLOY_KEY" "$DEPLOY_USER@$DEPLOY_HOST" "$@"

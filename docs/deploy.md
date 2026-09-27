@@ -24,16 +24,21 @@ cd plexo
 # 2. Configure environment
 cp .env.example .env
 # Edit .env — fill in POSTGRES_PASSWORD, SESSION_SECRET, PUBLIC_URL,
-# PUBLIC_DOMAIN, and generate ENCRYPTION_SECRET (openssl rand -hex 32)
+# PUBLIC_DOMAIN, ENCRYPTION_SECRET (openssl rand -hex 32), and
+# AUTH_DATABASE_URL (Better Auth; same shared Postgres, auth schema — it may
+# equal DATABASE_URL). Or run `bash scripts/install.sh --domain=<your-domain>`
+# and skip this step entirely.
 
-# 3. Start
-docker compose up -d
+# 3. Start — the supported self-host command (Caddy reverse proxy + MinIO object
+#    storage). A bare `docker compose up -d` publishes no web port and starts no
+#    object storage, so the stack is unreachable.
+docker compose --profile selfhosted --profile object-storage up -d
 
 # 4. Smoke test
 curl https://your-domain.com/health | jq .
 ```
 
-On first start, the `migrate` service runs all database migrations automatically before the API comes up.
+On first start, the `migrate` service runs all database migrations automatically before the API comes up — including the un-journaled hand-written SQL (`APPLY_ORPHANED_SQL=1`), which `db:migrate` alone would skip. If you migrate an external database by hand instead, the first-run sequence is `pnpm db:migrate && pnpm db:apply-orphaned`.
 
 ## Environment Variables
 
@@ -45,6 +50,7 @@ See `.env.example` for the full list with descriptions.
 - `PUBLIC_URL` — full URL including protocol, e.g. `https://plexo.example.com`
 - `PUBLIC_DOMAIN` — domain only, e.g. `plexo.example.com`
 - `ENCRYPTION_SECRET` — generate with `openssl rand -hex 32`
+- `AUTH_DATABASE_URL` — Better Auth connection string (shared Postgres, auth schema; may equal `DATABASE_URL`). Docker Compose defaults it to the compose-internal DSN, so it is only strictly required in `.env` when running the API outside Compose.
 - AI provider keys are configured in-app via **Settings → AI Providers** (not required at deploy time)
 
 **Optional** (unlock features when set):
@@ -90,10 +96,10 @@ If you prefer nginx, point it at the same internal ports with equivalent proxy_p
 
 ```bash
 git pull origin main
-docker compose up -d --build
+docker compose --profile selfhosted --profile object-storage up -d --build
 ```
 
-Migrations run automatically on restart via the `migrate` service.
+Migrations run automatically on restart via the `migrate` service (journaled + orphaned SQL).
 
 ## Rollback
 
@@ -101,7 +107,7 @@ Each git tag is a deployable version. To roll back:
 
 ```bash
 git checkout v1.0.0            # target version
-docker compose up -d --build
+docker compose --profile selfhosted --profile object-storage up -d --build
 ```
 
 Database migrations are **additive only** — no columns are ever dropped in a patch release. Rolling back the code is always safe. Rolling back the DB schema requires manual intervention if you downgrade more than one minor version.

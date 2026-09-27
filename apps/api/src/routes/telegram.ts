@@ -701,7 +701,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     const text = msg.text?.trim() || (attachments.length > 0 ? '[Image]' : '')
 
     if (text === '/start') {
-        const dashboardUrl = (process.env.PUBLIC_URL || 'https://getplexo.com') + '/app/settings/intelligence'
+        const dashboardUrl = (process.env.PUBLIC_URL || 'https://app.example.com') + '/app/settings/intelligence'
         await sendMessage(token, chatId,
             `Hey! I'm your Plexo AI agent. Here's what I can do:\n\n`
             + `- Answer questions and have conversations\n`
@@ -877,7 +877,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
     const { credential } = await loadWorkspaceAISettings(workspaceId)
     if (!credential) {
         await _markReplied()
-        const providerUrl = (process.env.PUBLIC_URL || 'https://getplexo.com') + '/app/settings/intelligence'
+        const providerUrl = (process.env.PUBLIC_URL || 'https://app.example.com') + '/app/settings/intelligence'
         await sendMessage(token, chatId,
             `No AI provider configured yet. Add an API key (Anthropic, OpenAI, Groq, DeepSeek, or others) in your dashboard:\n\n${providerUrl}`,
             { workspaceId },
@@ -1095,7 +1095,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                 _visionNudgeSent.add(nudgeKey)
                 // Clear after 24h so we nudge again if still not fixed
                 setTimeout(() => _visionNudgeSent.delete(nudgeKey), 24 * 60 * 60 * 1000)
-                const dashboardUrl = (process.env.PUBLIC_URL || 'https://getplexo.com') + '/app/settings/intelligence'
+                const dashboardUrl = (process.env.PUBLIC_URL || 'https://app.example.com') + '/app/settings/intelligence'
                 await sendMessage(token, chatId,
                     `*Set up image processing:* Add a vision-capable provider (Claude, GPT-4o, Gemini, or Groq with a vision model) in your dashboard:\n\n`
                     + `${dashboardUrl}\n\n`

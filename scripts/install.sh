@@ -21,7 +21,7 @@
 #   match what Postgres stored on first boot and the API will fail to connect.
 #   To do a clean re-install, first destroy the volumes:
 #
-#       docker compose --profile selfhosted down -v
+#       docker compose --profile selfhosted --profile object-storage down -v
 #
 #   Then re-run this script with --force to regenerate .env.
 # =============================================================================
@@ -125,7 +125,7 @@ if [[ -f "$ENV_FILE" && "$FORCE" == false ]]; then
   warn "match the existing Postgres volume — the API will fail to connect."
   warn ""
   warn "For a clean re-install:"
-  warn "  docker compose --profile selfhosted down -v   # destroys all data"
+  warn "  docker compose --profile selfhosted --profile object-storage down -v   # destroys all data"
   warn "  bash scripts/install.sh --domain=${DOMAIN} --force"
   die "Aborting. Use --force to overwrite .env (only safe after 'down -v')."
 fi
@@ -138,7 +138,7 @@ if [[ ! -f "$ENV_FILE" ]] && command -v docker &>/dev/null; then
     warn "Detected an existing Plexo Postgres volume but no .env file."
     warn "Installing fresh will generate a new POSTGRES_PASSWORD that won't"
     warn "match the volume's stored password. To avoid auth failures, first run:"
-    warn "  docker compose --profile selfhosted down -v"
+    warn "  docker compose --profile selfhosted --profile object-storage down -v"
     warn ""
   fi
 fi
@@ -165,6 +165,16 @@ INNGEST_EVENT_KEY="$(gen_hex 32)"
 
 PUBLIC_URL="https://${DOMAIN}"
 PUBLIC_DOMAIN="${DOMAIN}"
+
+# Shared Postgres DSN (compose-internal host `plexo-db`). AUTH_DATABASE_URL is
+# required by the API at boot and Better Auth lives in the SAME shared DB (its
+# own schema), so it may equal DATABASE_URL. The compose services hardcode their
+# own DATABASE_URL and read AUTH_DATABASE_URL from .env, so this value must use
+# the in-network host `plexo-db` (NOT localhost — the API runs inside a
+# container). For host-run tooling (e.g. `pnpm db:migrate` against the dev
+# profile) point DATABASE_URL at localhost:5432 instead — see .env.full.example.
+DATABASE_URL="postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo"
+AUTH_DATABASE_URL="${DATABASE_URL}"
 
 # ── Write .env ───────────────────────────────────────────────────────────────
 
@@ -197,6 +207,15 @@ INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
 AUTH_SECRET=${AUTH_SECRET}
 BETTER_AUTH_URL=${PUBLIC_URL}
 
+# ── Database ─────────────────────────────────────────────────────────────────
+# AUTH_DATABASE_URL is the Better Auth connection string (shared DB, auth
+# schema) — required by the API at boot, and it may equal DATABASE_URL. It uses
+# the compose-internal host because the API reads it from inside a container.
+# The api/web/migrate services hardcode their own DATABASE_URL, so it is not
+# written here; host-run tooling should set DATABASE_URL=localhost:5432 (see
+# .env.full.example).
+AUTH_DATABASE_URL=${AUTH_DATABASE_URL}
+
 # ── Asset Storage (MinIO) ────────────────────────────────────────────────────
 STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
 STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
@@ -227,13 +246,13 @@ success ".env created at ${ENV_FILE}"
 # ── Start services ───────────────────────────────────────────────────────────
 
 if [[ "$NO_START" == true ]]; then
-  success "Done. Start manually: cd ${REPO_ROOT} && docker compose --profile selfhosted up -d"
+  success "Done. Start manually: cd ${REPO_ROOT} && docker compose --profile selfhosted --profile object-storage up -d"
   exit 0
 fi
 
 info "Starting Plexo..."
 cd "$REPO_ROOT"
-docker compose --profile selfhosted up -d --build
+docker compose --profile selfhosted --profile object-storage up -d --build
 
 # ── Health check polling ─────────────────────────────────────────────────────
 

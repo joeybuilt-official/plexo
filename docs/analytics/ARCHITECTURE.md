@@ -62,7 +62,7 @@ This replaces the hardcoded `enabled: false`.
 Runtime error
   → captureException() checks _errorsEnabled
   → Sentry SDK beforeSend: strip against allowlist
-  → Sentry project at sentry.getplexo.com
+  → Sentry project at sentry.<your-error-host>
   → Weekly: Inngest job queries Sentry API
   → GitHub issue: "Weekly Error Digest — [date]"
 ```
@@ -99,7 +99,7 @@ Never: IP, hostname, email, user ID, instance name, URL, content, extension name
 ```
 User action
   → posthog.capture() checks _usageEnabled
-  → Self-hosted PostHog at posthog.getplexo.com
+  → Self-hosted PostHog at posthog.<your-analytics-host>
   → Dashboards (human review)
   → Product decisions
 ```
@@ -107,7 +107,7 @@ User action
 ### PostHog Configuration
 
 - API key: `POSTHOG_API_KEY` env var
-- Host: hardcoded to `posthog.getplexo.com` (never PostHog cloud)
+- Host: hardcoded to `posthog.<your-analytics-host>` (never PostHog cloud)
 - Autocapture: disabled
 - Session recording: disabled
 - Persistence: `memory` (no localStorage)
@@ -136,10 +136,10 @@ No other events in v1. Additions require a named decision.
 
 | Service | Current | Target |
 |---------|---------|--------|
-| PostHog | `analytics.getplexo.com` | `posthog.getplexo.com` |
-| Sentry | `sentry.getplexo.com` | `sentry.getplexo.com` (no change) |
+| PostHog | `analytics.<your-analytics-host>` | `posthog.<your-analytics-host>` |
+| Sentry | `sentry.<your-error-host>` | `sentry.<your-error-host>` (no change) |
 
-All code references to `analytics.getplexo.com` updated to `posthog.getplexo.com`.
+All code references to `analytics.<your-analytics-host>` updated to `posthog.<your-analytics-host>`.
 
 ---
 

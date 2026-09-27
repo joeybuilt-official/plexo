@@ -1947,12 +1947,12 @@ Never attempt to synthesize for already-installed services — check installed c
 INFRASTRUCTURE CONTEXT:
 - You are running inside a Docker container with access to the Docker socket.
 - Use the shell tool to run docker commands: docker ps, docker logs, docker compose, etc.
-- The compose project is "${process.env.COMPOSE_PROJECT_NAME ?? 'plexo'}" at ${process.env.COMPOSE_DIR ?? '/opt/app/infra'}/
+- The compose project is "${process.env.COMPOSE_PROJECT_NAME ?? 'plexo'}" at ${process.env.COMPOSE_DIR ?? '(set COMPOSE_DIR)'}/
 - Compose files: docker-compose.yml + docker-compose.prod.yml
 - To restart a service: docker compose -f docker-compose.yml -f docker-compose.prod.yml restart <service>
 - To rebuild a service: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps <service>
 - To view logs: docker logs <container-name> --tail 50
-- Reverse proxy: Caddy (config at ${process.env.COMPOSE_DIR ?? '/opt/app/infra'}/Caddyfile.prod)
+- Reverse proxy: Caddy (config at ${process.env.COMPOSE_DIR ?? '(set COMPOSE_DIR)'}/Caddyfile.prod)
 - Database: PostgreSQL at postgres:5432, Valkey at valkey:6379
 - IMPORTANT: For destructive operations (restart, rebuild, down), always confirm what you're doing before executing.`
         : ''

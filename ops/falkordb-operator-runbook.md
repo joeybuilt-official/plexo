@@ -7,7 +7,7 @@ to it, not a duplicate copy.
 
 > **2026-05-28 the server migration.** All three OVH VPSes were decommissioned.
 > Deploy target is now **the server** (`ssh <server>`). Compose at
-> `/srv/plexo/`. All `ssh root@<prod-server-ip>`
+> `<your-infra-dir>/`. All `ssh root@<prod-server-ip>`
 > references below are stale; substitute `ssh <server>`. All `docker compose`
 > invocations from the server must specify both compose files:
 > `docker compose -f docker-compose.yml -f docker-compose.prod.yml`.
@@ -38,8 +38,8 @@ to it, not a duplicate copy.
      should report `{clean:true}` on first run.
   4. Install the cron:
      ```
-     0 6 * * * tsx /srv/plexo/source/plexo/scripts/reconcile-permission-graph.ts \
-       >> /srv/plexo/data/permission-reconcile.log 2>&1
+     0 6 * * * tsx <your-infra-dir>/source/plexo/scripts/reconcile-permission-graph.ts \
+       >> <your-infra-dir>/data/permission-reconcile.log 2>&1
      # Note: this cron is already installed on the server as /etc/cron.d/permission-reconcile
      ```
   After 30 consecutive zero-diff days, read-path cutover is unblocked
@@ -83,7 +83,7 @@ every handoff.
 ```sh
 ssh <server>  # was: ssh root@<prod-server-ip> (VPS decommissioned 2026-05-28)
 # if sidecar needs rebuild:
-cd /srv/plexo && docker compose \
+cd <your-infra-dir> && docker compose \
   -f docker-compose.yml \
   -f docker-compose.prod.yml \
   up -d --no-deps --build graphiti-sidecar

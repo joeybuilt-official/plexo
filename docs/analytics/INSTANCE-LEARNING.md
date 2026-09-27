@@ -87,7 +87,7 @@ Instance Learning                    Platform Analytics
 
 Task outcome                         Task outcome
   -> Reflection extracts obs           -> emit('agent_run_completed')
-  -> Observations stored locally       -> POST to posthog.getplexo.com
+  -> Observations stored locally       -> POST to posthog.<your-analytics-host>
   -> Feed into future planning         -> Dashboard analytics
   -> Never leave the instance          -> 90-day retention, then deleted
 ```
@@ -99,8 +99,8 @@ The same event (e.g., task completion) can trigger both an instance learning act
 | System | Storage | Location | Leaves Instance? |
 |--------|---------|----------|-----------------|
 | Instance learning | PostgreSQL + vector store | Operator's DB | Never |
-| Crash reports | Sentry event | sentry.getplexo.com | Only when opted in |
-| Usage patterns | PostHog event | posthog.getplexo.com | Only when opted in |
+| Crash reports | Sentry event | sentry.<your-error-host> | Only when opted in |
+| Usage patterns | PostHog event | posthog.<your-analytics-host> | Only when opted in |
 
 ### Separate Consent
 

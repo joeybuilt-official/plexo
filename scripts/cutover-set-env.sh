@@ -5,8 +5,8 @@
 # Used by Phases 5, 6, 9 of operator-cutover-runbook.md (each flips an
 # env var like MEMORY_WRITE_BACKEND or MEMORY_READ_BACKEND).
 #
-# Usage on the deploy host (<prod-server-ip>):
-#   sudo ./scripts/cutover-set-env.sh KEY VALUE
+# Usage on the deploy host:
+#   sudo PLEXO_COMPOSE_DIR=<your-infra-dir> ./scripts/cutover-set-env.sh KEY VALUE
 #
 # Examples:
 #   sudo ./scripts/cutover-set-env.sh MEMORY_WRITE_BACKEND dual
@@ -25,8 +25,8 @@ fi
 
 KEY="$1"
 VAL="$2"
-ENV_FILE=/srv/platform/infra/.env
-COMPOSE_DIR=/srv/platform/infra
+COMPOSE_DIR="${PLEXO_COMPOSE_DIR:?set PLEXO_COMPOSE_DIR to the compose dir on this host}"
+ENV_FILE="${COMPOSE_DIR}/.env"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "FATAL: $ENV_FILE missing" >&2

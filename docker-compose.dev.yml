@@ -1,0 +1,39 @@
+# ── Dev override — loopback-only host ports ────────────────
+# Local development runs `pnpm dev` ON THE HOST (web on :3000, api on :3001),
+# so the host needs Postgres/Redis reachable — and the browser needs the
+# containerized web/api when you run the full stack. This override publishes
+# those ports bound to 127.0.0.1 ONLY. Never 0.0.0.0: nothing here should be
+# reachable off the dev machine.
+#
+# This is a SEPARATE override file (not auto-loaded) on purpose: putting
+# `profiles: ["dev"]` on the core services in docker-compose.yml would EXCLUDE
+# them from the default and selfhosted runs (a service with any profile only
+# starts when that profile is active), which is exactly the unreachable-stack
+# bug this file must not reintroduce. An override file merges ports into the
+# always-on services without gating them.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Then from the repo root:
+#   pnpm install
+#   pnpm db:migrate          # DATABASE_URL=postgresql://plexo:<POSTGRES_PASSWORD>@localhost:5432/plexo
+#   pnpm db:apply-orphaned   # un-journaled 0130+ hand-SQL (drizzle skips these)
+#   pnpm dev
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  api:
+    ports:
+      - "127.0.0.1:3001:3001"

@@ -103,6 +103,11 @@ services:
     environment:
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       MIGRATIONS_DIR: /app/packages/db/drizzle
+      # Migrations 0130+ are un-journaled hand-written SQL that drizzle-kit will
+      # never replay. Without this a fresh self-host install comes up with an
+      # incomplete schema (missing columns) and fails at runtime. Same posture
+      # as docker-compose.e2e.yml and CI (pnpm db:migrate && db:apply-orphaned).
+      APPLY_ORPHANED_SQL: "1"
     # 256m RAM + up to 256m swap = 512m ceiling total.
     # OOM-kill enforced by cgroup — prevents runaway swap consumption.
     mem_limit: 256m
@@ -138,7 +143,7 @@ services:
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       # Better Auth — shared identity layer
       AUTH_PROVIDER: better-auth
-      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo}
       AUTH_SECRET: ${AUTH_SECRET}
       # Analytics relay — Command Engine ingest
       ANALYTICS_RELAY_URL: ${ANALYTICS_RELAY_URL:-}
@@ -250,7 +255,7 @@ services:
       NODE_ENV: production
       PORT: "3000"
       # Better Auth — shared identity layer
-      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL}
+      AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo}
       # App DB — required by the auth→public.users mirror (better-auth create.after hook)
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@plexo-db:5432/plexo
       AUTH_SECRET: ${AUTH_SECRET}
@@ -278,7 +283,10 @@ services:
   # Operators can swap this for real S3/Cloudflare R2/Backblaze B2 by
   # changing STORAGE_ENDPOINT, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY in .env.
   minio:
-    profiles: ["object-storage"]
+    # "dev" is an alias so `--profile dev` also brings object storage for local
+    # work; the default (no-profile) run still excludes minio. Loopback host
+    # ports for local dev come from docker-compose.dev.yml.
+    profiles: ["object-storage", "dev"]
     image: minio/minio:latest
     restart: unless-stopped
     logging: *default-logging

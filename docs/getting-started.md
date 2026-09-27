@@ -26,29 +26,42 @@ bash scripts/install.sh
 
 ## 2. Start the stack
 
-```bash
-docker compose up -d
-```
-
-This starts PostgreSQL, Valkey (Redis), MinIO, the API server, and the web dashboard. Migrations run automatically on first boot -- give it about 60 seconds.
-
-For production with auto-TLS via Caddy:
+The supported self-host command is ONE thing -- it enables the reverse proxy
+(Caddy, auto-TLS) and object storage (MinIO). A bare `docker compose up -d`
+publishes no web port and starts no object storage, so the stack comes up
+unreachable. Always pass both profiles:
 
 ```bash
-docker compose --profile selfhosted up -d
+docker compose --profile selfhosted --profile object-storage up -d
 ```
+
+This starts PostgreSQL, Valkey (Redis), MinIO, the API server, the web
+dashboard, and Caddy. Migrations run automatically on first boot -- including
+the un-journaled hand-written SQL that `db:migrate` alone would skip. Give it
+about 60 seconds.
 
 ## 3. Verify
 
 ```bash
-curl -s http://localhost:3001/health | python3 -m json.tool
+curl -s https://plexo.yourdomain.com/health | python3 -m json.tool
 ```
 
 You should see `"status": "ok"` with postgres and redis both reporting healthy.
 
 ## 4. Open the dashboard
 
-Navigate to `http://localhost:3000` (or `https://plexo.yourdomain.com` if you configured a domain).
+Navigate to `https://plexo.yourdomain.com` -- Caddy serves it on 443 with a
+Let's Encrypt certificate once your domain's A record points at this server.
+
+No domain yet and just poking at it locally? Use the dev profile, which
+publishes loopback-only ports (bound to `127.0.0.1`, never `0.0.0.0`):
+
+```bash
+docker compose --profile dev -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+Then open `http://127.0.0.1:3000` (web) and `http://127.0.0.1:3001/health`
+(API). See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full local dev flow.
 
 The setup wizard walks you through creating your first workspace and connecting an AI provider.
 
@@ -58,7 +71,7 @@ Go to **Settings > AI Providers** and add at least one:
 
 - **Anthropic** -- API key from [console.anthropic.com](https://console.anthropic.com/settings/keys)
 - **OpenAI** -- API key from [platform.openai.com](https://platform.openai.com/api-keys)
-- **Ollama** -- Optional, requires `--profile gpu`. No key needed. Base URL: `http://ollama:11434`
+- **Ollama** -- Optional, requires `--profile local-llm`. No key needed. Base URL: `http://ollama:11434`
 - **DeepSeek, Groq, Mistral, Gemini** -- Add via their respective API keys
 
 Click **Test** to confirm the provider is reachable.

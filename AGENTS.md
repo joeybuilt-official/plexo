@@ -95,11 +95,13 @@ declared in the use-case layer) implemented by an **adapter** at the edge.
 - Before you build, state the layers you touch and the ports you add (the plan template forces this).
   If a new dependency would point outward, stop and raise it before writing the code.
 - This is checked **mechanically**: `pnpm arch:check` (dependency-cruiser, config at
-  `.dependency-cruiser.js`) fails on an outward import, and the `arch` job runs it on every PR. It
+  `.dependency-cruiser.js`) fails on an outward import, and the `arch` job runs it on every push to
+  `main`. It
   works off `.dependency-cruiser-baseline.json`, a ratchet of known violations that only ever shrinks
   — **delete the entries your change fixes; never regenerate the baseline to go green.** The check
-  reports but cannot block: this repo has no required status checks (see "Enforcement — the honest
-  version" below), so treat a red `arch` as a stop sign you honour, not a wall that stops you.
+  reports but cannot block: `main` is protected (PR + review required, no force-push) but has no
+  required status checks (see "Enforcement — the honest version" below), so treat a red `arch` as a
+  stop sign you honour, not a wall that stops you.
 
 <!-- MIRROR:start — this block is copied verbatim into every tool-native file by scripts/sync-agents.sh. Edit here only; it is the "if you read nothing else" contract for tools that do not open AGENTS.md. -->
 ## If you read nothing else in this repo
@@ -118,9 +120,11 @@ declared in the use-case layer) implemented by an **adapter** at the edge.
 ### MUST NOT — hard guardrails
 
 For Claude Code these are enforced by `.claude/settings.json`. **That permission gate binds only
-Claude** — for every other tool these are advisory doctrine, and **this repo currently has no
-server-side enforcement at all** (no branch protection, no required checks — see "Enforcement — the
-honest version"). Nothing but your own compliance stops these. Honor them as absolute:
+Claude** — for every other tool these are advisory doctrine. Server-side, `main` IS protected (PR +
+review required, no force-push, no deletion, admins included), so a direct push or history rewrite is
+blocked; but there are **no required status checks**, so nothing server-side stops these commands from
+running inside a PR. Nothing but your own compliance stops them at the point of execution. Honor them
+as absolute:
 
 - **NEVER** force-push, `git reset --hard` a shared branch, delete branches/tags, or rewrite published
   history.
@@ -164,23 +168,29 @@ model at all:
 - For every other tool, the guardrails above are **doc-level MUST-NOT prose** — always in context (the
   `MIRROR` block is mirrored into each tool's native rules file), but advisory. A determined or
   confused agent can still run the command.
-- **CI is real and runs on every PR, but nothing it reports can block a merge.**
-  `.github/workflows/ci.yml` runs `typecheck`, `lint` (which also runs `check:sql-arrays`), `arch`,
-  `db-drift`, `test`, `integration` (against real Postgres + Redis) and `docker-build` for both
-  images, on self-hosted runners. Those checks are informative, not gating.
-- **There is no branch protection and there are no required status checks.** This repository is
-  private on GitHub's **Free** plan, where `/branches/main/protection` and `/rulesets` both return
-  `403 Upgrade to GitHub Pro or make this repository public`. Nothing server-side blocks a
-  force-push, a direct push to `main`, or a merge on red. Verified 2026-08-31.
-- **What that means in practice:** the strongest guardrail against a non-Claude agent is the prose
-  above plus whoever is reading the PR. A red check is a stop sign, not a wall — do not merge past
-  one because "CI isn't required anyway". A pre-commit hook may be installed locally
-  (`scripts/templates/pre-commit` is the sample), but it is machine-local and `--no-verify` skips it.
-- **Making the repo public would enable protection and rulesets**, and would also remove the 2,000
-  Actions-minutes/month cap that took CI down in August. It is a one-way door with its own
-  consequences — untrusted PRs would then be able to run workflows on the self-hosted runners, one of
-  which has access to the host Docker daemon — so it is the operator's call, not an agent's.
-- **Do not assume a gate you have not verified.** If you are about to rely on one, check it.
+- **`main` is protected.** The repository is now **public**, and branch protection is enabled on
+  `main`: `enforce_admins=true` (it binds admins too), force-pushes are disallowed, branch deletion is
+  disallowed, and a pull request with a review is **required** to merge. So a direct push to `main`, a
+  force-push, and a history rewrite are all blocked server-side — for every tool and every human,
+  including maintainers. This is the real wall; the prose above is the fence.
+- **There are still NO required status checks.** Protection requires a reviewed PR but does not gate
+  on CI: nothing server-side blocks merging a PR whose checks are red or never ran. A red check is
+  still a stop sign you honour, not a wall.
+- **CI is push-triggered on `main`, not PR-triggered.** `.github/workflows/ci.yml` (and
+  `visual-regression.yml`, `release.yml`) fire on `push` to `main`, so the full matrix — `typecheck`,
+  `lint` (which also runs `check:sql-arrays`), `arch`, `db-drift`, `test`, `integration` (real Postgres
+  + Redis), `docker-build` — runs *after* a merge lands, on self-hosted runners. The one workflow with
+  a `pull_request` trigger (`changelog-check.yml`) runs on `ubuntu-latest`. Do **not** add a
+  `pull_request`/`pull_request_target` trigger to any workflow that runs on a self-hosted runner: the
+  repo is public, so untrusted fork PRs would then execute on runners, one of which has host Docker
+  socket access. That is an RCE surface, not a convenience.
+- **What that means in practice:** the prose above plus the required PR review are what stop a
+  non-Claude agent from landing a bad change; branch protection stops it from bypassing `main`
+  outright. A pre-commit hook may be installed locally (`scripts/templates/pre-commit` is the sample),
+  but it is machine-local and `--no-verify` skips it.
+- **Do not assume a gate you have not verified.** If you are about to rely on one, check it. The
+  protection state above was verified against the GitHub API (`/branches/main/protection`) when this
+  text was last updated; re-query it before depending on a specific setting.
 
 ## The rules, in full — inlined for AGENTS.md-native tools
 

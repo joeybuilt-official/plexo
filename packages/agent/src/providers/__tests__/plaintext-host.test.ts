@@ -20,7 +20,7 @@ describe('isPlaintextHttpHost', () => {
 
     it('upgrades public dotted hosts', () => {
         expect(isPlaintextHttpHost('ollama.example.com')).toBe(false)
-        expect(isPlaintextHttpHost('34.120.59.49')).toBe(false)   // public IP
+        expect(isPlaintextHttpHost('203.0.113.10')).toBe(false)   // public IP (RFC 5737 doc range)
         expect(isPlaintextHttpHost('100.20.1.1')).toBe(false)     // public 100.x outside CGNAT /10
         expect(isPlaintextHttpHost('172.32.0.1')).toBe(false)     // outside 172.16/12
     })

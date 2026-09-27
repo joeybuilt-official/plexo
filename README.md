@@ -37,7 +37,7 @@
 
 | | Cloud | Self-Host |
 |---|---|---|
-| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `docker compose up -d` |
+| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `docker compose --profile selfhosted --profile object-storage up -d` |
 | **Infrastructure** | Managed for you | Your servers, your data |
 | **Updates** | Automatic | Pull and restart |
 | **Best for** | Getting started fast | Full control, air-gapped environments |
@@ -69,8 +69,13 @@ bash <(curl -sL https://raw.githubusercontent.com/joeybuilt-official/plexo/main/
 git clone https://github.com/joeybuilt-official/plexo.git
 cd plexo
 cp .env.example .env    # configure your secrets
-docker compose up -d
+docker compose --profile selfhosted --profile object-storage up -d
 ```
+
+> A bare `docker compose up -d` publishes no web port and starts no object
+> storage — the stack comes up unreachable. The two profiles above (Caddy +
+> MinIO) are the supported self-host invocation; see
+> [docs/self-host.md](docs/self-host.md).
 
 The setup wizard walks you through connecting an AI provider.
 
