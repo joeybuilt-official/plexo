@@ -12,7 +12,7 @@ Get Plexo running on your own server in under 20 minutes.
 | Disk | 20 GB |
 | OS | Any Linux distro, macOS, or WSL2 |
 
-A domain name pointed at your server's IP is required for TLS. Without one, you can access Plexo on `http://localhost:3000` for local development.
+A domain name pointed at your server's IP is required for TLS. Without one, you can still run Plexo locally via the dev profile, which publishes loopback-only ports: `docker compose --profile dev -f docker-compose.yml -f docker-compose.dev.yml up -d`, then browse to `http://127.0.0.1:3000`.
 
 ## 1. Clone and configure
 
@@ -77,14 +77,22 @@ The legacy flag `SKIP_LANDING=true` is still honored as a force-off.
 
 ## 2. Run
 
+The supported self-host command:
+
 ```bash
-docker compose up -d
+docker compose --profile selfhosted --profile object-storage up -d
 ```
 
-Expected output:
+Why both profiles: a bare `docker compose up -d` starts api/web/migrate/postgres/redis/inngest but
+publishes NO web-facing port (only `inngest` on 127.0.0.1:8288 and `caddy` on 80/443 bind host
+ports, and caddy itself is behind the `selfhosted` profile) and starts NO object storage (minio is
+behind the `object-storage` profile) even though `STORAGE_ENDPOINT` defaults to `http://minio:9000`.
+The result is an unreachable stack with broken asset storage. Always pass both.
+
+Expected output (container names/order vary):
 
 ```
-[+] Running 7/7
+[+] Running 9/9
  ✔ Network plexo_default  Created
  ✔ Container postgres     Started
  ✔ Container redis        Started
@@ -92,16 +100,33 @@ Expected output:
  ✔ Container migrate      Started
  ✔ Container api          Started
  ✔ Container web          Started
+ ✔ Container inngest      Started
+ ✔ Container postgres-backup Started
+ ✔ Container caddy        Started
 ```
 
-The `migrate` container runs database migrations and exits. The API waits for it to complete before starting.
+The `migrate` container runs database migrations and exits. The API waits for it to complete before
+starting.
+
+**First run — migrations and the orphaned SQL.** `db:migrate` (drizzle) only replays journaled
+migrations. Migrations 0130+ are hand-written SQL kept deliberately out of the drizzle journal, so
+the compose `migrate` service sets `APPLY_ORPHANED_SQL=1` and applies them too — nothing manual is
+needed on a Docker install. If you run migrations yourself against an external database (e.g. a
+managed Postgres), the full first-run sequence is:
+
+```bash
+pnpm db:migrate
+pnpm db:apply-orphaned
+```
+
+Skipping the second command yields an incomplete schema (missing columns) that fails at runtime.
 
 First boot takes 1-2 minutes while containers build. Subsequent starts are instant.
 
 ## 3. Verify
 
 ```bash
-# Health check (use localhost:3001 if no domain/proxy configured yet)
+# Health check
 curl -s https://plexo.yourdomain.com/health | python3 -m json.tool
 ```
 
@@ -117,7 +142,7 @@ Expected:
 }
 ```
 
-Open `https://plexo.yourdomain.com` (or `http://localhost:3000` for local) in your browser. You should see the setup wizard.
+Open `https://plexo.yourdomain.com` in your browser (Caddy serves 443 with a Let's Encrypt cert once your DNS A record points at this server). You should see the setup wizard. For a domainless local run use the dev profile from step 1 and open `http://127.0.0.1:3000`.
 
 ## 4. Connect an AI provider
 
@@ -139,13 +164,15 @@ Navigate to **Settings > AI Providers** (or use the setup wizard on first launch
 1. Get an API key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
 2. Add provider, select **DeepSeek**, paste key, click **Test**
 
-### Ollama (optional -- GPU profile)
+### Ollama (optional -- local-llm profile)
 
 Ollama is not required. Plexo uses its built-in inference gateway for embeddings by default. If you have a GPU and want to run local LLMs via Ollama, start Plexo with the GPU profile:
 
 ```bash
-docker compose --profile gpu up -d
+docker compose --profile local-llm up -d
 ```
+
+(The profile name in compose is `local-llm`; there is no `gpu` profile.)
 
 To configure Ollama as a chat provider, go to **Settings > AI Providers**, add **Ollama**, and set the base URL to `http://ollama:11434` (the managed sidecar) or point it at an external Ollama instance.
 
@@ -163,10 +190,10 @@ The stack runs these containers:
 | `redis` | 6379 | Valkey (task queue, cache, pub/sub) |
 | `minio` | 9000/9001 | S3-compatible asset storage |
 | `inference-gateway` | 3001 (internal) | Native ONNX embeddings |
-| `ollama` | 11434 (internal) | Local LLM + embeddings (gpu profile) |
+| `ollama` | 11434 (internal) | Local LLM + embeddings (local-llm profile) |
 | `caddy` | 80/443 | Reverse proxy with auto-TLS (selfhosted profile) |
 
-Caddy is enabled with: `docker compose --profile selfhosted up -d`
+Caddy is enabled by the `selfhosted` profile — included in the supported command above.
 
 ## TLS
 
@@ -180,10 +207,10 @@ Caddy handles TLS automatically via Let's Encrypt. Requirements:
 
 ```bash
 git pull origin main
-docker compose up -d --build
+docker compose --profile selfhosted --profile object-storage up -d --build
 ```
 
-Migrations run automatically on every startup.
+Migrations run automatically on every startup (including the orphaned 0130+ SQL — see step 2).
 
 ## Backups
 
@@ -201,7 +228,7 @@ cat backup-20260327.sql | docker compose exec -T postgres psql -U plexo plexo
 | `redisdata` | Cache + queue state | Low -- rebuilds automatically |
 | `miniodata` | Agent-produced files | Medium -- generated assets lost |
 | `caddy_data` | TLS certificates | Medium -- ACME rate limits apply |
-| `ollama_models` | Ollama model weights (gpu profile) | Low -- re-pulled on next start |
+| `ollama_models` | Ollama model weights (local-llm profile) | Low -- re-pulled on next start |
 | `generated_skills` | Auto-generated extensions | Low -- agent can regenerate |
 
 ## Troubleshooting
@@ -210,7 +237,7 @@ cat backup-20260327.sql | docker compose exec -T postgres psql -U plexo plexo
 
 - Verify DNS: `dig +short plexo.yourdomain.com` should return your server IP
 - Check Caddy: `docker compose logs caddy`
-- Without Caddy, access directly at `http://server-ip:3000`
+- Caddy is only started by the `selfhosted` profile — confirm you launched with `--profile selfhosted --profile object-storage`
 
 ### 502 Bad Gateway
 
@@ -230,29 +257,26 @@ docker compose logs postgres --tail 20
 Common cause: `POSTGRES_PASSWORD` in `.env` changed after the volume was created. Fix: either use the original password or reset the volume:
 
 ```bash
-docker compose down
+docker compose --profile selfhosted --profile object-storage down
 docker volume rm plexo_pgdata  # WARNING: deletes all data
-docker compose up -d
+docker compose --profile selfhosted --profile object-storage up -d
 ```
 
-### Ollama not reachable (GPU profile)
+### Ollama not reachable (local-llm profile)
 
-If you started with `--profile gpu` and Ollama is unreachable:
+If you started with `--profile local-llm` and Ollama is unreachable:
 
-1. Check container is running: `docker compose --profile gpu ps ollama`
-2. Check logs: `docker compose --profile gpu logs ollama`
+1. Check container is running: `docker compose --profile local-llm ps ollama`
+2. Check logs: `docker compose --profile local-llm logs ollama`
 3. If using an external Ollama instead, confirm it's listening on all interfaces: `OLLAMA_HOST=0.0.0.0 ollama serve`
 4. Use `http://172.17.0.1:11434` as the base URL if `host.docker.internal` doesn't resolve (common on Linux without Docker Desktop)
 
 ### Port conflicts
 
-If port 3000 or 3001 is already in use, either stop the conflicting service or change the port mapping in `docker-compose.yml`:
-
-```yaml
-web:
-  ports:
-    - "8080:3000"  # access dashboard on port 8080 instead
-```
+In the supported self-host layout nothing binds host ports 3000/3001 — web and api are reachable
+only through Caddy on 80/443. A conflict there means something else on the host owns 80 or 443:
+stop it, or front Caddy with another reverse proxy. Only the dev override
+(`docker-compose.dev.yml`) publishes 3000/3001, and it binds them to 127.0.0.1.
 
 ### Tasks fail immediately
 

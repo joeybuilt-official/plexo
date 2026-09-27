@@ -95,7 +95,7 @@ const PROVIDERS: Record<string, ProviderConfig> = {
 
     // ── Google providers — all route through /api/oauth/google/callback ────────
     // Only one redirect URI needs to be registered in Google Cloud Console:
-    //   https://getplexo.com/api/oauth/google/callback
+    //   https://<your-app-domain>/api/oauth/google/callback
     'google-drive': {
         authUrl: GOOGLE_AUTH_URL,
         tokenUrl: GOOGLE_TOKEN_URL,

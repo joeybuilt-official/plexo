@@ -12,9 +12,9 @@ export function setArtifactShareStore(next: ArtifactShareStore): void {
     store = next
 }
 
-// The human-facing share PAGE is served by the WEB app (e.g. app.getplexo.com/s/<id>),
-// NOT the api origin. PUBLIC_URL points at the api (api.getplexo.com), whose /s/<id>
-// 404s. Prefer an explicit app URL, fall back to the auth URL (same app origin), then
+// The human-facing share PAGE is served by the WEB app (e.g. https://<app-host>/s/<id>),
+// NOT the api origin. PUBLIC_URL points at the api host, whose /s/<id> 404s.
+// Prefer an explicit app URL, fall back to the auth URL (same app origin), then
 // PUBLIC_URL as a last resort.
 const APP_URL = process.env.APP_PUBLIC_URL || process.env.BETTER_AUTH_URL || process.env.PUBLIC_URL || 'http://localhost:3000'
 

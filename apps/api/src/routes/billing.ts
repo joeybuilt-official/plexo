@@ -83,8 +83,8 @@ billingRouter.post('/checkout', requireAuth, async (req, res) => {
     }
 
     try {
-        const successUrl = (process.env.BILLING_SUCCESS_URL ?? 'https://getplexo.com/app/account/subscription?checkout=success')
-        const cancelUrl = (process.env.BILLING_CANCEL_URL ?? 'https://getplexo.com/app/account/subscription?checkout=canceled')
+        const successUrl = (process.env.BILLING_SUCCESS_URL ?? 'https://app.example.com/app/account/subscription?checkout=success')
+        const cancelUrl = (process.env.BILLING_CANCEL_URL ?? 'https://app.example.com/app/account/subscription?checkout=canceled')
 
         const result = await gw.createCheckout({ userId, email, priceId, successUrl, cancelUrl })
 

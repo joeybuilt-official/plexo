@@ -80,9 +80,9 @@ Plexo is a self-hostable platform for running AI agents that actually execute wo
 
 | | Cloud | Self-Host |
 |---|---|---|
-| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `scripts/install.sh --domain=…` (see the known issue below) |
+| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `scripts/install.sh --domain=…` |
 | **Infrastructure** | Managed for you | Your servers, your data |
-| **Updates** | Automatic | `git pull && docker compose up -d --build` |
+| **Updates** | Automatic | `git pull && docker compose --profile selfhosted --profile object-storage up -d --build` |
 | **Best for** | Getting started fast | Full control, air-gapped environments |
 
 The managed cloud runs a separate private codebase with its own overlay on top of this repository — it is **not** feature-identical to the open-source tree. Everything documented in this README is what the OSS repository actually ships. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSING.md](LICENSING.md).
@@ -116,35 +116,25 @@ Or without cloning:
 bash <(curl -sL https://raw.githubusercontent.com/joeybuilt-official/plexo/main/scripts/install.sh) --domain=plexo.yourdomain.com
 ```
 
-`--domain` is required. Re-running the script regenerates `POSTGRES_PASSWORD`, which will not match an existing database volume — use `--force` only if you mean to start over.
+`--domain` is required. The script generates every secret the API needs — including `AUTH_DATABASE_URL` (the Better Auth DSN; Better Auth shares the Postgres database in its own schema) — writes them to `.env`, and starts the stack with both required profiles. Re-running it regenerates `POSTGRES_PASSWORD`, which will not match an existing database volume — use `--force` only if you mean to start over.
 
-> **Known issue: `install.sh` does not write `AUTH_DATABASE_URL`.** The script generates `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_SECRET`, `AUTH_SECRET`, the storage and Inngest keys, but not `AUTH_DATABASE_URL` — while `apps/api/src/env.ts` marks it required and `docker-compose.yml` passes it through with no default. As shipped, the API container exits 1 at boot and the installer's health check times out.
->
-> After running the script, append `AUTH_DATABASE_URL` to `.env` and restart. Its value must be the in-network Postgres URL the API already uses: user `plexo`, the generated `POSTGRES_PASSWORD` from `.env`, host `plexo-db`, port `5432`, database `plexo` — the same string `docker-compose.yml` builds for `DATABASE_URL` on the `api` service. Then:
->
-> ```bash
-> docker compose --profile object-storage --profile selfhosted up -d
-> ```
->
-> Fixing this in `scripts/install.sh` is the right repair; until then, plan for the extra step.
-
-**Manual.** `docker-compose.yml` interpolates several variables with no defaults, so `cp .env.example .env && docker compose up -d` does not boot a working stack on its own. Either run `install.sh` (plus the step above), or set at minimum:
+**Manual.** `docker-compose.yml` interpolates several variables with no defaults, so `cp .env.example .env && docker compose up -d` does not boot a working stack on its own. Either run `install.sh`, or set at minimum:
 
 ```
 POSTGRES_PASSWORD  REDIS_PASSWORD  SESSION_SECRET  ENCRYPTION_SECRET
-AUTH_SECRET        AUTH_DATABASE_URL  PUBLIC_URL  PUBLIC_DOMAIN
+AUTH_SECRET        PUBLIC_URL  PUBLIC_DOMAIN
 STORAGE_ACCESS_KEY STORAGE_SECRET_KEY  INNGEST_SIGNING_KEY  INNGEST_EVENT_KEY
 ```
 
-Neither `.env.example` nor `.env.full.example` contains `AUTH_DATABASE_URL`; it is only set in `docker-compose.e2e.yml`. Then:
+`.env.example` and `.env.full.example` document `AUTH_DATABASE_URL` but leave it commented out: `docker-compose.yml` defaults it to the compose-internal DSN (`postgresql://plexo:…@plexo-db:5432/plexo`) on both the `api` and `web` services. Set it explicitly only when Postgres runs outside Compose. Then:
 
 ```bash
-docker compose --profile object-storage --profile selfhosted up -d --build
+docker compose --profile selfhosted --profile object-storage up -d --build
 ```
 
-Profiles: `object-storage` starts MinIO (the API's default `STORAGE_ENDPOINT` points at it), `selfhosted` starts Caddy on 80/443, `local-llm` starts Ollama. Without `--profile selfhosted` the web and API containers publish no host ports. The one-shot `migrate` service applies Drizzle migrations before the API starts.
+> A bare `docker compose up -d` publishes no web-facing port and starts no object storage — the stack comes up unreachable. `selfhosted` starts Caddy on 80/443 and `object-storage` starts MinIO, which the API's default `STORAGE_ENDPOINT` (`http://minio:9000`) points at. Those two profiles are the supported self-host invocation; see [docs/self-host.md](docs/self-host.md). For domainless local development, `docker-compose.dev.yml` publishes loopback-only ports instead: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`, then browse to `http://127.0.0.1:3000`.
 
-> **Fresh databases need one more step.** Migrations `0130`–`0143` are un-journaled hand-written SQL that drizzle-kit will not replay. Only `docker-compose.e2e.yml` sets `APPLY_ORPHANED_SQL=1`, so a fresh self-host install is missing those columns. Run `pnpm db:apply-orphaned` against the new database (or set `APPLY_ORPHANED_SQL=1` on the `migrate` service).
+Other profiles: `local-llm` starts a managed Ollama sidecar. The one-shot `migrate` service applies Drizzle migrations — plus the un-journaled hand-written SQL (0130+) via `APPLY_ORPHANED_SQL=1` — before the API starts, so a Docker install needs no manual migration step. Only if you run migrations yourself against an external database do you need the extra `pnpm db:apply-orphaned` (drizzle-kit skips un-journaled files).
 
 The setup wizard then walks you through connecting an AI provider: open your domain → create your account → Settings ▸ AI Models ▸ add provider → Test → run your first task.
 
@@ -153,10 +143,10 @@ The setup wizard then walks you through connecting an AI provider: open your dom
 **Updates:**
 
 ```bash
-git pull origin main && docker compose up -d --build
+git pull origin main && docker compose --profile selfhosted --profile object-storage up -d --build
 ```
 
-Migrations re-run automatically through the `migrate` service. Roll back with `git checkout <tag> && docker compose up -d --build`.
+Migrations re-run automatically through the `migrate` service. Roll back with `git checkout <tag> && docker compose --profile selfhosted --profile object-storage up -d --build`.
 
 ## Configuration
 
@@ -263,7 +253,7 @@ Channels: **web chat and the embeddable widget are the working inbound channels.
 pnpm install --frozen-lockfile
 
 # local services (compose publishes no host ports by default — use your own
-# Postgres+pgvector and Redis, or docker/compose.override.yml for an audit setup)
+# Postgres+pgvector and Redis, or docker-compose.dev.yml for loopback-only ports)
 pnpm db:migrate
 pnpm db:apply-orphaned      # un-journaled hand-written SQL (0130+)
 pnpm dev                    # turbo dev → api :3001, web :3000
@@ -291,7 +281,7 @@ pnpm --filter @plexo/db db:check-drift
 
 283 test files: `packages/agent` 109, `apps/api` 93, `tests/e2e` 28, `tests/integration` 19, `apps/web` 12, `packages/session-fabric` 8. Integration tests run in CI against real Postgres and Redis with a per-run isolated database. Most E2E specs never run in CI — the only ones that do are `responsive-visual` and `a11y`, via `visual-regression.yml`, which is explicitly informational and not a required check.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, arch, db-drift, docker-build, the graphiti sidecar probe, unit tests and integration tests — all on **self-hosted runners**, which do not run for pull requests from forks. The one gate a fork PR does get is `changelog-check.yml` (GitHub-hosted, SDK changes only). Run the gates locally and say so in the PR.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, arch, db-drift, docker-build, the graphiti sidecar probe, unit tests and integration tests — all on **self-hosted runners**, push-to-main only. Every pull request (forks included) instead gets `pr-gate.yml`: a GitHub-hosted `verify` job with the portable subset (SDK build, typecheck, arch, db-drift, unit tests) and the required status context. `ci.yml` stays push-only by design — for a `pull_request` event GitHub resolves the workflow from the merge commit, so a fork would control any self-hosted job body. Run the remaining gates locally and say so in the PR.
 
 Notes: `prebuild` runs `sync-compose` (copies `docker-compose.yml` → `docker/compose.yml`), so a dirty diff there after a build is expected. Install fails if `patches/` is missing — `sharp@0.35.0` is patched. Commits must be signed off (`git commit -s`, DCO).
 
@@ -322,8 +312,6 @@ Stated plainly, because the previous version of this README described infrastruc
 - **11 of 24 registry connections are stubs** returning `[NOT YET IMPLEMENTED]`.
 - **Seven bundled extension directories are empty stubs.**
 - **`docker-compose.gpu.yml` is an empty file** left behind after the vision sidecar was removed. Do not expect a GPU profile.
-- **Fresh self-host installs may miss un-journaled migrations.** The compose `migrate` service does not set `APPLY_ORPHANED_SQL=1`; only the e2e stack does. Run `pnpm db:apply-orphaned` against a new database.
-- **`install.sh` omits `AUTH_DATABASE_URL`**, so the documented install does not boot without a manual addition (see [Quick start](#quick-start-self-host)).
 - **`openapi.yaml` covers 11 paths of the 77 mounted route modules.**
 - Screenshots in `images/` were captured against a populated instance rather than seeded demo data, so they are not used in this README.
 - The `local-llm` compose profile reserves 6 GB for Ollama alone — the RAM figures in [Requirements](#requirements-self-host) are for the base stack without it.
@@ -341,7 +329,7 @@ Plexo is open source under MIT. Contributions are welcome — read [CONTRIBUTING
 1. Fork the repository and create a feature branch.
 2. Run the gates locally: `pnpm test`, `pnpm typecheck`, `pnpm arch:check`, `pnpm build`.
 3. Sign off your commits (`git commit -s`).
-4. Open a pull request. CI does not run for forks.
+4. Open a pull request — the hosted `verify` gate runs on all PRs, including forks; the self-hosted suite does not.
 
 Report vulnerabilities per [SECURITY.md](SECURITY.md) — do not open a public issue.
 

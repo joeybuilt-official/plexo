@@ -1,7 +1,7 @@
 # App → Plexo Integration Guide
 
 Connect any sibling app to Plexo in under an hour.
-**Reference implementation**: Levio at `/opt/plexo/apps/levio/`
+**Reference implementation**: Levio, under your Plexo checkout at `apps/levio/` (sibling apps lived in the private platform repo; paths below are illustrative).
 
 ---
 
@@ -31,7 +31,7 @@ Add to `docker-compose.prod.yml` for the app's service:
 environment:
   PLEXO_URL: http://plexo-api:3001                 # internal Docker DNS
   PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}           # from your infra .env
-  NEXT_PUBLIC_PLEXO_URL: https://getplexo.com       # public, for client-side OAuth popups
+  NEXT_PUBLIC_PLEXO_URL: https://<your-app-domain>  # public, for client-side OAuth popups
   NEXT_PUBLIC_PLEXO_PANEL_URL: https://plexo.example.com      # optional
 ```
 
@@ -43,7 +43,7 @@ The app must be on the `internal` Docker network to resolve `plexo-api`.
 
 ## 2. Plexo Client (server-side only)
 
-Copy `/opt/plexo/apps/levio/src/lib/plexo/client.ts` into your app's `src/lib/plexo/client.ts`.
+Copy `apps/levio/src/lib/plexo/client.ts` from the reference implementation into your app's `src/lib/plexo/client.ts`.
 It needs no changes — it reads `PLEXO_URL` and `PLEXO_SERVICE_KEY` from the environment.
 
 ```typescript
@@ -54,7 +54,7 @@ const workspaceId = await plexo.ensureWorkspace(userId, userEmail)
 
 // List all active connections for the workspace
 const connections = await plexo.getInstalledConnections(workspaceId)
-// → [{ id, registryId: 'google-workspace', name: 'user@gmail.com', status: 'active', ... }]
+// → [{ id, registryId: 'google-workspace', name: 'user@example.com', status: 'active', ... }]
 
 // Get decrypted OAuth token for a provider
 const token = await plexo.getToken(workspaceId, 'google-workspace')
@@ -62,7 +62,7 @@ const token = await plexo.getToken(workspaceId, 'google-workspace')
 
 // Build OAuth popup URL (open in frontend)
 const url = plexo.oauthPopupUrl('google', workspaceId)
-// → https://getplexo.com/api/oauth/google/start?workspaceId=...
+// → https://<your-app-domain>/api/oauth/google/start?workspaceId=...
 ```
 
 All methods use `Authorization: Bearer <PLEXO_SERVICE_KEY>` + `X-App-Id: <slug>`.
@@ -247,15 +247,15 @@ The Plexo agent has context of all connected apps via registered profiles.
 your-app:
   container_name: your-app
   build:
-    context: /opt/plexo/apps/your-app
+    context: <your-infra-dir>/apps/your-app
     dockerfile: Dockerfile
     args:
-      NEXT_PUBLIC_PLEXO_URL: https://getplexo.com          # baked at build time
+      NEXT_PUBLIC_PLEXO_URL: https://<your-app-domain>     # baked at build time
       NEXT_PUBLIC_PLEXO_PANEL_URL: https://plexo.example.com
   environment:
     PLEXO_URL: http://plexo-api:3001                        # runtime, internal
     PLEXO_SERVICE_KEY: ${PLEXO_SERVICE_KEY}
-    NEXT_PUBLIC_PLEXO_URL: https://getplexo.com            # also needed at runtime
+    NEXT_PUBLIC_PLEXO_URL: https://<your-app-domain>       # also needed at runtime
   networks:
     - internal                                              # must match plexo-api network
 ```

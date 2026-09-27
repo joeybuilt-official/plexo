@@ -48,3 +48,14 @@ jobs:
       # Secret scan — the repo ships .gitleaks.toml, so this gate is real.
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
+
+      # Infrastructure-identifier scan — complements the secret scan. Finds
+      # deploy-host paths, ssh root@ targets, internal hostnames, personal
+      # emails, and hardcoded prod IPs (NOT credentials, so gitleaks misses
+      # them). The canary step proves detection before trusting a clean result.
+      # Keep this on a GitHub-hosted runner — never add a pull_request trigger
+      # to a self-hosted workflow in a public repo (fork-PR RCE surface).
+      - name: Infra-identifier scan (canary)
+        run: sh scripts/scan-infra-identifiers.sh --canary
+      - name: Infra-identifier scan
+        run: sh scripts/scan-infra-identifiers.sh

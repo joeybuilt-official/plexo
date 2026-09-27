@@ -33,7 +33,7 @@ setup('authenticate', async ({ page, baseURL }) => {
 
     // Path 1 — inject a pre-provisioned session token, no login flow.
     if (SESSION_COOKIE) {
-        const base = process.env.E2E_BASE_URL ?? baseURL ?? 'https://app.getplexo.com'
+        const base = process.env.E2E_BASE_URL ?? baseURL ?? 'https://app.example.com'
         const host = process.env.E2E_COOKIE_DOMAIN ?? new URL(base).hostname
         const secure = base.startsWith('https')
         fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })

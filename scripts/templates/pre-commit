@@ -20,4 +20,13 @@ if [ -f scripts/sync-agents.sh ]; then
   echo "pre-commit: agent mirrors…"; sh scripts/sync-agents.sh --check
 fi
 
+# Infrastructure-identifier scan — this repo is PUBLIC. Blocks deploy-host paths,
+# ssh root@ targets, internal telemetry hostnames, personal emails, and hardcoded
+# prod IPs from being committed. Canary self-test proves detection before trusting
+# a clean result. (CI mirror: .github/workflows/infra-scan.yml.)
+if [ -f scripts/scan-infra-identifiers.sh ]; then
+  echo "pre-commit: infra-identifier scan (canary)…"; sh scripts/scan-infra-identifiers.sh --canary
+  echo "pre-commit: infra-identifier scan…";       sh scripts/scan-infra-identifiers.sh
+fi
+
 echo "pre-commit: OK"

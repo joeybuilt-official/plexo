@@ -21,10 +21,29 @@ I want to...
 git clone https://github.com/joeybuilt-official/plexo.git
 cd plexo
 cp .env.example .env          # configure your local env
-docker compose up -d           # postgres + valkey
 pnpm install
+
+# 1. Bring up the dev profile: postgres + valkey + minio with loopback-only
+#    host ports (127.0.0.1:5432 / :6379 / :3000 / :3001 — never 0.0.0.0).
+docker compose --profile dev -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# 2. Migrate the database. Point DATABASE_URL at the loopback port; the
+#    password is the POSTGRES_PASSWORD from your .env.
+export DATABASE_URL="postgresql://plexo:${POSTGRES_PASSWORD}@localhost:5432/plexo"
+pnpm db:migrate
+
+# 3. Apply the un-journaled hand-SQL migrations (0130+). drizzle skips these
+#    on purpose — without this step the schema is missing columns the app
+#    writes to, and tests fail in confusing ways.
+pnpm db:apply-orphaned
+
+# 4. Run the apps in dev mode.
 pnpm dev
 ```
+
+> `scripts/test-fresh-db.sh` runs this whole chain against a disposable
+> Postgres and asserts the orphan-introduced columns exist — use it to verify a
+> migration change end-to-end.
 
 ## Commands
 

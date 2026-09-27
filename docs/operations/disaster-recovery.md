@@ -143,7 +143,7 @@ Unlike a data-loss scenario, a bad deploy is usually just a code
 rollback:
 
 ```bash
-cd /opt/plexo  # or your self-host clone path
+cd <your-plexo-checkout>  # your self-host clone path
 git log --oneline -20
 git checkout <known-good-sha>
 docker compose build api web migrate

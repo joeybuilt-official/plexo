@@ -1,0 +1,49 @@
+# Infrastructure-identifier scan — blocking guard for a PUBLIC repo.
+#
+# Stock secret scanners (gitleaks/trufflehog) find credentials. They do NOT
+# find infrastructure identifiers: deploy-host filesystem layout, `ssh root@`
+# targets, internal telemetry hostnames, personal emails, hardcoded prod IPs.
+# Those leaked here before the repo went public. scripts/scan-infra-identifiers.sh
+# is the deterministic guard for that class, with a built-in canary self-test.
+#
+# SECURITY: this job runs on ubuntu-latest and is push/dispatch triggered ONLY.
+# It deliberately has NO pull_request trigger. The repo is public, so fork PRs
+# can run workflows; keeping every PR-triggered job off the self-hosted pool
+# (one runner has host Docker socket access) is what closes the RCE surface. Do
+# not move this to a self-hosted runner and do not add a pull_request trigger to
+# any self-hosted workflow. See AGENTS.md → "Enforcement — the honest version".
+
+name: infra-scan
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: infra-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Prove the scanner detects a seeded fake identifier and goes quiet when it
+      # is removed. A zero-findings run without this canary proof is worthless —
+      # a broken scanner produced a false green on this repo before.
+      - name: Canary self-test (detection is real)
+        run: sh scripts/scan-infra-identifiers.sh --canary
+
+      # The actual gate. ubuntu-latest ships ripgrep; force the grep backend in a
+      # second pass so both code paths are proven to catch identifiers.
+      - name: Scan tracked files (ripgrep backend)
+        run: sh scripts/scan-infra-identifiers.sh
+
+      - name: Scan tracked files (grep backend)
+        run: SCAN_BACKEND=grep sh scripts/scan-infra-identifiers.sh
