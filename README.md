@@ -1,193 +1,343 @@
 <div align="center">
   <h1>Plexo</h1>
   <p><strong>The open-source AI agent platform.</strong></p>
-  <p>Autonomous task execution with persistent memory, intelligent model routing, and a self-extending extension system. Describe an objective — Plexo plans, executes, and delivers.</p>
+  <p>Autonomous task execution with persistent memory, intelligent model routing, and a self-extending extension system. Describe an objective — Plexo plans, executes, judges, and remembers.</p>
 
-  <a href="https://github.com/joeybuilt-official/plexo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
-  <a href="https://github.com/joeybuilt-official/plexo/releases"><img src="https://img.shields.io/github/v/release/joeybuilt-official/plexo?label=version" alt="Version" /></a>
-  <a href="https://hub.getplexo.com"><img src="https://img.shields.io/badge/Hub-marketplace-blueviolet" alt="Hub" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT" /></a>
+  <a href="https://github.com/joeybuilt-official/plexo/releases"><img src="https://img.shields.io/github/v/release/joeybuilt-official/plexo?label=SDK%20release" alt="SDK release" /></a>
   <a href="https://getplexo.com"><img src="https://img.shields.io/badge/Cloud-getplexo.com-brightgreen" alt="Cloud" /></a>
 
   <p>
     <a href="https://getplexo.com"><strong>Cloud (Managed)</strong></a> ·
     <a href="#quick-start-self-host"><strong>Self-Host</strong></a> ·
     <a href="#features"><strong>Features</strong></a> ·
-    <a href="https://hub.getplexo.com"><strong>Extension Hub</strong></a> ·
     <a href="https://github.com/joeybuilt-official/plexo/discussions"><strong>Community</strong></a>
   </p>
 </div>
 
-<!-- Screenshot: Full dashboard view showing a completed task with tool calls, the conversation sidebar, and the memory panel. Ideally 1200x700px, dark mode. -->
+Plexo is a self-hostable platform for running AI agents that actually execute work rather than only chatting with you. You give it an objective; a Postgres-backed queue claims it, a planner produces steps, an executor runs those steps with tools (shell, files, web, workspace, MCP, connectors), an independent judge scores the result, and the outcome is written to long-term memory. Bring your own model keys.
+
+## Table of contents
+
+- [Features](#features)
+- [Cloud vs Self-Host](#cloud-vs-self-host)
+- [Requirements](#requirements-self-host)
+- [Quick start (self-host)](#quick-start-self-host)
+- [Configuration](#configuration)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Extensions](#extensions-pex)
+- [Surfaces](#surfaces)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Known gaps](#known-gaps)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
-- **Intelligent Model Routing** — Configure a primary provider and fallback chain per task type. Per-model reliability scoring learns which providers work best. Supports 17+ providers including Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, and any OpenAI-compatible endpoint.
-- **Semantic Context Lattice (SCL)** — A persistent knowledge graph built from completed tasks. Concepts extracted via LLM, embedded, stored in a Golden Record. Drift detection warns when domain patterns shift. Ghost archival removes stale concepts. [Learn more](https://getplexo.com#scl)
-- **Persistent Memory** — Task outcomes, user instructions, and behavioral patterns stored with pgvector embeddings. Tiered storage (hot/active/cold). Semantic search via HNSW index. Per-agent namespaces with a shared cross-agent knowledge layer.
-- **PEX Extension System** — Six extension types: Agents, Skills, Channels, Tools, Connectors, and MCP Servers. Browse and install from the [Extension Hub](https://hub.getplexo.com). Build your own with the PEX SDK. [Learn more](https://getplexo.com#pex)
-- **Self-Extending Agent** — Request an integration that doesn't exist and the agent scrapes the API docs, generates a valid PEX extension, registers the connection UI, and activates it — within a single task.
-- **Model Foundry** — Train custom models from your collected inference data. Fine-tune on your domain, deploy locally or to a provider.
-- **Independent Quality Judge** — A separate model evaluates every task output. Ensemble mode runs multiple local judges via Ollama with weighted consensus.
-- **One-Way Door Approvals** — Irreversible actions require human approval. Standing approvals for trusted operations. Configurable escalation timeout per workspace.
-- **Project Decomposition (Sprints)** — Describe a project and Plexo decomposes it into parallel tasks with dependency-aware wave scheduling. Per-task branches, draft PRs, conflict detection, budget ceilings.
-- **Multi-Channel Access** — Web dashboard, Telegram (text + voice), Slack, Discord, REST API, and embeddable widget.
-- **BYOK** — Bring your own API keys. No vendor lock-in. Pay providers directly.
+**Agent execution core**
+- Plan → execute → judge loop with a live step stream over SSE.
+- Independent quality judge; ensemble mode runs multiple local Ollama judges with weighted consensus and caps unverified output.
+- One-way-door approvals: irreversible and outbound actions pause the task until a human approves from the dashboard or CLI. Per-workspace escalation timeout.
+- Mid-run steering, message injection and clarification requests against a running task.
+- Code work in a cloned repository: SSH deploy key → shallow clone into an isolated temp dir → scope-file priming → file tree, content, diff and terminal panels in the workbench.
+- Per-task isolated working directory, tool-output ceilings, side-effect checks, a per-task cost ceiling (workspace setting / `tasks.costCeilingUsd`) and a workspace-wide weekly spend ceiling (`API_COST_CEILING_USD`, default 10.00 in the installer).
+
+**Model routing (BYOK)**
+- 20 built-in provider keys — OpenRouter, Anthropic (including subscription), OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Together, Fireworks, Perplexity, Cerebras, SambaNova, Cohere, Cloudflare, Ollama, Ollama Cloud, LiteLLM, fal — plus custom OpenAI-compatible endpoints.
+- Per-task-type routing chains with fallback options, lane limiting, error classification, and reliability scoring learned from observed results.
+- Managed Ollama sidecar (compose profile `local-llm`) for local inference.
+- OpenAI-compatible inference proxy for trusted background apps, with per-app spend attribution.
+
+**Memory**
+- pgvector-backed entries with structured fact columns (fact type, subject/predicate/object, domain, scope, validity window, confidence, retrieval count).
+- Hot / active / cold tiers with promotion on retrieval, eviction settings, confidence decay and consolidation.
+- Per-agent namespaces plus a shared cross-agent layer; corrections, preferences, instruction detection, prompt-improvement proposals and a self-improvement cycle.
+- Automatic extraction after each turn via Inngest durable functions.
+- Semantic search runs when an OpenAI-compatible embeddings endpoint is reachable at `EMBEDDINGS_URL`; otherwise memory search falls back to keyword matching. No embeddings service is bundled.
+
+**Extensions (PEX)**
+- Five live extension types — `skill`, `channel`, `tool`, `connector`, `agent` — with a manifest and capability model, validated on install.
+- Install, enable, disable, upgrade, uninstall, sideload, install-from-URL (SSRF-guarded allowlist), and a sandboxed persistent worker pool.
+- Self-extending agent: `synthesize_extension` scrapes API docs, generates an ESM extension plus manifest under a capability allowlist, registers the connection UI, and activates it inside a single task.
+- MCP as a **client** is fully wired (auto-discovery of an installed MCP server's tools). The bundled MCP **server** package exists but nothing starts it by default.
+
+**Connections and integrations**
+- Registry of 24 connections; 13 have real behaviour and 11 are explicit stubs (`stub: true` in `packages/agent/src/connections/registry.ts`) that return `[NOT YET IMPLEMENTED]`. Dedicated factories exist for `ssh`, `mcp`, `levio` and `google-workspace`.
+- Credentials pasted into chat are detected, encrypted at rest (AES-256-GCM) and auto-installed as a connection.
+- GitHub App webhook → executor tasks (push, pull_request, issues, issue_comment) with signature verification.
+- Per-workspace inbound webhooks with HMAC and a 256 KB body cap.
+- Local bridge nodes for desktop filesystem and shell devices.
+
+**Operations**
+- Postgres backup sidecar with interval and retention, Caddy automatic TLS under `--profile selfhosted`, memory limits on the long-running services, log rotation.
+- Prometheus metrics, SLO and budget alerts, health monitor, error ring, onboarding canary, stabilization agents.
+- Analytics with consent, sanitization and opt-out — see [ANALYTICS.md](ANALYTICS.md).
+- Stripe billing is implemented but inert without `STRIPE_SECRET_KEY`.
 
 ## Cloud vs Self-Host
 
 | | Cloud | Self-Host |
 |---|---|---|
-| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `docker compose --profile selfhosted --profile object-storage up -d` |
+| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `scripts/install.sh --domain=…` |
 | **Infrastructure** | Managed for you | Your servers, your data |
-| **Updates** | Automatic | Pull and restart |
+| **Updates** | Automatic | `git pull && docker compose --profile selfhosted --profile object-storage up -d --build` |
 | **Best for** | Getting started fast | Full control, air-gapped environments |
 
-Both options have feature parity. The cloud version adds managed backups and zero-config TLS.
+The managed cloud runs a separate private codebase with its own overlay on top of this repository — it is **not** feature-identical to the open-source tree. Everything documented in this README is what the OSS repository actually ships. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSING.md](LICENSING.md).
 
 ## Requirements (Self-Host)
 
 | | Minimum | Recommended |
 |---|---|---|
 | **CPU** | 2 vCPU | 4 vCPU |
-| **RAM** | 4 GB | 8 GB |
+| **RAM** | 2 GB | 8 GB |
 | **Disk** | 20 GB | 40 GB |
-| **OS** | Ubuntu 22.04+, Debian 12+ | Same |
+| **OS** | Ubuntu 22.04+, Debian 12+ (Linux/macOS/WSL2 for development) | Same |
 | **Docker** | 24.0+ | Latest |
-| **Docker Compose** | 2.20+ | Latest |
+| **Docker Compose** | v2.20+ | Latest |
 
-A small cloud VM or a home server in that class handles it comfortably.
+Development additionally needs Node ≥ 22 and pnpm 10.30.3 (both pinned in `package.json`).
 
-## Quick Start (Self-Host)
+## Quick start (self-host)
 
-**One-liner:**
+**Installer** (generates secrets into `.env`, then brings the stack up behind Caddy with TLS):
+
+```bash
+git clone https://github.com/joeybuilt-official/plexo.git
+cd plexo
+bash scripts/install.sh --domain=plexo.yourdomain.com
+```
+
+Or without cloning:
+
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/joeybuilt-official/plexo/main/scripts/install.sh) --domain=plexo.yourdomain.com
 ```
 
-**Manual:**
-```bash
-git clone https://github.com/joeybuilt-official/plexo.git
-cd plexo
-cp .env.example .env    # configure your secrets
-docker compose --profile selfhosted --profile object-storage up -d
+`--domain` is required. The script generates every secret the API needs — including `AUTH_DATABASE_URL` (the Better Auth DSN; Better Auth shares the Postgres database in its own schema) — writes them to `.env`, and starts the stack with both required profiles. Re-running it regenerates `POSTGRES_PASSWORD`, which will not match an existing database volume — use `--force` only if you mean to start over.
+
+**Manual.** `docker-compose.yml` interpolates several variables with no defaults, so `cp .env.example .env && docker compose up -d` does not boot a working stack on its own. Either run `install.sh`, or set at minimum:
+
+```
+POSTGRES_PASSWORD  REDIS_PASSWORD  SESSION_SECRET  ENCRYPTION_SECRET
+AUTH_SECRET        PUBLIC_URL  PUBLIC_DOMAIN
+STORAGE_ACCESS_KEY STORAGE_SECRET_KEY  INNGEST_SIGNING_KEY  INNGEST_EVENT_KEY
 ```
 
-> A bare `docker compose up -d` publishes no web port and starts no object
-> storage — the stack comes up unreachable. The two profiles above (Caddy +
-> MinIO) are the supported self-host invocation; see
-> [docs/self-host.md](docs/self-host.md).
+`.env.example` and `.env.full.example` document `AUTH_DATABASE_URL` but leave it commented out: `docker-compose.yml` defaults it to the compose-internal DSN (`postgresql://plexo:…@plexo-db:5432/plexo`) on both the `api` and `web` services. Set it explicitly only when Postgres runs outside Compose. Then:
 
-The setup wizard walks you through connecting an AI provider.
+```bash
+docker compose --profile selfhosted --profile object-storage up -d --build
+```
 
-**Login-first by default.** A self-host install lands users on `/login` —
-no marketing chrome, no getplexo.com landing page. Set
-`PLEXO_MARKETING_ENABLED=true` only if you want to mirror the public
-getplexo.com landing for your own brand at `/`. `/privacy` and `/terms`
-stay reachable either way.
+> A bare `docker compose up -d` publishes no web-facing port and starts no object storage — the stack comes up unreachable. `selfhosted` starts Caddy on 80/443 and `object-storage` starts MinIO, which the API's default `STORAGE_ENDPOINT` (`http://minio:9000`) points at. Those two profiles are the supported self-host invocation; see [docs/self-host.md](docs/self-host.md). For domainless local development, `docker-compose.dev.yml` publishes loopback-only ports instead: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`, then browse to `http://127.0.0.1:3000`.
 
-## Tech Stack
+Other profiles: `local-llm` starts a managed Ollama sidecar. The one-shot `migrate` service applies Drizzle migrations — plus the un-journaled hand-written SQL (0130+) via `APPLY_ORPHANED_SQL=1` — before the API starts, so a Docker install needs no manual migration step. Only if you run migrations yourself against an external database do you need the extra `pnpm db:apply-orphaned` (drizzle-kit skips un-journaled files).
+
+The setup wizard then walks you through connecting an AI provider: open your domain → create your account → Settings ▸ AI Models ▸ add provider → Test → run your first task.
+
+**Login-first by default.** A self-host install lands users on `/login` — no marketing chrome. Set `PLEXO_MARKETING_ENABLED=true` only if you want to mirror the public landing page for your own brand at `/`. `/privacy` and `/terms` stay reachable either way.
+
+**Updates:**
+
+```bash
+git pull origin main && docker compose --profile selfhosted --profile object-storage up -d --build
+```
+
+Migrations re-run automatically through the `migrate` service. Roll back with `git checkout <tag> && docker compose --profile selfhosted --profile object-storage up -d --build`.
+
+## Configuration
+
+`apps/api/src/env.ts` validates the environment at boot and exits 1 if a required variable is missing: `DATABASE_URL`, `REDIS_URL`, `SESSION_SECRET` (≥32 chars), `ENCRYPTION_SECRET` (≥32), `AUTH_DATABASE_URL`, `AUTH_SECRET` (≥20).
+
+Everything else is optional with a safe default. `.env.full.example` and [docs/configuration.md](docs/configuration.md) are the reference. Worth knowing:
+
+- AI provider keys are BYOK and can be added in-app under Settings ▸ AI Models instead of via env.
+- `EMBEDDINGS_URL` defaults to `http://embeddings:3001`, a service this compose file does not define. Point it at any OpenAI-compatible `/v1/embeddings` endpoint to get semantic memory search; leave it unset and memory search falls back to keywords.
+- `API_COST_CEILING_USD`, `MAX_SPRINT_WORKERS`, `DATA_RETENTION_DAYS`, `ALLOW_SIDELOAD` (default false), `DOCKER_SOCKET_ENABLED` (default false, needed for one-click self-update).
+- `ENABLE_SPRINT_CODING_TASKS` is documented in `.env.full.example` as unsafe when enabled; nothing in the current codebase reads it.
+- `STRIPE_SECRET_KEY` — billing returns 503 without it.
+- `SUPER_ADMIN_EMAILS` — an email allowlist, not a database role, gates the admin and debug surfaces. (`/federation` is not behind it; its endpoints use node auth instead.)
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js, React, Tailwind CSS |
-| Backend | Node.js, TypeScript, Express, FastAPI (graph sidecar) |
-| Relational DB | PostgreSQL + pgvector |
-| Graph DB | FalkorDB (per-workspace Cypher graphs) |
-| Knowledge Graph | graphiti-core (temporal extraction) |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4 |
+| Backend | Node.js ≥22, TypeScript, Express 5 |
+| Relational DB | PostgreSQL 16 + pgvector |
 | Cache / Queue | Redis / Valkey |
-| ORM | Drizzle |
-| AI SDK | Vercel AI SDK |
+| Durable functions | Inngest (bundled, Postgres-backed) |
+| Object storage | MinIO (S3 API) |
+| ORM | Drizzle (custom two-pass migrator in `packages/db/src/migrate.ts`) |
+| AI SDK | Vercel AI SDK (`ai@^6`) |
+| Auth | Better Auth |
 | Voice | Deepgram (BYOK) |
+| Edge / TLS | Caddy |
 | Containerization | Docker Compose |
-| Monorepo | Turborepo, pnpm |
+| Monorepo | Turborepo + pnpm workspaces |
+| Clients | Flutter (Android), Electron connect-shell, commander CLI |
+
+Memory is **Postgres-only**. A FalkorDB/graphiti knowledge-graph backend was retired on 2026-06-27 — see [MIGRATING.md](MIGRATING.md). `services/graphiti-sidecar/` is still in the tree and still built in CI, but nothing in the shipped stack calls it.
 
 ## Architecture
 
 ```
-Channels (Web, Telegram, Slack, Discord, API, Widget)
-    |
-    v
-Task Queue (Redis/Valkey)
-    |
-    v
-Planner --> Executor --> Quality Judge
-    |           |
-    |           +--> Memory Store (pgvector + FalkorDB)
-    |           +--> SCL Engine
-    |           +--> Tool Registry / MCP Client
-    |           +--> Extension Synthesizer
-    |           +--> One-Way Door Approvals
-    |
-    +--> Knowledge Graph (per-workspace Cypher graphs)
-    |       Task DAG · Conversation Threads · Memory Lifecycle
-    |       Schema Registry · Observability · Backup/Restore
-    v
-AI Providers (BYOK: Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, +11 more)
+Channels (Web chat · embeddable widget · REST · CLI · MCP client · A2A · GitHub webhook)
+    │
+    ▼
+Task Queue (Postgres-backed, Redis slot leases + heartbeats)
+    │
+    ▼
+Planner ──► Executor ──► Quality Judge
+               │
+               ├──► Memory (pgvector: tiers, namespaces, consolidation)
+               ├──► Tool Registry / MCP Client / Connections
+               ├──► Extension runtime (sandboxed worker pool)
+               ├──► Extension Synthesizer
+               └──► One-Way Door Approvals
+    │
+    ▼
+Provider Router (BYOK chains, fallbacks, reliability scoring)
 ```
 
-## Knowledge Graph Platform
+Monorepo layout:
 
-Plexo runs a shared graph backend ([FalkorDB](https://www.falkordb.com)) behind a [FastAPI](https://fastapi.tiangolo.com) sidecar that powers:
+| Path | Contents |
+|---|---|
+| `apps/api` | Express API, agent loop, routes, repositories, middleware |
+| `apps/web` | Next.js dashboard |
+| `apps/cli` | `plexo` CLI (commander) |
+| `apps/mobile` | Flutter Android client |
+| `apps/desktop` | Electron connect-shell |
+| `packages/agent` | Planner, executor, quality judge, memory, provider routing, plugin runtime |
+| `packages/db` | Drizzle schema and migrator |
+| `packages/queue` | Postgres task queue + Inngest functions |
+| `packages/session-fabric` | Framework-free multi-actor session and runner policy |
+| `packages/{auth,domain,logger,storage,sdk,ui,mcp-server}` | Supporting packages |
+| `extensions/core/*` | Bundled PEX extensions |
+| `docker/` | Dockerfiles, Caddyfile, runner jail, compose copy |
+| `tests/` | unit, integration, e2e, load, chaos |
 
-- **Memory lifecycle** — Episodic node tier transitions (hot → active → cold) and confidence decay run as bulk Cypher `SET` mutations
-- **Task DAG execution** — Sprint task dependencies stored as `(:Task)-[:DEPENDS_ON]->(:Task)`; topological waves and critical-path queries run as native Cypher
-- **Conversation threading** — Messages stored as `(:Message)-[:IN_SESSION]->(:Session)` with `(:Message)-[:NEXT]->(:Message)` sibling chain for O(1) traversal
-- **Per-workspace isolation** — Each workspace owns a Cypher graph (`plexo:<workspace_id>`); multi-tenant via Redis-protocol namespacing
-- **Schema registry** — Per-app YAML schemas validate every write; nightly cardinality reports flag drift
-- **Observability + backup** — 1% sampled latency/lock-wait telemetry; nightly AOF/RDB snapshots with weekly off-host upload
+Dependency direction is enforced mechanically: `.dependency-cruiser.js` carries 15 rules (domain, session-fabric, sdk, logger, storage, queue, auth and db may not import outward; agent core may not import the ORM; API domain/application/routes may not import Drizzle; plus `not-circular`), run as `pnpm arch:check` against a committed ratchet baseline. Ten violations are baselined and tracked, not hidden: seven `agent-core-imports-orm`, one `api-routes-imports-drizzle`, and two import cycles (`packages/db` schema ↔ session-fabric schema, and an SDK type-only cycle).
 
-See [`adr/0016-falkordb-platform-strategy.md`](adr/0016-falkordb-platform-strategy.md) for the full architecture.
+## Extensions (PEX)
 
-## Extension Hub
+An extension is a package with a `plexo.json` manifest declaring its type, capabilities and configuration schema. Manifest validation, host-level gating and capability tokens live in `packages/sdk` (published as `@joeybuilt/plexo-sdk`, spec v0.4.0).
 
-Browse and install community extensions at [hub.getplexo.com](https://hub.getplexo.com).
+Install paths: from a manifest, from a URL (github/raw/gist/npmjs allowlist with private-IP blocking), from a SKILL.md skill file (see [docs/skills.md](docs/skills.md)), or sideloaded when `ALLOW_SIDELOAD=true`. Extensions run in a sandboxed persistent worker pool.
+
+Bundled in `extensions/core/`: `fonto-bridge`, `fylo-bridge`, `koforje-bridge`, `levio-bridge`, `nexalog-bridge`, `research-agent`. The remaining directories (`cron-manager`, `devops-skill`, `github-ops`, `product-skill`, `research-skill`, `slack-channel`, `telegram-channel`) are package.json-only stubs with no implementation.
+
+There is no extension marketplace shipped in this repository — no bundled catalog UI. The plumbing for one exists (`routes/registry.ts` mounted at `/api/v1/registry`, an `extension_registry` table, and the agent's `browse_hub` / `install_extension` tools), so install is by manifest, URL, sideload, or by asking the agent to synthesize an extension.
+
+## Surfaces
+
+- **Web dashboard** — Home, Conversations, Tasks, Memory, AI Models, Your Agent, Live Agents, Extensions, Connections, Settings, Logs, App Grants, Debug; plus `/app/chat`, `/app/workbench`, `/app/intelligence`, `/app/agents/live`.
+- **Embeddable widget** — `GET /api/v1/chat/widget.js` returns a self-contained script; `/embed/{type}` serves iframe panels.
+- **REST API** — mounted in `apps/api/src/index.ts`, prefix `/api/v1` with unversioned aliases; 82 route modules under `apps/api/src/routes/`, 77 of them imported by the server. `apps/api/openapi.yaml` describes only 11 paths — a stub, not the full surface.
+- **CLI** — `apps/cli` (`@plexo/cli`, not published to npm — build and run from source): `auth`, `task {run,list,get,logs,cancel,block,approve}`, `connection`, `extension`, `memory`, `logs`, `status`, `config`, `pax`, `doctor`, `sessions`, `presence`, `attach`, `drive`, `run`, `approve`, `deny`.
+- **MCP client** — consume external MCP servers as tools.
+- **A2A** — `/.well-known/agent.json`, `/api/v1/a2a/agents`, `/api/v1/a2a/:agentId/tasks`.
+- **Mobile** — Flutter thin client for Android (7 screens). Built by Codemagic on `v*` tags. No iOS platform files in this repository.
+- **Desktop** — Electron connect-shell that pairs a local device as a bridge node.
+- **Public share links** — `/s/{shareId}` for artifacts.
+
+Channels: **web chat and the embeddable widget are the working inbound channels.** `apps/api/src/routes/telegram.ts` is present but not mounted in `index.ts`, so its inbound webhook path 404s; Slack and Discord route files were removed and only outbound delivery helpers remain. Gmail polling code exists and is unit-tested but has no channel routes attached.
+
+## Development
+
+```bash
+pnpm install --frozen-lockfile
+
+# local services (compose publishes no host ports by default — use your own
+# Postgres+pgvector and Redis, or docker-compose.dev.yml for loopback-only ports)
+pnpm db:migrate
+pnpm db:apply-orphaned      # un-journaled hand-written SQL (0130+)
+pnpm dev                    # turbo dev → api :3001, web :3000
+```
+
+The API fails fast without the six required env vars. `apps/web` proxies `/api/*` to `INTERNAL_API_URL` (default `http://localhost:3001`).
+
+```bash
+pnpm test               # turbo test — per-package vitest
+pnpm test:unit          # root unit suite
+pnpm test:integration   # needs real Postgres+pgvector and Redis, migrated schema
+pnpm test:e2e           # Playwright against a RUNNING stack
+pnpm e2e:up && pnpm e2e:test && pnpm e2e:down   # ephemeral compose stack
+bash scripts/test-fresh-db.sh                   # full migration chain on a throwaway DB
+
+pnpm typecheck
+pnpm lint
+pnpm format / format:check
+pnpm arch:check         # dependency-cruiser against the committed baseline
+pnpm check:sql-arrays
+sh scripts/sync-agents.sh --check
+sh scripts/check-doc-refs.sh
+pnpm --filter @plexo/db db:check-drift
+```
+
+283 test files: `packages/agent` 109, `apps/api` 93, `tests/e2e` 28, `tests/integration` 19, `apps/web` 12, `packages/session-fabric` 8. Integration tests run in CI against real Postgres and Redis with a per-run isolated database. Most E2E specs never run in CI — the only ones that do are `responsive-visual` and `a11y`, via `visual-regression.yml`, which is explicitly informational and not a required check.
+
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, arch, db-drift, docker-build, the graphiti sidecar probe, unit tests and integration tests — all on **self-hosted runners**, push-to-main only. Every pull request (forks included) instead gets `pr-gate.yml`: a GitHub-hosted `verify` job with the portable subset (SDK build, typecheck, arch, db-drift, unit tests) and the required status context. `ci.yml` stays push-only by design — for a `pull_request` event GitHub resolves the workflow from the merge commit, so a fork would control any self-hosted job body. Run the remaining gates locally and say so in the PR.
+
+Notes: `prebuild` runs `sync-compose` (copies `docker-compose.yml` → `docker/compose.yml`), so a dirty diff there after a build is expected. Install fails if `patches/` is missing — `sharp@0.35.0` is patched. Commits must be signed off (`git commit -s`, DCO).
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) — First task in 5 minutes
-- [Self-Hosting](docs/self-host.md) — Docker Compose setup, env vars, TLS
-- [Skills](docs/skills.md) — Installing and creating SKILL.md skills
-- [A2A](docs/a2a.md) — Connecting external A2A agents
-- [MCP](docs/mcp.md) — MCP server and client usage
-- [Memory](docs/memory.md) — SCL / Workspace Memory explanation
-- [Analytics](ANALYTICS.md) — What telemetry is collected and how to opt out
+- [Getting Started](docs/getting-started.md) — first task
+- [Self-Hosting](docs/self-host.md) — Compose setup, env vars, TLS
+- [Configuration](docs/configuration.md) — full env reference
+- [Skills](docs/skills.md) — installing and creating SKILL.md skills
+- [Plugin SDK](docs/plugin-sdk.md) and [PEX spec](docs/pex/) — building extensions
+- [Memory](docs/memory.md) — workspace memory model
+- [MCP](docs/mcp.md) — server and client usage
+- [A2A](docs/a2a.md) — connecting external agents
+- [FAQ](docs/faq.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md) · [MIGRATING.md](MIGRATING.md) · [ANALYTICS.md](ANALYTICS.md) · [LICENSING.md](LICENSING.md)
 
-## Built With
+## Known gaps
 
-Plexo stands on the shoulders of incredible open-source work. Big thanks to:
+Stated plainly, because the previous version of this README described infrastructure that no longer exists:
 
-- **[FalkorDB](https://www.falkordb.com)** ([repo](https://github.com/FalkorDB/FalkorDB)) — high-performance multi-tenant graph database (Redis-protocol, Cypher, native vector). The shared graph platform behind plexo's memory lifecycle, task DAG, and conversation threading.
-- **[graphiti-core](https://github.com/getzep/graphiti)** by [Zep](https://www.getzep.com) — temporal knowledge graph framework for AI agents. Powers Episodic / Entity extraction over the FalkorDB backend.
-- **[GraphRAG-SDK](https://github.com/FalkorDB/GraphRAG-SDK)** — agentic LLM workflows over FalkorDB (currently evaluating for plexo's planner).
-- **[pgvector](https://github.com/pgvector/pgvector)** — open-source vector similarity search for Postgres. Powers plexo's HNSW-indexed embedding store.
-- **[Drizzle ORM](https://orm.drizzle.team)** ([repo](https://github.com/drizzle-team/drizzle-orm)) — TypeScript SQL toolkit that doesn't get in your way.
-- **[FastAPI](https://fastapi.tiangolo.com)** ([repo](https://github.com/fastapi/fastapi)) + **[Pydantic](https://docs.pydantic.dev)** ([repo](https://github.com/pydantic/pydantic)) — the graph sidecar's request boundary and schema validation.
-- **[Next.js](https://nextjs.org)** + **[React](https://react.dev)** + **[Tailwind CSS](https://tailwindcss.com)** — frontend trio.
-- **[Vercel AI SDK](https://sdk.vercel.ai)** ([repo](https://github.com/vercel/ai)) — provider-agnostic LLM streaming.
-- **[Ollama](https://ollama.com)** ([repo](https://github.com/ollama/ollama)) — local-first inference for the embeddings sidecar.
-- **[snowflake-arctic-embed](https://github.com/Snowflake-Labs/arctic-embed)** — the embedding model running inside the embeddings sidecar.
-- **[Deepgram](https://deepgram.com)** — voice transcription (BYOK).
-- **[Redis](https://redis.io)** / **[Valkey](https://valkey.io)** ([repo](https://github.com/valkey-io/valkey)) — task queue + sidecar transport.
-- **[Inngest](https://www.inngest.com)** ([repo](https://github.com/inngest/inngest)) — durable workflow engine for memory + extract pipelines.
-- **[pino](https://getpino.io)** ([repo](https://github.com/pinojs/pino)) — fast structured logging.
-- **[pnpm](https://pnpm.io)** + **[Turborepo](https://turborepo.com)** ([repo](https://github.com/vercel/turbo)) — monorepo orchestration.
-- **[vitest](https://vitest.dev)** ([repo](https://github.com/vitest-dev/vitest)) + **[Playwright](https://playwright.dev)** ([repo](https://github.com/microsoft/playwright)) — unit and end-to-end testing.
-- **[MCP](https://modelcontextprotocol.io)** — the Model Context Protocol; plexo speaks MCP as both server and client.
+- **No knowledge graph.** FalkorDB and the graphiti memory backend were retired 2026-06-27 (see [MIGRATING.md](MIGRATING.md)). The root `docker-compose.yml` has neither service and no TypeScript code calls the sidecar. The sidecar source (`services/graphiti-sidecar/`) and a stale `docker/compose.yml` copy that still lists them survive, but `prebuild` regenerates that copy from the root file, so it will lose them on the next build.
+- **No Model Foundry.** `foundry_models`, `foundry_shadow_results` and `foundry_training_runs` exist as tables with no readers or writers. The only live piece is read-only training-data export for super-admins.
+- **No sprint decomposition.** The sprint orchestrator was deleted; there is no sprints router and no projects page. Tables and a repository file remain.
+- **No Semantic Context Lattice.** Its tables were dropped; a settings toggle and an eval harness remain.
+- **No bundled embeddings service**, so semantic memory search is keyword search until you supply an `EMBEDDINGS_URL`.
+- **Telegram, Slack, Discord and other channels are not usable inbound.** Web chat and the widget only.
+- **`plexo cron` does not work** — the CLI targets `/api/v1/cron`, which is not mounted. Internal cron jobs still run on their schedules, but there is no API, UI or CLI to manage them.
+- **11 of 24 registry connections are stubs** returning `[NOT YET IMPLEMENTED]`.
+- **Seven bundled extension directories are empty stubs.**
+- **`docker-compose.gpu.yml` is an empty file** left behind after the vision sidecar was removed. Do not expect a GPU profile.
+- **`openapi.yaml` covers 11 paths of the 77 mounted route modules.**
+- Screenshots in `images/` were captured against a populated instance rather than seeded demo data, so they are not used in this README.
+- The `local-llm` compose profile reserves 6 GB for Ollama alone — the RAM figures in [Requirements](#requirements-self-host) are for the base stack without it.
 
-If you build something on top of plexo, send a PR adding it to the [Extension Hub](https://hub.getplexo.com).
+`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, `.claude/`, `.cursor/`, `.windsurf/` and `.clinerules/` are configuration for AI coding agents working in this repository; `.phalanx-automerge/` is an automerge marker and `.pushd.yaml` is a CI vendor build file. None of them are user documentation.
+
+## Built with
+
+Plexo builds on: [pgvector](https://github.com/pgvector/pgvector) · [Drizzle ORM](https://orm.drizzle.team) · [Next.js](https://nextjs.org) · [React](https://react.dev) · [Tailwind CSS](https://tailwindcss.com) · [Express](https://expressjs.com) · [Vercel AI SDK](https://sdk.vercel.ai) · [Better Auth](https://www.better-auth.com) · [Inngest](https://www.inngest.com) · [Ollama](https://ollama.com) · [Deepgram](https://deepgram.com) · [MinIO](https://min.io) · [Caddy](https://caddyserver.com) · [Redis](https://redis.io) / [Valkey](https://valkey.io) · [pino](https://getpino.io) · [pnpm](https://pnpm.io) + [Turborepo](https://turborepo.com) · [vitest](https://vitest.dev) + [Playwright](https://playwright.dev) · [MCP](https://modelcontextprotocol.io) · [Flutter](https://flutter.dev) · [Electron](https://www.electronjs.org).
 
 ## Contributing
 
-Plexo is open source under MIT. Contributions are welcome.
+Plexo is open source under MIT. Contributions are welcome — read [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, commit format, ship gate and DCO sign-off rules.
 
-1. Fork the repository
-2. Create your feature branch
-3. Run tests: `pnpm test`
-4. Open a Pull Request
+1. Fork the repository and create a feature branch.
+2. Run the gates locally: `pnpm test`, `pnpm typecheck`, `pnpm arch:check`, `pnpm build`.
+3. Sign off your commits (`git commit -s`).
+4. Open a pull request — the hosted `verify` gate runs on all PRs, including forks; the self-hosted suite does not.
+
+Report vulnerabilities per [SECURITY.md](SECURITY.md) — do not open a public issue.
 
 ## License
 
-[MIT](LICENSE) — Use, modify, and self-host freely with attribution. The entire repository is MIT; there is no copyleft subtree. See [LICENSING.md](LICENSING.md).
+[MIT](LICENSE) — Copyright (c) 2026 Joeybuilt LLC. Use, modify, distribute and self-host freely, provided the copyright and permission notices are retained.
+
+The entire repository is MIT — every app, package, extension and service. There is no copyleft subtree and no dual-licensing arrangement. See [LICENSING.md](LICENSING.md).
 
 ---
 
