@@ -45,5 +45,6 @@ as the file(s) you change — MIT throughout. Contributions are accepted under t
 
 ## Joeybuilt Managed Service
 
-Joeybuilt operates a managed SaaS instance of Plexo from a separate private
-codebase. That overlay is not part of this repository.
+Joeybuilt previously operated a managed SaaS instance of Plexo from a separate
+private codebase. That overlay is not part of this repository, and the managed
+service is no longer running. This repository is self-host only.
