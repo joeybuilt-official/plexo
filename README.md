@@ -5,15 +5,29 @@
 
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT" /></a>
   <a href="https://github.com/joeybuilt-official/plexo/releases"><img src="https://img.shields.io/github/v/release/joeybuilt-official/plexo?label=SDK%20release" alt="SDK release" /></a>
-  <a href="https://getplexo.com"><img src="https://img.shields.io/badge/Cloud-getplexo.com-brightgreen" alt="Cloud" /></a>
+  <a href="#project-status--future-development-is-uncertain"><img src="https://img.shields.io/badge/status-development%20paused-lightgrey" alt="Status: development paused" /></a>
 
   <p>
-    <a href="https://getplexo.com"><strong>Cloud (Managed)</strong></a> ·
     <a href="#quick-start-self-host"><strong>Self-Host</strong></a> ·
     <a href="#features"><strong>Features</strong></a> ·
+    <a href="#project-status--future-development-is-uncertain"><strong>Project status</strong></a> ·
     <a href="https://github.com/joeybuilt-official/plexo/discussions"><strong>Community</strong></a>
   </p>
 </div>
+
+> ### Project status — future development is uncertain
+>
+> Plexo was built to be the intelligence layer behind my own apps. Since then I've
+> moved to [Hermes Agent](https://github.com/NousResearch/hermes-agent), which covers
+> most of what I'd planned to build here — so I'm not sure whether I'll continue
+> developing Plexo.
+>
+> **What that means in practice:**
+> - The code stays here, MIT-licensed and self-hostable. Nothing is being pulled.
+> - The hosted SaaS is offline; self-hosting is the supported path.
+> - Issues and PRs may go unanswered for now.
+>
+> If it's useful to you, fork it and take it wherever you want.
 
 Plexo is a self-hostable platform for running AI agents that actually execute work rather than only chatting with you. You give it an objective; a Postgres-backed queue claims it, a planner produces steps, an executor runs those steps with tools (shell, files, web, workspace, MCP, connectors), an independent judge scores the result, and the outcome is written to long-term memory. Bring your own model keys.
 
@@ -78,14 +92,17 @@ Plexo is a self-hostable platform for running AI agents that actually execute wo
 
 ## Cloud vs Self-Host
 
+> **The managed cloud is offline.** The comparison below records how the two were
+> structured; only the Self-Host column describes something you can use today.
+
 | | Cloud | Self-Host |
 |---|---|---|
-| **Setup** | Sign up at [getplexo.com](https://getplexo.com) | `scripts/install.sh --domain=…` |
+| **Setup** | Sign up at getplexo.com *(offline)* | `scripts/install.sh --domain=…` |
 | **Infrastructure** | Managed for you | Your servers, your data |
 | **Updates** | Automatic | `git pull && docker compose --profile selfhosted --profile object-storage up -d --build` |
 | **Best for** | Getting started fast | Full control, air-gapped environments |
 
-The managed cloud runs a separate private codebase with its own overlay on top of this repository — it is **not** feature-identical to the open-source tree. Everything documented in this README is what the OSS repository actually ships. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSING.md](LICENSING.md).
+The managed cloud ran a separate private codebase with its own overlay on top of this repository — it was **not** feature-identical to the open-source tree. That overlay is not part of this repository and is no longer operated. Everything documented in this README is what the OSS repository actually ships. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSING.md](LICENSING.md).
 
 ## Requirements (Self-Host)
 
