@@ -241,7 +241,7 @@ There is no extension marketplace shipped in this repository — no bundled cata
 - **CLI** — `apps/cli` (`@plexo/cli`, not published to npm — build and run from source): `auth`, `task {run,list,get,logs,cancel,block,approve}`, `connection`, `extension`, `memory`, `logs`, `status`, `config`, `pax`, `doctor`, `sessions`, `presence`, `attach`, `drive`, `run`, `approve`, `deny`.
 - **MCP client** — consume external MCP servers as tools.
 - **A2A** — `/.well-known/agent.json`, `/api/v1/a2a/agents`, `/api/v1/a2a/:agentId/tasks`.
-- **Mobile** — Flutter thin client for Android (7 screens). Built by Codemagic on `v*` tags. No iOS platform files in this repository.
+- **Mobile** — Flutter thin client for Android (7 screens). Release APKs are built and signed by Pushd (`.pushd.yaml`); no iOS platform files in this repository.
 - **Desktop** — Electron connect-shell that pairs a local device as a bridge node.
 - **Public share links** — `/s/{shareId}` for artifacts.
 

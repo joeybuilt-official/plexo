@@ -64,13 +64,22 @@ from it at build time.
 `win.icon` in `electron-builder.yml` to `build/icon.ico`. The bundled PNG is a
 functional placeholder only.
 
-## CI (Pushd)
+## CI
 
-Pushd builds the Windows artifacts on a Windows worker with:
+**The Windows installer is not built in CI today.** `.pushd.yaml` is the only
+release pipeline in this repository, and it defines a single `android-release`
+build — there is no Windows job. The one that used to produce these artifacts
+lived in the now-deleted `codemagic.yaml` and has no replacement. Build and ship
+the installer by hand:
 
 ```bash
 pnpm --filter @plexo/desktop run dist
 ```
 
-`publish: null` in `electron-builder.yml` means no auto-update feed and no
-artifact publishing — Pushd collects the files from `apps/desktop/dist/`.
+Outputs land in `apps/desktop/dist/`. `publish: null` in `electron-builder.yml`
+means no auto-update feed and no artifact publishing, so the `.exe` files must be
+distributed manually.
+
+Restoring this to CI means adding a Windows build to `.pushd.yaml` (or an
+equivalent pipeline) that runs the command above on a Windows worker — the
+`android-release` build in that file is the shape to copy.
