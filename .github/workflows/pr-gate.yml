@@ -27,10 +27,16 @@
 # WHAT IT RUNS
 # ------------
 # Only the portable checks from ci.yml — those with no `services:` block, no
-# `docker run`, and no secret. `lint` is deliberately NOT included here: it is
-# currently failing on main (36 dead doc references found by
-# scripts/check-doc-refs.sh), and requiring a red check would block every PR.
-# Fix lint on main, then add it here.
+# `docker run`, and no secret. `lint` is deliberately NOT included here.
+#
+# The historical reason it was left out — `scripts/check-doc-refs.sh` failing on
+# main with 35 dead doc references — is fixed: the `docs/claude/` knowledge-base
+# spine it was citing now exists and the gate is green. It is still not added
+# here, for a different reason: the `lint` job in ci.yml is more than `pnpm lint`
+# (it also runs `check:sql-arrays`, `sync-agents.sh --check`, and
+# `check-doc-refs.sh`), so promoting it means deciding those three portable
+# checks are wanted on fork PRs too. That is a deliberate follow-up, not an
+# oversight — see in-progress.md.
 name: PR gate
 
 on:
